@@ -205,6 +205,11 @@ export default function MapCanvas({
   const roomMeshes    = useRef<Map<string, THREE.Mesh>>(new Map())
   const css2dObjects  = useRef<CSS2DObject[]>([])
   const pointerStart  = useRef({ x: 0, y: 0 })
+  const onRoomClickRef = useRef(onRoomClick)
+
+  useEffect(() => {
+    onRoomClickRef.current = onRoomClick
+  }, [onRoomClick])
 
   const exhibitMap = useMemo(
     () => Object.fromEntries(exhibits.map((e) => [e.room_object ?? '', e])),
@@ -431,7 +436,7 @@ export default function MapCanvas({
         while (obj.parent && !roomMeshes.current.has(obj.name)) {
           obj = obj.parent
         }
-        onRoomClick(obj.name)
+        onRoomClickRef.current(obj.name)
       }
     }
     el.addEventListener('pointerdown', onPointerDown)

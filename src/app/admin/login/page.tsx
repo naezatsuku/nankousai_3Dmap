@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AdminLogin() {
@@ -78,6 +79,19 @@ export default function AdminLogin() {
           >
             {loading ? 'ログイン中…' : 'ログイン'}
           </button>
+        </div>
+
+        {/* サインアップリンク */}
+        <div style={{ textAlign:'center', marginTop:20 }}>
+          <span style={{ fontSize:12, color:'rgba(255,255,255,0.3)', fontFamily:"'Kiwi Maru',serif" }}>
+            アカウントをお持ちでない方は
+          </span>
+          <Link href="/admin/signup" style={{
+            fontSize:12, color:'#FFAA28', fontWeight:700,
+            textDecoration:'none', marginLeft:6, fontFamily:"'Kiwi Maru',serif",
+          }}>
+            新規登録 →
+          </Link>
         </div>
       </div>
     </div>

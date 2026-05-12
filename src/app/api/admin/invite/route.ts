@@ -15,7 +15,11 @@ export async function POST(request: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 
-  const { error } = await supabase.auth.admin.inviteUserByEmail(email)
+  // 招待メールのリンクをクリックすると /auth/callback に飛ぶよう設定
+  const siteUrl = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? ''
+  const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${siteUrl}/auth/callback`,
+  })
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

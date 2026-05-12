@@ -9,6 +9,7 @@ import type { Profile } from '@/types'
 const NAV = [
   { href:'/admin',          icon:'⊞', label:'ダッシュボード' },
   { href:'/admin/edit',     icon:'✏',  label:'展示編集' },
+  { href:'/admin/notices',  icon:'🔔', label:'お知らせ管理' },
   { href:'/admin/users',    icon:'👥', label:'権限管理',   adminOnly:true },
   { href:'/admin/exhibits', icon:'🏫', label:'団体管理',   adminOnly:true },
 ]
@@ -24,9 +25,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       supabase.from('profiles').select('*').eq('id', user.id).single()
-        .then(({ data }) => { if (data) setProfile(data as Profile) })
+        .then(({ data }) => {
+          if (data) {
+            const p = data as Profile
+            setProfile(p)
+            // 名前未設定＝初回ログイン → プロフィール設定へ誘導
+            if (!p.name && pathname !== '/admin/profile') {
+              router.push('/admin/profile?welcome=1')
+            }
+          }
+        })
     })
-  }, [])
+  }, [pathname, router])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -125,7 +135,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* ユーザー情報 */}
         <div style={{ padding:'16px', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <Link href="/admin/profile" onClick={()=>setMobileOpen(false)} style={{
+            display:'flex', alignItems:'center', gap:10, textDecoration:'none',
+            padding:'6px 4px', borderRadius:10,
+            background: pathname==='/admin/profile' ? 'rgba(255,107,0,0.12)' : 'transparent',
+          }}>
             <div style={{
               width:36, height:36, borderRadius:'50%', flexShrink:0,
               background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
@@ -136,10 +150,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:1 }}>{displayName}</div>
-              <div style={{
-                fontSize:10, color:'rgba(255,255,255,0.4)',
-                display:'flex', alignItems:'center', gap:4,
-              }}>
+              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', display:'flex', alignItems:'center', gap:4 }}>
                 <span style={{
                   background: isAdmin ? 'rgba(255,107,0,0.3)' : 'rgba(255,255,255,0.1)',
                   color: isAdmin ? '#FF8C00' : 'rgba(255,255,255,0.5)',
@@ -147,11 +158,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 }}>
                   {isAdmin ? 'ADMIN' : 'EDITOR'}
                 </span>
+                <span style={{ color:'rgba(255,255,255,0.25)', fontSize:9 }}>プロフィール編集 ›</span>
               </div>
             </div>
-          </div>
+          </Link>
           <button onClick={handleLogout} style={{
-            display:'block', width:'100%', marginTop:12, padding:'8px 0', textAlign:'center',
+            display:'block', width:'100%', marginTop:10, padding:'8px 0', textAlign:'center',
             borderRadius:8, background:'rgba(255,255,255,0.06)',
             color:'rgba(255,255,255,0.4)', fontSize:11,
             fontFamily:"'Kiwi Maru',serif", border:'none', cursor:'pointer',
@@ -202,8 +214,10 @@ function Breadcrumb({ pathname }: { pathname: string }) {
   const MAP: Record<string, string> = {
     '/admin': 'ダッシュボード',
     '/admin/edit': '展示編集',
+    '/admin/notices': 'お知らせ管理',
     '/admin/users': '権限管理',
     '/admin/exhibits': '団体管理',
+    '/admin/profile': 'プロフィール',
   }
   const label = Object.entries(MAP)
     .filter(([path]) => pathname.startsWith(path))

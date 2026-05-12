@@ -19,17 +19,55 @@ const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
 export default function EditListPage() {
   const [exhibits, setExhibits] = useState<Exhibit[]>([])
   const [loading, setLoading]   = useState(true)
+  const [isEditor, setIsEditor] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase
-      .from('exhibits')
-      .select('id, name, class_label, type, room_display, floor, wait_minutes, is_active')
-      .order('floor')
-      .then(({ data }) => {
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      const role = (profile as { role: string } | null)?.role ?? 'editor'
+      setIsEditor(role === 'editor')
+
+      if (role === 'editor') {
+        // editor: 担当展示のみ
+        const { data: assignments } = await supabase
+          .from('exhibit_editors')
+          .select('exhibit_id')
+          .eq('user_id', user.id)
+
+        const ids = (assignments ?? []).map((a: { exhibit_id: string }) => a.exhibit_id)
+
+        if (ids.length === 0) {
+          setExhibits([])
+          setLoading(false)
+          return
+        }
+
+        const { data } = await supabase
+          .from('exhibits')
+          .select('id, name, class_label, type, room_display, floor, wait_minutes, is_active')
+          .in('id', ids)
+          .order('floor')
         if (data) setExhibits(data as Exhibit[])
-        setLoading(false)
-      })
+      } else {
+        // admin: 全展示
+        const { data } = await supabase
+          .from('exhibits')
+          .select('id, name, class_label, type, room_display, floor, wait_minutes, is_active')
+          .order('floor')
+        if (data) setExhibits(data as Exhibit[])
+      }
+
+      setLoading(false)
+    })
   }, [])
 
   if (loading) {
@@ -44,14 +82,23 @@ export default function EditListPage() {
     <div style={{ maxWidth:900 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
         <div>
-          <h2 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', marginBottom:3 }}>展示一覧</h2>
-          <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>クリックして編集・待ち時間更新</div>
+          <h2 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', marginBottom:3 }}>
+            {isEditor ? '担当展示' : '展示一覧'}
+          </h2>
+          <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+            {isEditor ? '担当に割り当てられた展示のみ表示されます' : 'クリックして編集・待ち時間更新'}
+          </div>
         </div>
       </div>
 
       {exhibits.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
-          展示が登録されていません
+        <div style={{
+          textAlign:'center', padding:'60px 0',
+          color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13,
+        }}>
+          {isEditor
+            ? '担当展示がまだ割り当てられていません。管理者に連絡してください。'
+            : '展示が登録されていません'}
         </div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -84,10 +131,7 @@ export default function EditListPage() {
                 </div>
 
                 <div style={{ textAlign:'right', flexShrink:0 }}>
-                  <div style={{
-                    fontSize:18, fontWeight:700, color:WAIT_COLOR(ex.wait_minutes),
-                    fontFamily:"'Kaisei Decol',serif",
-                  }}>
+                  <div style={{ fontSize:18, fontWeight:700, color:WAIT_COLOR(ex.wait_minutes), fontFamily:"'Kaisei Decol',serif" }}>
                     {ex.wait_minutes > 0 ? `${ex.wait_minutes}分` : '−'}
                   </div>
                   <div style={{ fontSize:10, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>待ち</div>

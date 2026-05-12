@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import React, { useState, useCallback, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import ImageUpload from '@/components/ui/ImageUpload'
 
 // ── 型 ────────────────────────────────────────────────────────
 type BodySegment =
@@ -34,6 +35,7 @@ const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
 // ── メインページ ───────────────────────────────────────────────
 export default function ExhibitEditPage() {
   const { id } = useParams<{ id:string }>()
+  const router  = useRouter()
   const [form, setForm]         = useState<ExhibitFormState>(INIT)
   const [tab, setTab]           = useState<'basic'|'quick'>('basic')
   const [loading, setLoading]   = useState(true)
@@ -46,6 +48,23 @@ export default function ExhibitEditPage() {
   // ── データ読み込み ────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient()
+
+    // editor の場合、担当外の展示はリダイレクト
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', user.id).single()
+      if ((profile as { role: string } | null)?.role === 'editor') {
+        const { data: assignment } = await supabase
+          .from('exhibit_editors')
+          .select('exhibit_id')
+          .eq('user_id', user.id)
+          .eq('exhibit_id', id)
+          .single()
+        if (!assignment) { router.push('/admin/edit'); return }
+      }
+    })
+
     supabase
       .from('exhibits')
       .select('*, sections:exhibit_sections(id, heading, body, order_index)')
@@ -73,7 +92,7 @@ export default function ExhibitEditPage() {
         }
         setLoading(false)
       })
-  }, [id])
+  }, [id, router])
 
   const set = useCallback(<K extends keyof ExhibitFormState>(key:K, val:ExhibitFormState[K]) => {
     setForm(f => ({ ...f, [key]:val }))
@@ -212,12 +231,22 @@ export default function ExhibitEditPage() {
             </Card>
 
             <Card title="写真・画像" icon="🖼" style={{ marginTop:16 }}>
-              <FormField label="カバー写真URL">
-                <Input value={form.cover_url} onChange={v=>set('cover_url',v)} placeholder="https://..." />
-              </FormField>
-              <FormField label="宣材写真URL（正方形）">
-                <Input value={form.thumbnail_url} onChange={v=>set('thumbnail_url',v)} placeholder="https://..." />
-              </FormField>
+              <ImageUpload
+                label="カバー写真（横長）"
+                value={form.cover_url}
+                onChange={v => set('cover_url', v)}
+                storagePath={`exhibits/${id}/cover`}
+                aspect="wide"
+              />
+              <div style={{ marginTop: 14 }}>
+                <ImageUpload
+                  label="宣材写真（正方形）"
+                  value={form.thumbnail_url}
+                  onChange={v => set('thumbnail_url', v)}
+                  storagePath={`exhibits/${id}/thumbnail`}
+                  aspect="square"
+                />
+              </div>
             </Card>
 
             <Card title="本文セクション" icon="📖" style={{ marginTop:16 }}>
@@ -246,9 +275,9 @@ export default function ExhibitEditPage() {
                   { label:'1組あたり', val:form.time_per_group, key:'time_per_group' as const, unit:'分', min:1 },
                   { label:'待ち組数',   val:form.queue_count,   key:'queue_count'   as const, unit:'組', min:0 },
                 ].map((item, idx) => (
-                  <>
-                    {idx > 0 && <div key={`op${idx}`} style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>}
-                    <div key={item.key} style={{ flex:1, textAlign:'center' }}>
+                  <React.Fragment key={item.key}>
+                    {idx > 0 && <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>}
+                    <div style={{ flex:1, textAlign:'center' }}>
                       <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>{item.label}</div>
                       <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
                         <button onClick={()=>set(item.key, Math.max(item.min, item.val-1))} style={calcBtnStyle}>−</button>
@@ -257,7 +286,7 @@ export default function ExhibitEditPage() {
                       </div>
                       <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>{item.unit}</div>
                     </div>
-                  </>
+                  </React.Fragment>
                 ))}
                 <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>=</div>
                 <div style={{ flex:1, textAlign:'center' }}>

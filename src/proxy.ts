@@ -29,15 +29,17 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-  const isLoginPage = pathname === '/admin/login'
+  // 認証不要なページ（ログイン・新規登録）
+  const isPublicPage = pathname === '/admin/login' || pathname === '/admin/signup'
 
-  if (!user && !isLoginPage) {
+  if (!user && !isPublicPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/admin/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && isLoginPage) {
+  // ログイン済みで公開ページにアクセス → ダッシュボードへ
+  if (user && isPublicPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/admin'
     return NextResponse.redirect(url)
