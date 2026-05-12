@@ -67,6 +67,8 @@ export interface Exhibit {
   thumbnail_url?: string
   /** 詳細ページ背景写真 URL */
   cover_url?: string
+  /** 待ち時間機能を使うか */
+  has_wait_time?: boolean
   /** 現在の待ち時間（分）*/
   wait_minutes: number
   is_active: boolean

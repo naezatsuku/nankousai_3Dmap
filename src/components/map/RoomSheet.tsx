@@ -39,7 +39,7 @@ import Link        from 'next/link'
 import { Exhibit } from '@/types'
 
 interface RoomSheetProps {
-  exhibit:     Exhibit | null
+  exhibits:    Exhibit[]
   roomDisplay: string
   floor:       number
   onClose:     () => void
@@ -65,12 +65,12 @@ const waitLabel = (min: number) =>
   min === 0 ? '待ちなし' : `約 ${min} 分`
 
 export default function RoomSheet({
-  exhibit,
+  exhibits,
   roomDisplay,
   floor,
   onClose,
 }: RoomSheetProps) {
-  const open = exhibit !== null
+  const open = exhibits.length > 0
 
   return (
     <>
@@ -103,7 +103,6 @@ export default function RoomSheet({
           transform:     open ? 'translateY(0)' : 'translateY(100%)',
           transition:    'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)',
           willChange:    'transform',
-          // セーフエリア（iPhone ホームバー）
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
@@ -112,140 +111,170 @@ export default function RoomSheet({
           <div style={{ width:40, height:6, borderRadius:99, background:'#f0f0f0' }} />
         </div>
 
-        {exhibit && (
+        {open && (
           <div style={{ padding:'0 20px 32px' }}>
 
             {/* 閉じるボタン */}
             <button
               onClick={onClose}
               style={{
-                position:        'absolute',
-                top:             14,
-                right:           20,
-                width:           32,
-                height:          32,
-                borderRadius:    '50%',
-                background:      '#f8f8f8',
-                border:          'none',
-                color:           '#aaa',
-                fontSize:        14,
-                cursor:          'pointer',
-                display:         'flex',
-                alignItems:      'center',
-                justifyContent:  'center',
+                position:'absolute', top:14, right:20,
+                width:32, height:32, borderRadius:'50%',
+                background:'#f8f8f8', border:'none',
+                color:'#aaa', fontSize:14, cursor:'pointer',
+                display:'flex', alignItems:'center', justifyContent:'center',
               }}
             >
               ✕
             </button>
 
-            {/* ── メインコンテンツ ── */}
-            <div style={{ display:'flex', gap:16, alignItems:'flex-start', marginTop:8 }}>
+            {/* 場所ヘッダー */}
+            <p style={{ fontSize:12, color:'#aaa', marginBottom:12, marginTop:8, fontFamily:"'Kiwi Maru',sans-serif" }}>
+              {roomDisplay} · {floor}F
+            </p>
 
-              {/* サムネイル */}
-              <div
-                style={{
-                  width:          72,
-                  height:         72,
-                  borderRadius:   16,
-                  flexShrink:     0,
-                  overflow:       'hidden',
-                  display:        'flex',
-                  alignItems:     'center',
-                  justifyContent: 'center',
-                  background:     'linear-gradient(135deg,#FFD166 0%,#FF8C00 100%)',
-                  fontSize:       28,
-                }}
-              >
-                {exhibit.thumbnail_url
-                  ? <img src={exhibit.thumbnail_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                  : '🎨'
-                }
-              </div>
-
-              {/* テキスト */}
-              <div style={{ flex:1, minWidth:0, paddingTop:4 }}>
-                <p style={{
-                  fontSize:12, color:'#aaa', marginBottom:4,
-                  fontFamily:"'Kiwi Maru',sans-serif",
-                }}>
-                  {roomDisplay} · {floor}F
-                </p>
-                <h3 style={{
-                  fontSize:20, fontWeight:700, color:'#1a1a1a',
-                  fontFamily:"'Kaisei Decol',serif",
-                  lineHeight:1.25, marginBottom:8,
-                  whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
-                }}>
-                  {exhibit.name}
-                </h3>
-                <span style={{
-                  display:'inline-block',
-                  fontSize:11, padding:'3px 12px',
-                  borderRadius:99,
-                  background:'#FFF0E0', color:'#FF8C00',
-                  fontFamily:"'Kiwi Maru',sans-serif",
-                  fontWeight:700,
-                }}>
-                  {TYPE_LABEL[exhibit.type]}
-                </span>
-              </div>
-            </div>
-
-            {/* ── 混雑状況バー ── */}
-            <div style={{
-              marginTop:20, padding:16,
-              borderRadius:16, background:'#fafafa',
-              border:'1px solid #f0f0f0',
-            }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                <span style={{ fontSize:12, fontWeight:700, color:'#888', fontFamily:"'Kiwi Maru',sans-serif" }}>
-                  混雑状況
-                </span>
-                <span style={{
-                  fontSize:14, fontWeight:900,
-                  color: WAIT_COLOR(exhibit.wait_minutes),
-                  fontFamily:"'Kiwi Maru',sans-serif",
-                }}>
-                  {waitLabel(exhibit.wait_minutes)}
-                </span>
-              </div>
-              <div style={{ width:'100%', height:8, borderRadius:99, background:'#ececec', overflow:'hidden' }}>
-                <div
-                  style={{
-                    height:          '100%',
-                    borderRadius:    99,
-                    width:           `${Math.max(6, Math.min(exhibit.wait_minutes * 1.5, 100))}%`,
-                    background:      `linear-gradient(90deg,#FFD166,${WAIT_COLOR(exhibit.wait_minutes)})`,
-                    transition:      'width 0.8s ease',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* ── 詳細ボタン（Link） ── */}
-            <Link
-              href={`/exhibit/${exhibit.id}`}
-              style={{
-                display:         'block',
-                marginTop:       20,
-                padding:         '14px 0',
-                borderRadius:    16,
-                background:      'linear-gradient(100deg,#F07818,#FFAA28)',
-                color:           '#fff',
-                fontSize:        16,
-                fontWeight:      700,
-                textAlign:       'center',
-                textDecoration:  'none',
-                fontFamily:      "'Kaisei Decol',serif",
-                boxShadow:       '0 6px 20px rgba(240,120,24,0.3)',
-              }}
-            >
-              展示の詳細を見る →
-            </Link>
-
+            {exhibits.length === 1
+              ? <SingleExhibitView exhibit={exhibits[0]} />
+              : <MultiExhibitView exhibits={exhibits} />
+            }
           </div>
         )}
       </div>
     </>
+  )
+}
+
+// ─── 1件表示 ──────────────────────────────────────────────────
+function SingleExhibitView({ exhibit }: { exhibit: Exhibit }) {
+  return (
+    <>
+      <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
+        <div style={{
+          width:72, height:72, borderRadius:16, flexShrink:0,
+          overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
+          background:'linear-gradient(135deg,#FFD166 0%,#FF8C00 100%)', fontSize:28,
+        }}>
+          {exhibit.thumbnail_url
+            ? <img src={exhibit.thumbnail_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+            : '🎨'}
+        </div>
+        <div style={{ flex:1, minWidth:0, paddingTop:4 }}>
+          <h3 style={{
+            fontSize:20, fontWeight:700, color:'#1a1a1a',
+            fontFamily:"'Kaisei Decol',serif",
+            lineHeight:1.25, marginBottom:8,
+            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+          }}>
+            {exhibit.name}
+          </h3>
+          <span style={{
+            display:'inline-block', fontSize:11, padding:'3px 12px', borderRadius:99,
+            background:'#FFF0E0', color:'#FF8C00', fontFamily:"'Kiwi Maru',sans-serif", fontWeight:700,
+          }}>
+            {TYPE_LABEL[exhibit.type]}
+          </span>
+        </div>
+      </div>
+
+      {exhibit.has_wait_time !== false && (
+        <div style={{ marginTop:20, padding:16, borderRadius:16, background:'#fafafa', border:'1px solid #f0f0f0' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'#888', fontFamily:"'Kiwi Maru',sans-serif" }}>混雑状況</span>
+            <span style={{ fontSize:14, fontWeight:900, color:WAIT_COLOR(exhibit.wait_minutes), fontFamily:"'Kiwi Maru',sans-serif" }}>
+              {waitLabel(exhibit.wait_minutes)}
+            </span>
+          </div>
+          <div style={{ width:'100%', height:8, borderRadius:99, background:'#ececec', overflow:'hidden' }}>
+            <div style={{
+              height:'100%', borderRadius:99,
+              width:`${Math.max(6, Math.min(exhibit.wait_minutes * 1.5, 100))}%`,
+              background:`linear-gradient(90deg,#FFD166,${WAIT_COLOR(exhibit.wait_minutes)})`,
+              transition:'width 0.8s ease',
+            }} />
+          </div>
+        </div>
+      )}
+
+      <Link href={`/exhibit/${exhibit.id}`} style={{
+        display:'block', marginTop:20, padding:'14px 0', borderRadius:16,
+        background:'linear-gradient(100deg,#F07818,#FFAA28)',
+        color:'#fff', fontSize:16, fontWeight:700, textAlign:'center',
+        textDecoration:'none', fontFamily:"'Kaisei Decol',serif",
+        boxShadow:'0 6px 20px rgba(240,120,24,0.3)',
+      }}>
+        展示の詳細を見る →
+      </Link>
+    </>
+  )
+}
+
+// ─── 複数件リスト表示 ─────────────────────────────────────────
+function MultiExhibitView({ exhibits }: { exhibits: Exhibit[] }) {
+  return (
+    <div>
+      <p style={{ fontSize:12, color:'#aaa', marginBottom:14, fontFamily:"'Kiwi Maru',sans-serif" }}>
+        {exhibits.length}つの展示があります
+      </p>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {exhibits.map(exhibit => (
+          <Link
+            key={exhibit.id}
+            href={`/exhibit/${exhibit.id}`}
+            style={{
+              display:'flex', alignItems:'center', gap:12,
+              padding:'12px 14px', borderRadius:16,
+              background:'#fafafa', border:'1px solid #f0f0f0',
+              textDecoration:'none',
+            }}
+          >
+            {/* サムネイル */}
+            <div style={{
+              width:48, height:48, borderRadius:12, flexShrink:0,
+              overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
+              background:'linear-gradient(135deg,#FFD166,#FF8C00)', fontSize:20,
+            }}>
+              {exhibit.thumbnail_url
+                ? <img src={exhibit.thumbnail_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                : '🎨'}
+            </div>
+
+            {/* テキスト */}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{
+                fontSize:15, fontWeight:700, color:'#1a1a1a',
+                fontFamily:"'Kaisei Decol',serif",
+                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                marginBottom:4,
+              }}>
+                {exhibit.name}
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{
+                  fontSize:10, padding:'2px 8px', borderRadius:99,
+                  background:'#FFF0E0', color:'#FF8C00',
+                  fontFamily:"'Kiwi Maru',sans-serif", fontWeight:700,
+                }}>
+                  {TYPE_LABEL[exhibit.type]}
+                </span>
+                {exhibit.has_wait_time !== false && (
+                  <span style={{
+                    fontSize:11, fontWeight:700,
+                    color:WAIT_COLOR(exhibit.wait_minutes),
+                    fontFamily:"'Kiwi Maru',sans-serif",
+                  }}>
+                    {waitLabel(exhibit.wait_minutes)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 矢印 */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2.5">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </Link>
+        ))}
+      </div>
+    </div>
   )
 }

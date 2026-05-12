@@ -12,13 +12,18 @@ type BodySegment =
   | { type:'link'; label:string; href:string }
   | { type:'break' }
 
-interface Section { id:string; heading:string; body:BodySegment[]; order:number }
+interface Section          { id:string; heading:string; body:BodySegment[]; order:number }
+interface MenuItem         { id:string; name:string; price:number; description:string; image_url:string; stock:number; is_selling:boolean }
+interface BandScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; stage:string }
+interface BandItem         { id:string; name:string; members:string[]; instagram:string; thumbnail_url:string; schedules:BandScheduleItem[] }
+interface SpecialScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; location:string; note:string }
 
 interface ExhibitFormState {
   name:string; catch_copy:string; description:string
   cover_url:string; thumbnail_url:string
   room_display:string; floor:number
   sections:Section[]
+  has_wait_time:boolean
   time_per_group:number
   queue_count:number
   type:'class'|'food'|'band'|'special'|'cafeteria'
@@ -27,7 +32,7 @@ interface ExhibitFormState {
 const INIT: ExhibitFormState = {
   name:'', catch_copy:'', description:'',
   cover_url:'', thumbnail_url:'', room_display:'', floor:1,
-  sections:[], time_per_group:5, queue_count:0, type:'class',
+  sections:[], has_wait_time:true, time_per_group:5, queue_count:0, type:'class',
 }
 
 const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
@@ -37,19 +42,24 @@ export default function ExhibitEditPage() {
   const { id } = useParams<{ id:string }>()
   const router  = useRouter()
   const [form, setForm]         = useState<ExhibitFormState>(INIT)
-  const [tab, setTab]           = useState<'basic'|'quick'>('basic')
+  const [tab, setTab]           = useState<'basic'|'content'|'special'|'quick'>('basic')
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
-  const [noticeText, setNoticeText]     = useState('')
-  const [noticeUrgent, setNoticeUrgent] = useState(false)
-  const [posting, setPosting]           = useState(false)
+  const [noticeText, setNoticeText]               = useState('')
+  const [noticeUrgent, setNoticeUrgent]           = useState(false)
+  const [posting, setPosting]                     = useState(false)
+  const [menus, setMenus]                         = useState<MenuItem[]>([])
+  const [deletedMenuIds, setDeletedMenuIds]       = useState<string[]>([])
+  const [bands, setBands]                         = useState<BandItem[]>([])
+  const [deletedBandIds, setDeletedBandIds]       = useState<string[]>([])
+  const [specials, setSpecials]                   = useState<SpecialScheduleItem[]>([])
+  const [deletedSpecialIds, setDeletedSpecialIds] = useState<string[]>([])
 
   // ── データ読み込み ────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient()
 
-    // editor の場合、担当外の展示はリダイレクト
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       const { data: profile } = await supabase
@@ -70,7 +80,7 @@ export default function ExhibitEditPage() {
       .select('*, sections:exhibit_sections(id, heading, body, order_index)')
       .eq('id', id)
       .single()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (data) {
           const waitMin = data.wait_minutes ?? 0
           const tpg     = 5
@@ -85,10 +95,63 @@ export default function ExhibitEditPage() {
             sections: ((data.sections as {id:string;heading:string;body:BodySegment[];order_index:number}[]) ?? [])
               .sort((a,b) => a.order_index - b.order_index)
               .map(s => ({ id:s.id, heading:s.heading, body:s.body ?? [], order:s.order_index })),
+            has_wait_time:  data.has_wait_time ?? true,
             time_per_group: tpg,
             queue_count:    Math.round(waitMin / tpg),
             type:           data.type,
           })
+
+          if (data.type === 'food' || data.type === 'cafeteria') {
+            const { data: menuData } = await supabase
+              .from('food_menus')
+              .select('id, name, price, description, image_url, stock, is_selling')
+              .eq('exhibit_id', id)
+            if (menuData) setMenus(menuData as MenuItem[])
+          }
+
+          if (data.type === 'band') {
+            const { data: bandData } = await supabase
+              .from('bands')
+              .select('*, band_schedules(*)')
+              .eq('exhibit_id', id)
+              .order('name')
+            if (bandData) {
+              type RawB = { id:string; name:string; members:string[]; instagram:string|null; thumbnail_url:string|null; band_schedules:{id:string;day:'sat'|'sun';start_at:string;end_at:string;stage:string|null}[] }
+              setBands((bandData as unknown as RawB[]).map(b => ({
+                id:            b.id,
+                name:          b.name,
+                members:       b.members ?? [],
+                instagram:     b.instagram ?? '',
+                thumbnail_url: b.thumbnail_url ?? '',
+                schedules:     (b.band_schedules ?? []).map(s => ({
+                  id:       s.id,
+                  day:      s.day,
+                  start_at: s.start_at.slice(0, 5),
+                  end_at:   s.end_at.slice(0, 5),
+                  stage:    s.stage ?? '',
+                })),
+              })))
+            }
+          }
+
+          // 催しスケジュール（全type共通）
+          const { data: specialData, error: specialError } = await supabase
+            .from('special_schedules')
+            .select('*')
+            .eq('exhibit_id', id)
+          if (specialError) console.error('special_schedules fetch error:', specialError)
+          console.log('specialData:', specialData, 'exhibit_id:', id)
+          if (specialData) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setSpecials((specialData as any[]).map(s => ({
+              id:       s.id,
+              day:      s.day as 'sat'|'sun',
+              start_at: (s.start_at as string).slice(0, 5),
+              end_at:   (s.end_at as string).slice(0, 5),
+              location: s.location ?? '',
+              note:     s.note ?? s.description ?? '',
+            })))
+          }
         }
         setLoading(false)
       })
@@ -111,10 +174,10 @@ export default function ExhibitEditPage() {
       thumbnail_url: form.thumbnail_url,
       room_display:  form.room_display,
       floor:         form.floor,
+      has_wait_time: form.has_wait_time,
       wait_minutes:  waitMin,
     }).eq('id', id)
 
-    // セクションを全削除して再挿入
     await supabase.from('exhibit_sections').delete().eq('exhibit_id', id)
     if (form.sections.length > 0) {
       await supabase.from('exhibit_sections').insert(
@@ -126,6 +189,73 @@ export default function ExhibitEditPage() {
         }))
       )
     }
+
+    if (form.type === 'food' || form.type === 'cafeteria') {
+      if (deletedMenuIds.length > 0) {
+        await supabase.from('food_menus').delete().in('id', deletedMenuIds)
+        setDeletedMenuIds([])
+      }
+      const newMenus = menus.filter(m => m.id.startsWith('new_')).map(m => ({
+        exhibit_id: id, name: m.name, price: m.price,
+        description: m.description || null, image_url: m.image_url || null,
+        stock: m.stock, is_selling: m.is_selling,
+      }))
+      const existingMenus = menus.filter(m => !m.id.startsWith('new_')).map(m => ({
+        id: m.id, exhibit_id: id, name: m.name, price: m.price,
+        description: m.description || null, image_url: m.image_url || null,
+        stock: m.stock, is_selling: m.is_selling,
+      }))
+      if (newMenus.length > 0)      await supabase.from('food_menus').insert(newMenus)
+      if (existingMenus.length > 0) await supabase.from('food_menus').upsert(existingMenus)
+    }
+
+    if (form.type === 'band') {
+      if (deletedBandIds.length > 0) {
+        await supabase.from('band_schedules').delete().in('band_id', deletedBandIds)
+        await supabase.from('bands').delete().in('id', deletedBandIds)
+        setDeletedBandIds([])
+      }
+      const existingBands = bands.filter(b => !b.id.startsWith('new_'))
+      const newBands      = bands.filter(b =>  b.id.startsWith('new_'))
+      if (existingBands.length > 0) {
+        await supabase.from('bands').upsert(existingBands.map(b => ({
+          id: b.id, exhibit_id: id, name: b.name,
+          members: b.members, instagram: b.instagram || null, thumbnail_url: b.thumbnail_url || null,
+        })))
+        await supabase.from('band_schedules').delete().in('band_id', existingBands.map(b => b.id))
+        const scheds = existingBands.flatMap(b => b.schedules.map(s => ({
+          band_id: b.id, day: s.day, start_at: s.start_at, end_at: s.end_at, stage: s.stage || null,
+        })))
+        if (scheds.length > 0) await supabase.from('band_schedules').insert(scheds)
+      }
+      for (const band of newBands) {
+        const { data: ins } = await supabase.from('bands').insert({
+          exhibit_id: id, name: band.name, members: band.members,
+          instagram: band.instagram || null, thumbnail_url: band.thumbnail_url || null,
+        }).select('id').single()
+        if (ins && band.schedules.length > 0) {
+          await supabase.from('band_schedules').insert(band.schedules.map(s => ({
+            band_id: ins.id, day: s.day, start_at: s.start_at, end_at: s.end_at, stage: s.stage || null,
+          })))
+        }
+      }
+    }
+
+    // 催しスケジュール保存（全type共通）
+    if (deletedSpecialIds.length > 0) {
+      await supabase.from('special_schedules').delete().in('id', deletedSpecialIds)
+      setDeletedSpecialIds([])
+    }
+    const newSpecials = specials.filter(s => s.id.startsWith('new_')).map(s => ({
+      exhibit_id: id, day: s.day, start_at: s.start_at, end_at: s.end_at,
+      location: s.location || null, description: s.note || null,
+    }))
+    const existingSpecials = specials.filter(s => !s.id.startsWith('new_')).map(s => ({
+      id: s.id, exhibit_id: id, day: s.day, start_at: s.start_at, end_at: s.end_at,
+      location: s.location || null, description: s.note || null,
+    }))
+    if (newSpecials.length > 0)      await supabase.from('special_schedules').insert(newSpecials)
+    if (existingSpecials.length > 0) await supabase.from('special_schedules').upsert(existingSpecials)
 
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -158,10 +288,13 @@ export default function ExhibitEditPage() {
   return (
     <>
       <style>{`
-        @media (min-width:900px){ .edit-mobile-tabs{display:none!important;} .edit-layout{display:grid!important;} .edit-left,.edit-right{display:block!important;} }
-        @media (max-width:899px){ .edit-layout{display:block!important;} .edit-left[data-tab="basic"]{display:block!important;} .edit-left[data-tab="quick"]{display:none!important;} .edit-right[data-tab="basic"]{display:none!important;} .edit-right[data-tab="quick"]{display:block!important;} }
-        .field-input:focus{ outline:2px solid #FF8C00; outline-offset:0; border-color:#FF8C00!important; }
-        textarea.field-input:focus{ outline:2px solid #FF8C00; }
+        @media (min-width:900px){
+          .edit-mobile-tabs{display:none!important;}
+          .edit-grid{display:grid!important;}
+          .sec-basic,.sec-content,.sec-special,.sec-quick{display:block!important;}
+        }
+        .field-input:focus{outline:2px solid #FF8C00;outline-offset:0;border-color:#FF8C00!important;}
+        textarea.field-input:focus{outline:2px solid #FF8C00;}
       `}</style>
 
       <div style={{ maxWidth:1200 }}>
@@ -188,12 +321,12 @@ export default function ExhibitEditPage() {
 
         {/* ── モバイル用タブ ── */}
         <div className="edit-mobile-tabs" style={{ display:'flex', gap:0, marginBottom:20, background:'#f1f5f9', borderRadius:12, padding:4 }}>
-          {([['basic','📝 基本情報'],['quick','⚡ クイック更新']] as const).map(([t,label])=>(
+          {([['basic','📝 基本'],['content','📖 詳細'],['special','🎪 催し'],['quick','⚡ 更新']] as const).map(([t,label])=>(
             <button key={t} onClick={()=>setTab(t)} style={{
               flex:1, padding:'9px 0', borderRadius:9, border:'none', cursor:'pointer',
               background: tab===t ? '#fff' : 'transparent',
               color: tab===t ? '#1e293b' : '#94a3b8',
-              fontWeight: tab===t ? 700 : 400, fontSize:13,
+              fontWeight: tab===t ? 700 : 400, fontSize:12,
               fontFamily:"'Kiwi Maru',serif",
               boxShadow: tab===t ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
               transition:'all 0.15s',
@@ -202,137 +335,240 @@ export default function ExhibitEditPage() {
         </div>
 
         {/* ── レイアウト ── */}
-        <div className="edit-layout" style={{ gridTemplateColumns:'1fr 340px', gap:20, alignItems:'start' }}>
+        <div>
+          <div className="edit-grid" style={{ gridTemplateColumns:'1fr 340px', gap:20, alignItems:'start' }}>
 
-          {/* ────────────── 左エリア ────────────── */}
-          <div className="edit-left" data-tab={tab === 'basic' ? 'basic' : 'quick'}>
+            {/* ─── 左エリア ─── */}
+            <div>
 
-            <Card title="基本情報" icon="📋">
-              <FormField label="展示名">
-                <Input value={form.name} onChange={v=>set('name',v)} />
-              </FormField>
-              <FormField label="キャッチコピー" hint="詳細ページの帯に表示されます">
-                <Input value={form.catch_copy} onChange={v=>set('catch_copy',v)} placeholder="例: この夏だけの、恐怖を。" />
-              </FormField>
-              <FormField label="説明文（概要）">
-                <Textarea value={form.description} onChange={v=>set('description',v)} rows={3} />
-              </FormField>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <FormField label="展示場所">
-                  <Input value={form.room_display} onChange={v=>set('room_display',v)} />
-                </FormField>
-                <FormField label="フロア">
-                  <select value={form.floor} onChange={e=>set('floor',Number(e.target.value))}
-                    className="field-input" style={inputStyle}>
-                    {[1,2,3,4,5,6].map(f=><option key={f} value={f}>{f}F</option>)}
-                  </select>
-                </FormField>
-              </div>
-            </Card>
+              {/* 基本情報タブ */}
+              <div className="sec-basic" style={{ display: tab !== 'basic' ? 'none' : undefined }}>
+                <Card title="基本情報" icon="📋">
+                  <FormField label="展示名">
+                    <Input value={form.name} onChange={v=>set('name',v)} />
+                  </FormField>
+                  <FormField label="キャッチコピー" hint="詳細ページの帯に表示されます">
+                    <Input value={form.catch_copy} onChange={v=>set('catch_copy',v)} placeholder="例: この夏だけの、恐怖を。" />
+                  </FormField>
+                  <FormField label="説明文（概要）">
+                    <Textarea value={form.description} onChange={v=>set('description',v)} rows={3} />
+                  </FormField>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <FormField label="展示場所">
+                      <Input value={form.room_display} onChange={v=>set('room_display',v)} />
+                    </FormField>
+                    <FormField label="フロア">
+                      <select value={form.floor} onChange={e=>set('floor',Number(e.target.value))}
+                        className="field-input" style={inputStyle}>
+                        {[1,2,3,4,5,6].map(f=><option key={f} value={f}>{f}F</option>)}
+                      </select>
+                    </FormField>
+                  </div>
+                </Card>
 
-            <Card title="写真・画像" icon="🖼" style={{ marginTop:16 }}>
-              <ImageUpload
-                label="カバー写真（横長）"
-                value={form.cover_url}
-                onChange={v => set('cover_url', v)}
-                storagePath={`exhibits/${id}/cover`}
-                aspect="wide"
-              />
-              <div style={{ marginTop: 14 }}>
-                <ImageUpload
-                  label="宣材写真（正方形）"
-                  value={form.thumbnail_url}
-                  onChange={v => set('thumbnail_url', v)}
-                  storagePath={`exhibits/${id}/thumbnail`}
-                  aspect="square"
-                />
-              </div>
-            </Card>
-
-            <Card title="本文セクション" icon="📖" style={{ marginTop:16 }}>
-              <SectionsEditor sections={form.sections} onChange={v=>set('sections',v)} />
-            </Card>
-          </div>
-
-          {/* ────────────── 右エリア ────────────── */}
-          <div className="edit-right" data-tab={tab === 'quick' ? 'quick' : 'basic'}>
-
-            <Card title="⚡ 待ち時間" icon="" accent style={{ marginBottom:16 }}>
-              <div style={{
-                background:'linear-gradient(135deg,#0f172a,#1e293b)',
-                borderRadius:14, padding:'20px', textAlign:'center', marginBottom:18,
-              }}>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>現在の待ち時間</div>
-                <div style={{
-                  fontFamily:"'Kaisei Decol',serif", fontSize:48, fontWeight:700,
-                  color: waitMin>=30?'#fca5a5':waitMin>=15?'#fcd34d':'#86efac', lineHeight:1,
-                }}>{waitMin}</div>
-                <div style={{ fontSize:14, color:'rgba(255,255,255,0.5)', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>分</div>
+                <Card title="写真・画像" icon="🖼" style={{ marginTop:16 }}>
+                  <ImageUpload
+                    label="カバー写真（横長）"
+                    value={form.cover_url}
+                    onChange={v => set('cover_url', v)}
+                    storagePath={`exhibits/${id}/cover`}
+                    aspect="wide"
+                  />
+                  <div style={{ marginTop:14 }}>
+                    <ImageUpload
+                      label="宣材写真（正方形）"
+                      value={form.thumbnail_url}
+                      onChange={v => set('thumbnail_url', v)}
+                      storagePath={`exhibits/${id}/thumbnail`}
+                      aspect="square"
+                    />
+                  </div>
+                </Card>
               </div>
 
-              <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:12, padding:'14px', marginBottom:16 }}>
-                {[
-                  { label:'1組あたり', val:form.time_per_group, key:'time_per_group' as const, unit:'分', min:1 },
-                  { label:'待ち組数',   val:form.queue_count,   key:'queue_count'   as const, unit:'組', min:0 },
-                ].map((item, idx) => (
-                  <React.Fragment key={item.key}>
-                    {idx > 0 && <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>}
-                    <div style={{ flex:1, textAlign:'center' }}>
-                      <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>{item.label}</div>
-                      <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
-                        <button onClick={()=>set(item.key, Math.max(item.min, item.val-1))} style={calcBtnStyle}>−</button>
-                        <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>{item.val}</span>
-                        <button onClick={()=>set(item.key, item.val+1)} style={calcBtnStyle}>＋</button>
-                      </div>
-                      <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>{item.unit}</div>
+              {/* 詳細タブ */}
+              <div className="sec-content" style={{ marginTop:16, display: tab !== 'content' ? 'none' : undefined }}>
+                <Card title="本文セクション" icon="📖">
+                  <SectionsEditor sections={form.sections} onChange={v=>set('sections',v)} />
+                </Card>
+
+                {(form.type === 'food' || form.type === 'cafeteria') && (
+                  <Card title="フードメニュー" icon="🍽" style={{ marginTop:16 }}>
+                    <MenuEditor
+                      exhibitId={id}
+                      menus={menus}
+                      onChange={setMenus}
+                      onRemove={(menuId) => {
+                        if (!menuId.startsWith('new_')) setDeletedMenuIds(prev => [...prev, menuId])
+                        setMenus(prev => prev.filter(m => m.id !== menuId))
+                      }}
+                    />
+                  </Card>
+                )}
+
+                {form.type === 'band' && (
+                  <Card title="バンド管理" icon="🎸" style={{ marginTop:16 }}>
+                    <BandEditor
+                      exhibitId={id}
+                      bands={bands}
+                      onChange={setBands}
+                      onRemove={(bandId) => {
+                        if (!bandId.startsWith('new_')) setDeletedBandIds(prev => [...prev, bandId])
+                        setBands(prev => prev.filter(b => b.id !== bandId))
+                      }}
+                    />
+                  </Card>
+                )}
+              </div>
+
+              {/* 催しタブ */}
+              <div className="sec-special" style={{ marginTop:16, display: tab !== 'special' ? 'none' : undefined }}>
+                <Card title="催し・特別スケジュール" icon="🎪">
+                  <p style={{ fontSize:12, color:'#94a3b8', marginBottom:16, fontFamily:"'Kiwi Maru',serif", lineHeight:1.7 }}>
+                    イベント・公演・実演など、時間帯で区切られた催しを登録できます。全団体共通で利用できます。
+                  </p>
+                  <SpecialEditor
+                    specials={specials}
+                    onChange={setSpecials}
+                    onRemove={(specialId) => {
+                      if (!specialId.startsWith('new_')) setDeletedSpecialIds(prev => [...prev, specialId])
+                      setSpecials(prev => prev.filter(s => s.id !== specialId))
+                    }}
+                  />
+                </Card>
+              </div>
+            </div>
+
+            {/* ─── 右エリア ─── */}
+            <div>
+              <div className="sec-quick" style={{ display: tab !== 'quick' ? 'none' : undefined }}>
+
+                <Card title="⚡ 待ち時間" icon="" accent style={{ marginBottom:16 }}>
+                  {/* 待ち時間機能 ON/OFF トグル */}
+                  <button
+                    onClick={() => set('has_wait_time', !form.has_wait_time)}
+                    style={{
+                      width:'100%', padding:'10px 14px', borderRadius:10, border:'none',
+                      cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                      background: form.has_wait_time ? '#f0fdf4' : '#f8fafc',
+                      boxShadow: form.has_wait_time ? 'inset 0 0 0 1.5px #86efac' : 'inset 0 0 0 1.5px #e2e8f0',
+                      marginBottom:16, transition:'all 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width:36, height:20, borderRadius:99, flexShrink:0, position:'relative',
+                      background: form.has_wait_time ? '#22c55e' : '#cbd5e1',
+                      transition:'background 0.2s',
+                    }}>
+                      <div style={{
+                        position:'absolute', top:2, borderRadius:'50%',
+                        width:16, height:16, background:'#fff',
+                        left: form.has_wait_time ? 18 : 2,
+                        transition:'left 0.2s',
+                        boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
+                      }} />
                     </div>
-                  </React.Fragment>
-                ))}
-                <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>=</div>
-                <div style={{ flex:1, textAlign:'center' }}>
-                  <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>待ち時間</div>
-                  <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#FF6B00' }}>{waitMin}分</div>
-                </div>
-              </div>
+                    <span style={{
+                      fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                      color: form.has_wait_time ? '#16a34a' : '#94a3b8',
+                    }}>
+                      {form.has_wait_time ? '待ち時間機能 有効' : '待ち時間機能 無効'}
+                    </span>
+                  </button>
 
-              <div style={{ marginBottom:14 }}>
-                <label style={{ fontSize:11, color:'#94a3b8', display:'block', marginBottom:4, fontFamily:"'Kiwi Maru',serif" }}>または直接入力</label>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <input type="number" min={0} value={form.queue_count}
-                    onChange={e=>set('queue_count',Number(e.target.value))}
-                    className="field-input" style={{ ...inputStyle, flex:1 }} placeholder="待ち組数を入力" />
-                  <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>組</span>
-                </div>
-              </div>
+                  {form.has_wait_time && (<>
+                    <div style={{
+                      background:'linear-gradient(135deg,#0f172a,#1e293b)',
+                      borderRadius:14, padding:'20px', textAlign:'center', marginBottom:18,
+                    }}>
+                      <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>現在の待ち時間</div>
+                      <div style={{
+                        fontFamily:"'Kaisei Decol',serif", fontSize:48, fontWeight:700,
+                        color: waitMin>=30?'#fca5a5':waitMin>=15?'#fcd34d':'#86efac', lineHeight:1,
+                      }}>{waitMin}</div>
+                      <div style={{ fontSize:14, color:'rgba(255,255,255,0.5)', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>分</div>
+                    </div>
 
-              <button onClick={handleSave} disabled={saving} style={{
-                width:'100%', padding:'12px 0', borderRadius:10, border:'none', cursor:'pointer',
-                background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
-                color:'#fff', fontSize:14, fontWeight:700,
-                fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s',
-              }}>
-                {saving ? '更新中…' : saved ? '✓ 更新しました' : '待ち時間を更新する'}
-              </button>
-            </Card>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:12, padding:'14px', marginBottom:16 }}>
+                      {[
+                        { label:'1組あたり', val:form.time_per_group, key:'time_per_group' as const, unit:'分', min:1 },
+                        { label:'待ち組数',   val:form.queue_count,   key:'queue_count'   as const, unit:'組', min:0 },
+                      ].map((item, idx) => (
+                        <React.Fragment key={item.key}>
+                          {idx > 0 && <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>}
+                          <div style={{ flex:1, textAlign:'center' }}>
+                            <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>{item.label}</div>
+                            <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
+                              <button onClick={()=>set(item.key, Math.max(item.min, item.val-1))} style={calcBtnStyle}>−</button>
+                              <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>{item.val}</span>
+                              <button onClick={()=>set(item.key, item.val+1)} style={calcBtnStyle}>＋</button>
+                            </div>
+                            <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>{item.unit}</div>
+                          </div>
+                        </React.Fragment>
+                      ))}
+                      <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>=</div>
+                      <div style={{ flex:1, textAlign:'center' }}>
+                        <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>待ち時間</div>
+                        <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#FF6B00' }}>{waitMin}分</div>
+                      </div>
+                    </div>
 
-            {/* お知らせ投稿 */}
-            <Card title="お知らせを投稿" icon="📣">
-              <Textarea placeholder="内容を入力…" rows={3} value={noticeText} onChange={setNoticeText} />
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10 }}>
-                <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#64748b', cursor:'pointer', fontFamily:"'Kiwi Maru',serif" }}>
-                  <input type="checkbox" checked={noticeUrgent} onChange={e=>setNoticeUrgent(e.target.checked)} style={{ accentColor:'#FF6B00' }} />
-                  重要マークをつける
-                </label>
-                <button onClick={handlePostNotice} disabled={posting || !noticeText.trim()} style={{
-                  marginLeft:'auto', padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer',
-                  background: noticeText.trim() ? '#1e293b' : '#e2e8f0',
-                  color: noticeText.trim() ? '#fff' : '#94a3b8',
-                  fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
-                }}>
-                  {posting ? '投稿中…' : '投稿する'}
-                </button>
+                    <div style={{ marginBottom:14 }}>
+                      <label style={{ fontSize:11, color:'#94a3b8', display:'block', marginBottom:4, fontFamily:"'Kiwi Maru',serif" }}>または直接入力</label>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <input type="number" min={0} value={form.queue_count}
+                          onChange={e=>set('queue_count',Number(e.target.value))}
+                          className="field-input" style={{ ...inputStyle, flex:1 }} placeholder="待ち組数を入力" />
+                        <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>組</span>
+                      </div>
+                    </div>
+
+                    <button onClick={handleSave} disabled={saving} style={{
+                      width:'100%', padding:'12px 0', borderRadius:10, border:'none', cursor:'pointer',
+                      background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                      color:'#fff', fontSize:14, fontWeight:700,
+                      fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s',
+                    }}>
+                      {saving ? '更新中…' : saved ? '✓ 更新しました' : '待ち時間を更新する'}
+                    </button>
+                  </>)}
+                </Card>
+
+                {(form.type === 'food' || form.type === 'cafeteria') && menus.length > 0 && (
+                  <Card title="メニュー管理" icon="🍽" style={{ marginBottom:16 }}>
+                    <MenuQuickEditor menus={menus} onChange={setMenus} />
+                    <button onClick={handleSave} disabled={saving} style={{
+                      width:'100%', padding:'12px 0', borderRadius:10, border:'none', cursor:'pointer',
+                      background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                      color:'#fff', fontSize:14, fontWeight:700,
+                      fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s', marginTop:8,
+                    }}>
+                      {saving ? '更新中…' : saved ? '✓ 更新しました' : 'メニューを更新する'}
+                    </button>
+                  </Card>
+                )}
+
+                <Card title="お知らせを投稿" icon="📣">
+                  <Textarea placeholder="内容を入力…" rows={3} value={noticeText} onChange={setNoticeText} />
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10 }}>
+                    <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#64748b', cursor:'pointer', fontFamily:"'Kiwi Maru',serif" }}>
+                      <input type="checkbox" checked={noticeUrgent} onChange={e=>setNoticeUrgent(e.target.checked)} style={{ accentColor:'#FF6B00' }} />
+                      重要マークをつける
+                    </label>
+                    <button onClick={handlePostNotice} disabled={posting || !noticeText.trim()} style={{
+                      marginLeft:'auto', padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer',
+                      background: noticeText.trim() ? '#1e293b' : '#e2e8f0',
+                      color: noticeText.trim() ? '#fff' : '#94a3b8',
+                      fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                    }}>
+                      {posting ? '投稿中…' : '投稿する'}
+                    </button>
+                  </div>
+                </Card>
+
               </div>
-            </Card>
+            </div>
           </div>
         </div>
       </div>
@@ -445,6 +681,319 @@ function ToolBtn({ onClick,disabled,danger,children }:{onClick:()=>void;disabled
       cursor: disabled?'not-allowed':'pointer', fontSize:12,
       display:'flex', alignItems:'center', justifyContent:'center',
     }}>{children}</button>
+  )
+}
+
+// ─── バンド編集 ────────────────────────────────────────────────
+function BandEditor({ exhibitId, bands, onChange, onRemove }: {
+  exhibitId: string
+  bands: BandItem[]
+  onChange: (v: BandItem[]) => void
+  onRemove: (id: string) => void
+}) {
+  const addBand = () => onChange([...bands, {
+    id: `new_${Date.now()}`, name: '', members: [], instagram: '', thumbnail_url: '', schedules: [],
+  }])
+
+  const update = (id: string, patch: Partial<BandItem>) =>
+    onChange(bands.map(b => b.id === id ? { ...b, ...patch } : b))
+
+  return (
+    <div>
+      {bands.map((band, i) => (
+        <div key={band.id} style={{ border:'1px solid #e2e8f0', borderRadius:12, padding:'14px', marginBottom:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+              バンド {i+1}
+            </div>
+            <div style={{ marginLeft:'auto' }}>
+              <ToolBtn onClick={() => onRemove(band.id)} danger>🗑</ToolBtn>
+            </div>
+          </div>
+
+          <FormField label="バンド名">
+            <Input value={band.name} onChange={v => update(band.id, { name:v })} placeholder="例: The Crimson" />
+          </FormField>
+
+          <FormField label="メンバー（1行1人）">
+            <Textarea
+              value={band.members.join('\n')}
+              onChange={v => update(band.id, { members: v.split('\n').map(s => s.trim()).filter(Boolean) })}
+              rows={3}
+              placeholder={'田中 颯\n鈴木 葵\n佐藤 陸'}
+            />
+          </FormField>
+
+          <FormField label="Instagram（@なし）">
+            <Input value={band.instagram} onChange={v => update(band.id, { instagram:v })} placeholder="例: the_crimson_band" />
+          </FormField>
+
+          <div style={{ marginBottom:14 }}>
+            <ImageUpload
+              label="バンド写真"
+              value={band.thumbnail_url}
+              onChange={v => update(band.id, { thumbnail_url:v })}
+              storagePath={`bands/${exhibitId}/${band.id}/thumbnail`}
+              aspect="square"
+            />
+          </div>
+
+          <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:8, fontFamily:"'Kiwi Maru',serif" }}>
+            公演スケジュール
+          </div>
+          <BandScheduleSubEditor
+            schedules={band.schedules}
+            onChange={scheds => update(band.id, { schedules: scheds })}
+          />
+        </div>
+      ))}
+
+      <button onClick={addBand} style={{
+        width:'100%', padding:'11px', borderRadius:10, border:'1.5px dashed #e2e8f0',
+        background:'#fafafa', cursor:'pointer', fontSize:13, color:'#94a3b8',
+        fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+      }}>
+        ＋ バンドを追加
+      </button>
+    </div>
+  )
+}
+
+function BandScheduleSubEditor({ schedules, onChange }: {
+  schedules: BandScheduleItem[]
+  onChange: (v: BandScheduleItem[]) => void
+}) {
+  const add = () => onChange([...schedules, {
+    id: `new_${Date.now()}`, day: 'sat', start_at: '10:00', end_at: '10:30', stage: '',
+  }])
+  const remove = (id: string) => onChange(schedules.filter(s => s.id !== id))
+  const update = (id: string, patch: Partial<BandScheduleItem>) =>
+    onChange(schedules.map(s => s.id === id ? { ...s, ...patch } : s))
+
+  return (
+    <div style={{ marginBottom:8 }}>
+      {schedules.map(s => (
+        <div key={s.id} style={{
+          display:'grid', gridTemplateColumns:'48px 1fr 1fr 1fr 28px',
+          gap:6, alignItems:'center', marginBottom:6,
+          background:'#f8fafc', borderRadius:8, padding:'8px 10px',
+        }}>
+          <select value={s.day} onChange={e => update(s.id, { day: e.target.value as 'sat'|'sun' })}
+            className="field-input" style={{ ...inputStyle, padding:'6px 4px', textAlign:'center' }}>
+            <option value="sat">土</option>
+            <option value="sun">日</option>
+          </select>
+          <input type="time" value={s.start_at} onChange={e => update(s.id, { start_at: e.target.value })}
+            className="field-input" style={{ ...inputStyle, padding:'6px 8px' }} />
+          <input type="time" value={s.end_at} onChange={e => update(s.id, { end_at: e.target.value })}
+            className="field-input" style={{ ...inputStyle, padding:'6px 8px' }} />
+          <input type="text" value={s.stage} onChange={e => update(s.id, { stage: e.target.value })}
+            placeholder="ステージ名" className="field-input" style={{ ...inputStyle, padding:'6px 8px' }} />
+          <ToolBtn onClick={() => remove(s.id)} danger>🗑</ToolBtn>
+        </div>
+      ))}
+      <button onClick={add} style={{
+        width:'100%', padding:'8px', borderRadius:8, border:'1px dashed #e2e8f0',
+        background:'transparent', cursor:'pointer', fontSize:12, color:'#94a3b8',
+        fontFamily:"'Kiwi Maru',serif",
+      }}>
+        ＋ スケジュール追加
+      </button>
+    </div>
+  )
+}
+
+// ─── メニュークイック更新 ──────────────────────────────────────
+function MenuQuickEditor({ menus, onChange }: { menus: MenuItem[]; onChange: (v: MenuItem[]) => void }) {
+  const update = (id: string, patch: Partial<MenuItem>) =>
+    onChange(menus.map(m => m.id === id ? { ...m, ...patch } : m))
+
+  return (
+    <div>
+      {menus.map((menu, i) => (
+        <div key={menu.id} style={{ padding:'12px 0', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10 }}>
+            <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:14, fontWeight:700, color:'#1e293b', flex:1, marginRight:8, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {menu.name || `メニュー${i+1}`}
+            </span>
+            <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight:700, color:'#FF6B00', flexShrink:0 }}>
+              ¥{menu.price.toLocaleString()}
+            </span>
+          </div>
+
+          <button
+            onClick={() => update(menu.id, { is_selling: !menu.is_selling })}
+            style={{
+              width:'100%', padding:'8px', borderRadius:8, border:'none', cursor:'pointer',
+              background: menu.is_selling ? '#f0fdf4' : '#f5f5f5',
+              color: menu.is_selling ? '#16a34a' : '#94a3b8',
+              fontWeight:700, fontSize:12, fontFamily:"'Kiwi Maru',serif",
+              boxShadow: menu.is_selling ? 'inset 0 0 0 1px #86efac' : 'inset 0 0 0 1px #e2e8f0',
+              marginBottom:8,
+            }}
+          >
+            {menu.is_selling ? '✓ 販売中' : '✗ 販売停止'}
+          </button>
+
+          <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:10, padding:'8px 12px' }}>
+            <span style={{ flex:1, fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>在庫数</span>
+            <button onClick={() => update(menu.id, { stock: Math.max(0, menu.stock - 1) })} style={calcBtnStyle}>−</button>
+            <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>
+              {menu.stock}
+            </span>
+            <button onClick={() => update(menu.id, { stock: menu.stock + 1 })} style={calcBtnStyle}>＋</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── メニュー編集 ──────────────────────────────────────────────
+function MenuEditor({ exhibitId, menus, onChange, onRemove }: {
+  exhibitId: string
+  menus: MenuItem[]
+  onChange: (v: MenuItem[]) => void
+  onRemove: (id: string) => void
+}) {
+  const addMenu = () => onChange([...menus, {
+    id: `new_${Date.now()}`, name: '', price: 0, description: '', image_url: '', stock: 0, is_selling: true,
+  }])
+
+  const update = (id: string, patch: Partial<MenuItem>) =>
+    onChange(menus.map(m => m.id === id ? { ...m, ...patch } : m))
+
+  return (
+    <div>
+      {menus.map((menu, i) => (
+        <div key={menu.id} style={{ border:'1px solid #e2e8f0', borderRadius:12, padding:'14px', marginBottom:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+              メニュー {i+1}
+            </div>
+            <div style={{ marginLeft:'auto' }}>
+              <ToolBtn onClick={() => onRemove(menu.id)} danger>🗑</ToolBtn>
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <FormField label="メニュー名">
+              <Input value={menu.name} onChange={v => update(menu.id, { name:v })} placeholder="例: 焼きそば" />
+            </FormField>
+            <FormField label="価格（円）">
+              <input type="number" min={0} value={menu.price}
+                onChange={e => update(menu.id, { price: Number(e.target.value) })}
+                className="field-input" style={inputStyle} />
+            </FormField>
+          </div>
+
+          <FormField label="説明">
+            <Input value={menu.description} onChange={v => update(menu.id, { description:v })} placeholder="例: 秘伝ソースの本格派" />
+          </FormField>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <FormField label="在庫数">
+              <input type="number" min={0} value={menu.stock}
+                onChange={e => update(menu.id, { stock: Number(e.target.value) })}
+                className="field-input" style={inputStyle} />
+            </FormField>
+            <FormField label="販売状態">
+              <label style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', border:'1px solid #e2e8f0', borderRadius:8, cursor:'pointer' }}>
+                <input type="checkbox" checked={menu.is_selling}
+                  onChange={e => update(menu.id, { is_selling: e.target.checked })}
+                  style={{ accentColor:'#FF6B00', width:16, height:16 }} />
+                <span style={{ fontSize:13, fontFamily:"'Kiwi Maru',serif", color:'#1e293b' }}>
+                  {menu.is_selling ? '販売中' : '販売停止'}
+                </span>
+              </label>
+            </FormField>
+          </div>
+
+          <div style={{ marginTop:14 }}>
+            <ImageUpload
+              label="メニュー写真"
+              value={menu.image_url}
+              onChange={v => update(menu.id, { image_url:v })}
+              storagePath={`food/${exhibitId}/${menu.id}/image`}
+              aspect="square"
+            />
+          </div>
+        </div>
+      ))}
+
+      <button onClick={addMenu} style={{
+        width:'100%', padding:'11px', borderRadius:10, border:'1.5px dashed #e2e8f0',
+        background:'#fafafa', cursor:'pointer', fontSize:13, color:'#94a3b8',
+        fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+      }}>
+        ＋ メニューを追加
+      </button>
+    </div>
+  )
+}
+
+// ─── 催し編集 ──────────────────────────────────────────────────
+function SpecialEditor({ specials, onChange, onRemove }: {
+  specials: SpecialScheduleItem[]
+  onChange: (v: SpecialScheduleItem[]) => void
+  onRemove: (id: string) => void
+}) {
+  const add = () => onChange([...specials, {
+    id: `new_${Date.now()}`, day: 'sat', start_at: '10:00', end_at: '11:00', location: '', note: '',
+  }])
+
+  const update = (id: string, patch: Partial<SpecialScheduleItem>) =>
+    onChange(specials.map(s => s.id === id ? { ...s, ...patch } : s))
+
+  return (
+    <div>
+      {specials.map((s, i) => (
+        <div key={s.id} style={{ border:'1px solid #e2e8f0', borderRadius:12, padding:'14px', marginBottom:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+              催し {i+1}
+            </div>
+            <div style={{ marginLeft:'auto' }}>
+              <ToolBtn onClick={() => onRemove(s.id)} danger>🗑</ToolBtn>
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'60px 1fr 1fr', gap:8, marginBottom:2 }}>
+            <FormField label="曜日">
+              <select value={s.day} onChange={e => update(s.id, { day: e.target.value as 'sat'|'sun' })}
+                className="field-input" style={{ ...inputStyle, padding:'6px 4px' }}>
+                <option value="sat">土</option>
+                <option value="sun">日</option>
+              </select>
+            </FormField>
+            <FormField label="開始">
+              <input type="time" value={s.start_at} onChange={e => update(s.id, { start_at: e.target.value })}
+                className="field-input" style={inputStyle} />
+            </FormField>
+            <FormField label="終了">
+              <input type="time" value={s.end_at} onChange={e => update(s.id, { end_at: e.target.value })}
+                className="field-input" style={inputStyle} />
+            </FormField>
+          </div>
+
+          <FormField label="場所（省略可）">
+            <Input value={s.location} onChange={v => update(s.id, { location:v })} placeholder="例: 体育館ステージ" />
+          </FormField>
+
+          <FormField label="メモ・説明（省略可）">
+            <Textarea value={s.note} onChange={v => update(s.id, { note:v })} rows={2} placeholder="例: 15分ずつ演奏、入れ替え制" />
+          </FormField>
+        </div>
+      ))}
+
+      <button onClick={add} style={{
+        width:'100%', padding:'11px', borderRadius:10, border:'1.5px dashed #e2e8f0',
+        background:'#fafafa', cursor:'pointer', fontSize:13, color:'#94a3b8',
+        fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+      }}>
+        ＋ 催しを追加
+      </button>
+    </div>
   )
 }
 

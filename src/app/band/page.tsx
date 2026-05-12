@@ -169,7 +169,7 @@ function LiveDot() {
 
 // ─── メインページ ──────────────────────────────────────────────
 export default function BandPage() {
-  const [day, setDay]       = useState<'sat' | 'sun'>('sat')
+  const [day, setDay]       = useState<'sat' | 'sun'>(() => new Date().getDay() === 0 ? 'sun' : 'sat')
   const [nowMin, setNowMin] = useState<number>(0)
   const [bands, setBands]   = useState<BandWithSchedules[]>(DUMMY_BANDS)
 
@@ -188,12 +188,31 @@ export default function BandPage() {
     return () => clearInterval(id)
   }, [])
 
+  // 今日の祭日区分（土→'sat'、日→'sun'、それ以外→null）
+  const todayFestivalDay: 'sat' | 'sun' | null = (() => {
+    const dow = new Date().getDay()
+    if (dow === 6) return 'sat'
+    if (dow === 0) return 'sun'
+    return null
+  })()
+
+  // 選択中の曜日に合わせた実効 nowMin
+  // ・今日の曜日を表示中 → 実際の時刻
+  // ・過去の曜日を表示中（日曜に土曜を見る）→ 全て終了扱い
+  // ・未来の曜日を表示中（土曜に日曜を見る）→ 全て未来扱い
+  // ・祭開催日以外 → 全て未来扱い
+  const effectiveNowMin: number =
+    todayFestivalDay === null             ? 0
+    : day === todayFestivalDay            ? nowMin
+    : day === 'sat' && todayFestivalDay === 'sun' ? 99999
+    : 0
+
   // 今日のスケジュール（時刻順）
   const todayItems = bands
     .flatMap((band) => {
       const sch = band.schedules.find((s) => s.day === day)
       if (!sch) return []
-      return [{ band, sch, status: getStatus(sch, nowMin) }]
+      return [{ band, sch, status: getStatus(sch, effectiveNowMin) }]
     })
     .sort((a, b) => toMin(a.sch.start_at) - toMin(b.sch.start_at))
 
@@ -267,7 +286,7 @@ export default function BandPage() {
 
           {/* ── バンド一覧 ── */}
           <SectionLabel emoji="🎵" label="バンド一覧" />
-          <BandList bands={bands} day={day} nowMin={nowMin} />
+          <BandList bands={bands} day={day} nowMin={effectiveNowMin} />
         </div>
       </div>
     </>

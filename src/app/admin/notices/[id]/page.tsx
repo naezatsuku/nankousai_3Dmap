@@ -62,47 +62,81 @@ export default function NoticeEditPage() {
   const [saved, setSaved]       = useState(false)
   const [error, setError]       = useState('')
 
-  // 展示一覧取得
+  // 展示一覧取得（editor は担当展示のみ）
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('exhibits').select('id, name, class_label').order('class_label')
-      .then(({ data }) => { if (data) setExhibits(data as ExhibitOption[]) })
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', user.id).single()
+      const isEditor = (profile as { role: string } | null)?.role === 'editor'
+
+      let query = supabase.from('exhibits').select('id, name, class_label').order('class_label')
+      if (isEditor) {
+        const { data: assignments } = await supabase
+          .from('exhibit_editors').select('exhibit_id').eq('user_id', user.id)
+        const ids = (assignments ?? []).map((a: { exhibit_id: string }) => a.exhibit_id)
+        if (ids.length === 0) { setExhibits([]); return }
+        query = query.in('id', ids)
+      }
+      const { data } = await query
+      if (data) setExhibits(data as ExhibitOption[])
+    })
   }, [])
 
-  // 既存お知らせ読み込み
+  // 既存お知らせ読み込み（editor は担当外はリダイレクト）
   useEffect(() => {
     if (isNew) return
     const supabase = createClient()
-    supabase
-      .from('notices')
-      .select('id, exhibit_id, title, body, sender_name, is_urgent, notice_media(id, url, type, caption, order_index)')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        if (!data) { setLoading(false); return }
-        setForm({
-          exhibit_id:  (data as any).exhibit_id  ?? '',
-          title:       (data as any).title        ?? '',
-          body:        (data as any).body         ?? '',
-          sender_name: (data as any).sender_name  ?? '',
-          is_urgent:   (data as any).is_urgent    ?? false,
-        })
-        const raw: any[] = (data as any).notice_media ?? []
-        setMedia(
-          raw
-            .sort((a, b) => a.order_index - b.order_index)
-            .map((m, i) => ({
-              id:          m.id,
-              url:         m.url         ?? '',
-              caption:     m.caption     ?? '',
-              type:        m.type        ?? 'image',
-              order_index: i,
-              key:         m.id,
-            }))
-        )
-        setLoading(false)
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', user.id).single()
+      const isEditor = (profile as { role: string } | null)?.role === 'editor'
+
+      const { data } = await supabase
+        .from('notices')
+        .select('id, exhibit_id, title, body, sender_name, is_urgent, notice_media(id, url, type, caption, order_index)')
+        .eq('id', id)
+        .single()
+
+      if (!data) { setLoading(false); return }
+
+      if (isEditor) {
+        const { data: assignment } = await supabase
+          .from('exhibit_editors')
+          .select('exhibit_id')
+          .eq('user_id', user.id)
+          .eq('exhibit_id', (data as any).exhibit_id)
+          .single()
+        if (!assignment) { router.push('/admin/notices'); return }
+      }
+
+      setForm({
+        exhibit_id:  (data as any).exhibit_id  ?? '',
+        title:       (data as any).title        ?? '',
+        body:        (data as any).body         ?? '',
+        sender_name: (data as any).sender_name  ?? '',
+        is_urgent:   (data as any).is_urgent    ?? false,
       })
-  }, [id, isNew])
+      const raw: any[] = (data as any).notice_media ?? []
+      setMedia(
+        raw
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((m, i) => ({
+            id:          m.id,
+            url:         m.url         ?? '',
+            caption:     m.caption     ?? '',
+            type:        m.type        ?? 'image',
+            order_index: i,
+            key:         m.id,
+          }))
+      )
+      setLoading(false)
+    })
+  }, [id, isNew, router])
 
   const set = useCallback(
     (k: keyof NoticeForm, v: string | boolean) => setForm(f => ({ ...f, [k]: v })),

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.exhibits (
   description   TEXT,
   thumbnail_url TEXT,
   cover_url     TEXT,
+  has_wait_time BOOLEAN NOT NULL DEFAULT true,
   wait_minutes  SMALLINT NOT NULL DEFAULT 0,
   is_active     BOOLEAN NOT NULL DEFAULT true,
   day           TEXT NOT NULL DEFAULT 'both' CHECK (day IN ('sat', 'sun', 'both')),

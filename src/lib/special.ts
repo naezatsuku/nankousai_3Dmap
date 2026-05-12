@@ -82,13 +82,14 @@ export async function fetchSpecialGroups(): Promise<SpecialGroup[]> {
     const { data, error } = await supabase
       .from('exhibits')
       .select('id, name, category, description, thumbnail_url, special_schedules(*)')
-      .eq('type', 'special')
       .eq('is_active', true)
       .order('name')
 
     if (error || !data) return DUMMY_GROUPS
 
-    const groups = (data as unknown as RawExhibit[]).map(raw => ({
+    const groups = (data as unknown as RawExhibit[])
+      .filter(raw => raw.special_schedules && raw.special_schedules.length > 0)
+      .map(raw => ({
       id:            raw.id,
       name:          raw.name,
       category:      raw.category ?? '',

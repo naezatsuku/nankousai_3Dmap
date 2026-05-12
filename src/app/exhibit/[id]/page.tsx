@@ -5,14 +5,7 @@ import Link from 'next/link'
 import { getExhibit, fetchExhibitDetail, ExhibitDetail, ExhibitSection, SectionMedia, ExhibitMedia, BodySegment } from '@/lib/exhibits'
 import { useState, useEffect } from 'react'
 import { FoodMenu, getFoodMenuStatus } from '@/types'
-
-// ─── フード用ダミーメニュー（後でSupabaseから取得）─────────────
-const FOOD_MENUS_BY_EXHIBIT: Record<string, FoodMenu[]> = {
-  food1: [
-    { id:'fm1', exhibit_id:'food1', name:'焼きそば', price:300, description:'秘伝ソースの本格派。もちもち食感の特製麺使用', image_url:'', stock:12, is_selling:true, sold_count:87 },
-    { id:'fm2', exhibit_id:'food1', name:'フランクフルト', price:200, description:'ジューシーな粗挽きソーセージ。マスタード付き', image_url:'', stock:0,  is_selling:true, sold_count:54 },
-  ],
-}
+import { createClient } from '@/lib/supabase/client'
 
 const TYPE_LABEL: Record<string, string> = {
   class:'展示', food:'フード', band:'軽音楽部', special:'スペシャル', cafeteria:'食堂',
@@ -21,10 +14,39 @@ const TYPE_LABEL: Record<string, string> = {
 export default function ExhibitDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [exhibit, setExhibit] = useState<ExhibitDetail | null>(() => getExhibit(id))
+  const [foodMenus, setFoodMenus] = useState<FoodMenu[]>([])
 
   useEffect(() => {
     fetchExhibitDetail(id).then(data => { if (data) setExhibit(data) })
   }, [id])
+
+  const exhibitId   = exhibit?.id
+  const exhibitType = exhibit?.type
+
+  useEffect(() => {
+    if (!exhibitId || (exhibitType !== 'food' && exhibitType !== 'cafeteria')) return
+    const supabase = createClient()
+
+    supabase
+      .from('food_menus')
+      .select('id, exhibit_id, name, price, image_url, description, stock, is_selling, sold_count')
+      .eq('exhibit_id', exhibitId)
+      .then(({ data }) => { if (data) setFoodMenus(data as FoodMenu[]) })
+
+    const channel = supabase
+      .channel(`food-menus-${exhibitId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'food_menus', filter: `exhibit_id=eq.${exhibitId}` },
+        (payload) => {
+          const updated = payload.new as FoodMenu
+          setFoodMenus(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m))
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [exhibitId, exhibitType])
 
   if (!exhibit) {
     return (
@@ -51,7 +73,7 @@ export default function ExhibitDetailPage() {
 
         {/* ── type別コンテンツ ── */}
         {exhibit.type === 'food' || exhibit.type === 'cafeteria'
-          ? <FoodContent exhibit={exhibit} menus={FOOD_MENUS_BY_EXHIBIT[exhibit.id] ?? []} />
+          ? <FoodContent exhibit={exhibit} menus={foodMenus} />
           : exhibit.type === 'band'
           ? <BandContent />
           : <StandardContent exhibit={exhibit} />
@@ -334,7 +356,7 @@ function FoodContent({ exhibit, menus }: { exhibit: ExhibitDetail; menus: FoodMe
           }}>
             🍽 メニュー
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:20, marginBottom:28 }}>
+          <div style={{ marginBottom:28 }}>
             {menus.map((menu) => <FoodMenuCard key={menu.id} menu={menu} />)}
           </div>
         </>
@@ -352,7 +374,7 @@ function FoodContent({ exhibit, menus }: { exhibit: ExhibitDetail; menus: FoodMe
   )
 }
 
-/** レストランスタイルのメニューカード */
+/** メニューカード（横並びレイアウト） */
 function FoodMenuCard({ menu }: { menu: FoodMenu }) {
   const status = getFoodMenuStatus(menu)
   const isSelling = status === 'selling'
@@ -364,100 +386,75 @@ function FoodMenuCard({ menu }: { menu: FoodMenu }) {
 
   return (
     <div style={{
-      borderRadius:20, overflow:'hidden',
-      boxShadow:'0 4px 20px rgba(0,0,0,0.08)',
-      border:'1px solid rgba(0,0,0,0.05)',
-      opacity: isSelling ? 1 : 0.7,
+      display:'flex', gap:14, alignItems:'flex-start',
+      padding:'14px 0',
+      borderBottom:'1px solid #f1f5f9',
+      opacity: isSelling ? 1 : 0.55,
     }}>
-      {/* 大きい画像エリア */}
+      {/* サムネイル */}
       <div style={{
-        width:'100%', aspectRatio:'4/3', background:'#f5f5f5',
-        display:'flex', alignItems:'center', justifyContent:'center',
-        position:'relative', overflow:'hidden',
+        width:80, height:80, borderRadius:12, flexShrink:0,
+        overflow:'hidden', background:'#fef3c7', position:'relative',
       }}>
         {menu.image_url ? (
           <img src={menu.image_url} alt={menu.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
         ) : (
           <div style={{
             width:'100%', height:'100%',
-            background:'linear-gradient(135deg,#fef3c7,#fde68a,#fcd34d)',
+            background:'linear-gradient(135deg,#fef3c7,#fcd34d)',
             display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:80,
+            fontSize:32,
           }}>🍱</div>
         )}
-        {/* 売り切れオーバーレイ */}
         {!isSelling && (
           <div style={{
-            position:'absolute', inset:0, background:'rgba(0,0,0,0.45)',
+            position:'absolute', inset:0, background:'rgba(0,0,0,0.5)',
             display:'flex', alignItems:'center', justifyContent:'center',
+            borderRadius:12,
           }}>
-            <span style={{
-              fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#fff',
-              background:'rgba(0,0,0,0.5)', padding:'8px 20px', borderRadius:99,
-            }}>
+            <span style={{ fontSize:9, fontWeight:700, color:'#fff', fontFamily:"'Kiwi Maru',serif", textAlign:'center', lineHeight:1.3 }}>
               {statusConfig.label}
             </span>
           </div>
         )}
-        {/* 販売中バッジ */}
-        {isSelling && (
-          <div style={{
-            position:'absolute', top:10, right:10,
-            background:statusConfig.bg, color:statusConfig.color,
-            fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:99,
-            fontFamily:"'Kiwi Maru',serif", border:`1px solid ${statusConfig.color}33`,
-          }}>
-            {statusConfig.label}
-          </div>
-        )}
       </div>
 
-      {/* テキストエリア */}
-      <div style={{ padding:'16px 18px 18px', background:'#fff' }}>
-        {/* 名前 + 価格 */}
-        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:8 }}>
+      {/* テキスト */}
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:4 }}>
           <div style={{
-            fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1a1a1a',
-            lineHeight:1.2, flex:1, marginRight:8,
+            fontFamily:"'Kaisei Decol',serif", fontSize:16, fontWeight:700, color:'#1a1a1a', lineHeight:1.3,
           }}>
             {menu.name}
           </div>
           <div style={{
-            fontFamily:"'Kaisei Decol',serif", fontSize:24, fontWeight:700,
-            color:'#FF6B00', flexShrink:0, lineHeight:1,
+            fontFamily:"'Kaisei Decol',serif", fontSize:18, fontWeight:700,
+            color:'#FF6B00', flexShrink:0, lineHeight:1.2,
           }}>
             ¥{menu.price.toLocaleString()}
           </div>
         </div>
 
-        {/* 説明 */}
         {menu.description && (
-          <div style={{ fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#888', lineHeight:1.7 }}>
+          <div style={{ fontFamily:"'Kiwi Maru',serif", fontSize:12, color:'#999', lineHeight:1.6, marginBottom:6 }}>
             {menu.description}
           </div>
         )}
 
-        {/* 在庫バー */}
-        {isSelling && menu.stock > 0 && (
-          <div style={{ marginTop:12 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-              <span style={{ fontSize:10, color:'#bbb', fontFamily:"'Kiwi Maru',serif" }}>残り在庫</span>
-              <span style={{ fontSize:10, fontWeight:700, color: menu.stock <= 10 ? '#f59e0b' : '#aaa', fontFamily:"'Kiwi Maru',serif" }}>
-                {menu.stock <= 10 ? `残り${menu.stock}個！` : `${menu.stock}個`}
-              </span>
-            </div>
-            <div style={{ height:4, borderRadius:99, background:'#f0f0f0', overflow:'hidden' }}>
-              <div style={{
-                height:'100%', borderRadius:99,
-                width:`${Math.min((menu.stock / 50) * 100, 100)}%`,
-                background: menu.stock <= 10
-                  ? 'linear-gradient(90deg,#fbbf24,#f59e0b)'
-                  : 'linear-gradient(90deg,#86efac,#4ade80)',
-                transition:'width 0.5s ease',
-              }} />
-            </div>
-          </div>
-        )}
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{
+            fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99,
+            background:statusConfig.bg, color:statusConfig.color,
+            fontFamily:"'Kiwi Maru',serif", border:`1px solid ${statusConfig.color}33`,
+          }}>
+            {statusConfig.label}
+          </span>
+          {isSelling && menu.stock > 0 && menu.stock <= 10 && (
+            <span style={{ fontSize:10, fontWeight:700, color:'#f59e0b', fontFamily:"'Kiwi Maru',serif" }}>
+              残り{menu.stock}個！
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

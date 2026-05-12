@@ -32,8 +32,11 @@ export default function SpecialPage() {
 
   useEffect(() => {
     fetchSpecialGroups().then(setGroups)
+    
   }, [])
-
+  useEffect(()=>{
+    console.log(groups)
+  },[groups])
   useEffect(() => {
     const update = () => {
       const d = new Date()

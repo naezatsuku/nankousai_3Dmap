@@ -31,8 +31,9 @@ export default function MapMarkers({ markers, exhibits, onMarkerClick }: MapMark
         if (!exhibit) return null
 
         // 待ち時間メーターの割合 (60分で100%とする)
-        const waitPercent = Math.min((exhibit.wait_minutes / 60) * 100, 100)
-        const color = WAIT_COLOR(exhibit.wait_minutes)
+        const hasWait = exhibit.has_wait_time !== false
+        const waitPercent = hasWait ? Math.min((exhibit.wait_minutes / 60) * 100, 100) : 0
+        const color = hasWait ? WAIT_COLOR(exhibit.wait_minutes) : '#e2e8f0'
 
         return (
           <div
@@ -49,10 +50,12 @@ export default function MapMarkers({ markers, exhibits, onMarkerClick }: MapMark
               className="pointer-events-auto relative active:scale-90 transition-transform"
             >
               {/* 外枠（待ち時間メーター） */}
-              <div 
+              <div
                 className="w-10 h-10 rounded-full p-[2.5px] shadow-lg bg-white"
                 style={{
-                  background: `conic-gradient(${color} ${waitPercent}%, #e2e8f0 ${waitPercent}% 100%)`
+                  background: hasWait
+                    ? `conic-gradient(${color} ${waitPercent}%, #e2e8f0 ${waitPercent}% 100%)`
+                    : '#e2e8f0'
                 }}
               >
                 {/* イメージ写真の丸枠 */}

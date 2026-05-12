@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { Exhibit } from '@/types'
@@ -29,8 +29,10 @@ export default function MapPage() {
   const [exhibits, setExhibits]         = useState<Exhibit[]>([])
   const [floor, setFloor]               = useState(2)
   const [searchQuery, setSearchQuery]   = useState('')
-  const [selectedRoom, setSelectedRoom] = useState<string>('')
-  const [sheetExhibit, setSheetExhibit] = useState<Exhibit | null>(null)
+  const [selectedRoom, setSelectedRoom]   = useState<string>('')
+  const [sheetExhibits, setSheetExhibits] = useState<Exhibit[]>([])
+  const [focusRoom, setFocusRoom]       = useState<string | null>(null)
+  const floorRef                        = useRef(floor)
 
   // Supabase から is_active な展示を全件取得し、リアルタイム更新も購読
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function MapPage() {
 
     supabase
       .from('exhibits')
-      .select('id, name, class_label, type, room_object, room_display, floor, wait_minutes, is_active, day, thumbnail_url')
+      .select('id, name, class_label, type, room_object, room_display, floor, has_wait_time, wait_minutes, is_active, day, thumbnail_url')
       .eq('is_active', true)
       .then(({ data }) => {
         if (data) setExhibits(data as Exhibit[])
@@ -54,14 +56,14 @@ export default function MapPage() {
           const updated = payload.new as Exhibit
           if (!updated.is_active) {
             setExhibits(prev => prev.filter(e => e.id !== updated.id))
-            setSheetExhibit(prev => prev?.id === updated.id ? null : prev)
+            setSheetExhibits(prev => prev.filter(e => e.id !== updated.id))
           } else {
             setExhibits(prev =>
               prev.some(e => e.id === updated.id)
                 ? prev.map(e => e.id === updated.id ? { ...e, ...updated } : e)
                 : [...prev, updated]
             )
-            setSheetExhibit(prev => prev?.id === updated.id ? { ...prev, ...updated } : prev)
+            setSheetExhibits(prev => prev.map(e => e.id === updated.id ? { ...e, ...updated } : e))
           }
         }
       )
@@ -72,15 +74,38 @@ export default function MapPage() {
 
   const floorExhibits = exhibits.filter(e => e.floor === floor)
 
+  // floorRef を常に最新に保つ
+  useEffect(() => { floorRef.current = floor }, [floor])
+
+  // 入力中：ハイライト更新のみ、フォーカスはしない
+  const handleSearch = useCallback((q: string) => {
+    setSearchQuery(q)
+    setFocusRoom(null)
+  }, [])
+
+  // Enter 確定時：1件一致ならフォーカス・フロア移動
+  const handleConfirm = useCallback((q: string) => {
+    if (!q.trim()) return
+    const lower = q.toLowerCase()
+    const matches = exhibits.filter(e =>
+      e.name.toLowerCase().includes(lower) ||
+      (e.class_label?.toLowerCase().includes(lower) ?? false)
+    )
+    if (matches.length === 1) {
+      const m = matches[0]
+      if (m.floor !== undefined && m.floor !== floorRef.current) setFloor(m.floor)
+      setFocusRoom(m.room_object ?? null)
+    }
+  }, [exhibits])
+
   const handleRoomClick = useCallback((nodeName: string) => {
-    const exhibit = exhibits.find(e => e.room_object === nodeName) ?? null
     setSelectedRoom(nodeName)
-    setSheetExhibit(exhibit)
+    setSheetExhibits(exhibits.filter(e => e.room_object === nodeName))
   }, [exhibits])
 
   const handleClose = useCallback(() => {
     setSelectedRoom('')
-    setSheetExhibit(null)
+    setSheetExhibits([])
   }, [])
 
   const handleFloorChange = useCallback((f: number) => {
@@ -88,23 +113,30 @@ export default function MapPage() {
     handleClose()
   }, [handleClose])
 
+  // サジェストから選択されたとき
+  const handleSelect = useCallback((exhibit: Exhibit) => {
+    if (exhibit.floor !== undefined && exhibit.floor !== floorRef.current) setFloor(exhibit.floor)
+    setFocusRoom(exhibit.room_object ?? null)
+  }, [])
+
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 overflow-hidden">
       <MapCanvas
         floor={floor}
         exhibits={floorExhibits}
         searchQuery={searchQuery}
+        focusRoom={focusRoom}
         onRoomClick={handleRoomClick}
       />
 
       <FloorSelector current={floor} onChange={handleFloorChange} />
-      <SearchBar onSearch={setSearchQuery} />
+      <SearchBar onSearch={handleSearch} onConfirm={handleConfirm} onSelect={handleSelect} exhibits={exhibits} />
       <SideButtons />
 
       <RoomSheet
-        exhibit={sheetExhibit}
+        exhibits={sheetExhibits}
         roomDisplay={
-          sheetExhibit?.room_display ??
+          sheetExhibits[0]?.room_display ??
           (selectedRoom ? `${selectedRoom}` : '')
         }
         floor={floor}

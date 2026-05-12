@@ -28,6 +28,9 @@ const COLOR = {
   selected:0xffec40,
 } as const
 
+// 初期カメラオフセット（camera.position.set(-5, 10, 15) に合わせる）
+const INIT_CAM_OFFSET = new THREE.Vector3(-5, 10, 15)
+
 const FLOOR_MESH_RE = /^(\d+F|基礎|床|ground)$/i
 const GROUND_MESH_RE = /ground/i // "ground" を含むメッシュ用
 const waitToColor = (wait: number, assigned: boolean): number => {
@@ -186,13 +189,26 @@ interface MapCanvasProps {
   floor: number
   exhibits: Exhibit[]
   searchQuery?: string
+  focusRoom?:   string | null
   onRoomClick: (nodeName: string) => void
+}
+
+interface FocusAnim {
+  active:      boolean
+  startTarget: THREE.Vector3
+  endTarget:   THREE.Vector3
+  startCamPos: THREE.Vector3
+  endCamPos:   THREE.Vector3
+  startZoom:   number
+  endZoom:     number
+  t:           number
 }
 
 export default function MapCanvas({
   floor,
   exhibits,
   searchQuery = '',
+  focusRoom   = null,
   onRoomClick,
 }: MapCanvasProps) {
   const mountRef      = useRef<HTMLDivElement>(null)
@@ -204,8 +220,10 @@ export default function MapCanvas({
   const rafRef        = useRef<number>(0)
   const roomMeshes    = useRef<Map<string, THREE.Mesh>>(new Map())
   const css2dObjects  = useRef<CSS2DObject[]>([])
-  const pointerStart  = useRef({ x: 0, y: 0 })
+  const pointerStart   = useRef({ x: 0, y: 0 })
   const onRoomClickRef = useRef(onRoomClick)
+  const focusAnimRef   = useRef<FocusAnim | null>(null)
+  const hasFocusedRef  = useRef(false)
 
   useEffect(() => {
     onRoomClickRef.current = onRoomClick
@@ -222,9 +240,11 @@ export default function MapCanvas({
       const exhibit  = exhibitMap[name]
       const assigned = !!exhibit
       const wait     = exhibit?.wait_minutes ?? 0
-      const isHL     = searchQuery.length > 0 &&
-        (name.includes(searchQuery) ||
-         exhibit?.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      const q    = searchQuery.toLowerCase()
+      const isHL = q.length > 0 && (
+        exhibit?.name.toLowerCase().includes(q) ||
+        exhibit?.class_label?.toLowerCase().includes(q)
+      )
       const hex = isHL ? COLOR.selected : waitToColor(wait, assigned)
       ;(mesh.material as THREE.MeshLambertMaterial).color.setHex(hex)
     })
@@ -328,6 +348,7 @@ export default function MapCanvas({
           cam.right  =  maxDim * aspect
           cam.top    =  maxDim
           cam.bottom = -maxDim
+          cam.zoom   = 1
           cam.updateProjectionMatrix()
         }
       },
@@ -406,8 +427,21 @@ export default function MapCanvas({
     const animate = () => {
       rafId = requestAnimationFrame(animate)
       controls.update()
+
+      // フォーカスアニメーション（target + camera.position を同時に動かして初期角度を維持）
+      const fa = focusAnimRef.current
+      if (fa?.active) {
+        fa.t += 0.05
+        if (fa.t >= 1) { fa.t = 1; fa.active = false }
+        const eased = 1 - Math.pow(1 - fa.t, 3) // ease-out cubic
+        controls.target.lerpVectors(fa.startTarget, fa.endTarget, eased)
+        camera.position.lerpVectors(fa.startCamPos, fa.endCamPos, eased)
+        camera.zoom = fa.startZoom + (fa.endZoom - fa.startZoom) * eased
+        camera.updateProjectionMatrix()
+      }
+
       renderer.render(scene, camera)
-      css2d.render(scene, camera)   // ← CSS2D も毎フレーム更新
+      css2d.render(scene, camera)
     }
     animate()
     rafRef.current = rafId
@@ -437,6 +471,19 @@ export default function MapCanvas({
           obj = obj.parent
         }
         onRoomClickRef.current(obj.name)
+      } else if (hasFocusedRef.current) {
+        // フォーカス中に空白タップ → カメラを初期状態へリセット
+        hasFocusedRef.current = false
+        focusAnimRef.current = {
+          active:      true,
+          startTarget: controls.target.clone(),
+          endTarget:   new THREE.Vector3(0, 0, 0),
+          startCamPos: camera.position.clone(),
+          endCamPos:   INIT_CAM_OFFSET.clone(),
+          startZoom:   camera.zoom,
+          endZoom:     1,
+          t:           0,
+        }
       }
     }
     el.addEventListener('pointerdown', onPointerDown)
@@ -483,6 +530,39 @@ export default function MapCanvas({
   useEffect(() => {
     if (sceneRef.current) rebuildMarkers(sceneRef.current)
   }, [rebuildMarkers])
+
+  // focusRoom 変更 → カメラをスムーズに移動・ズーム
+  useEffect(() => {
+    if (!focusRoom) return
+
+    const tryFocus = () => {
+      const mesh = roomMeshes.current.get(focusRoom)
+      if (!mesh || !controlsRef.current || !cameraRef.current) return false
+
+      const worldPos = new THREE.Vector3()
+      mesh.getWorldPosition(worldPos)
+
+      const endTarget = new THREE.Vector3(worldPos.x, 0, worldPos.z)
+      hasFocusedRef.current = true
+      focusAnimRef.current = {
+        active:      true,
+        startTarget: controlsRef.current.target.clone(),
+        endTarget,
+        startCamPos: cameraRef.current.position.clone(),
+        endCamPos:   endTarget.clone().add(INIT_CAM_OFFSET),
+        startZoom:   cameraRef.current.zoom,
+        endZoom:     2.5,
+        t:           0,
+      }
+      return true
+    }
+
+    // フロア切り替え直後はメッシュ未ロードのためリトライ
+    if (!tryFocus()) {
+      const timer = setTimeout(tryFocus, 800)
+      return () => clearTimeout(timer)
+    }
+  }, [focusRoom, floor])
 
   return (
     <div
