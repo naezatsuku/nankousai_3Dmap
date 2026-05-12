@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 // ── 型 ────────────────────────────────────────────────────────
 type BodySegment =
@@ -17,26 +18,15 @@ interface ExhibitFormState {
   cover_url:string; thumbnail_url:string
   room_display:string; floor:number
   sections:Section[]
-  // 待ち時間計算
-  time_per_group:number   // 1グループあたり何分か
-  queue_count:number      // 現在の待ちグループ数
-  // フード専用
+  time_per_group:number
+  queue_count:number
   type:'class'|'food'|'band'|'special'|'cafeteria'
 }
 
-// ── ダミー初期値 ───────────────────────────────────────────────
 const INIT: ExhibitFormState = {
-  name:'お化け屋敷', catch_copy:'この夏だけの、恐怖を。',
-  description:'高校2年1組が総力を結集して作り上げたお化け屋敷です。',
-  cover_url:'', thumbnail_url:'', room_display:'201教室', floor:2,
-  sections:[
-    { id:'s1', heading:'展示内容について', order:1,
-      body:[{type:'text',text:'廃病院をテーマにした本格的なお化け屋敷です。所要時間は約10分。'}] },
-    { id:'s2', heading:'制作の裏側', order:2,
-      body:[{type:'text',text:'放課後3ヶ月間、クラス全員で準備しました。'}] },
-  ],
-  time_per_group:3, queue_count:5,
-  type:'class',
+  name:'', catch_copy:'', description:'',
+  cover_url:'', thumbnail_url:'', room_display:'', floor:1,
+  sections:[], time_per_group:5, queue_count:0, type:'class',
 }
 
 const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
@@ -44,23 +34,107 @@ const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
 // ── メインページ ───────────────────────────────────────────────
 export default function ExhibitEditPage() {
   const { id } = useParams<{ id:string }>()
-  const [form, setForm]     = useState<ExhibitFormState>(INIT)
-  const [tab, setTab]       = useState<'basic'|'quick'>('basic')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved]   = useState(false)
+  const [form, setForm]         = useState<ExhibitFormState>(INIT)
+  const [tab, setTab]           = useState<'basic'|'quick'>('basic')
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [saved, setSaved]       = useState(false)
+  const [noticeText, setNoticeText]     = useState('')
+  const [noticeUrgent, setNoticeUrgent] = useState(false)
+  const [posting, setPosting]           = useState(false)
+
+  // ── データ読み込み ────────────────────────────────────────────
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('exhibits')
+      .select('*, sections:exhibit_sections(id, heading, body, order_index)')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          const waitMin = data.wait_minutes ?? 0
+          const tpg     = 5
+          setForm({
+            name:          data.name ?? '',
+            catch_copy:    data.catch_copy ?? '',
+            description:   data.description ?? '',
+            cover_url:     data.cover_url ?? '',
+            thumbnail_url: data.thumbnail_url ?? '',
+            room_display:  data.room_display ?? '',
+            floor:         data.floor ?? 1,
+            sections: ((data.sections as {id:string;heading:string;body:BodySegment[];order_index:number}[]) ?? [])
+              .sort((a,b) => a.order_index - b.order_index)
+              .map(s => ({ id:s.id, heading:s.heading, body:s.body ?? [], order:s.order_index })),
+            time_per_group: tpg,
+            queue_count:    Math.round(waitMin / tpg),
+            type:           data.type,
+          })
+        }
+        setLoading(false)
+      })
+  }, [id])
 
   const set = useCallback(<K extends keyof ExhibitFormState>(key:K, val:ExhibitFormState[K]) => {
     setForm(f => ({ ...f, [key]:val }))
   }, [])
 
+  // ── 保存 ────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true)
-    await new Promise(r => setTimeout(r, 600))
+    const supabase = createClient()
+
+    await supabase.from('exhibits').update({
+      name:          form.name,
+      catch_copy:    form.catch_copy,
+      description:   form.description,
+      cover_url:     form.cover_url,
+      thumbnail_url: form.thumbnail_url,
+      room_display:  form.room_display,
+      floor:         form.floor,
+      wait_minutes:  waitMin,
+    }).eq('id', id)
+
+    // セクションを全削除して再挿入
+    await supabase.from('exhibit_sections').delete().eq('exhibit_id', id)
+    if (form.sections.length > 0) {
+      await supabase.from('exhibit_sections').insert(
+        form.sections.map(s => ({
+          exhibit_id:  id,
+          heading:     s.heading,
+          body:        s.body,
+          order_index: s.order,
+        }))
+      )
+    }
+
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
+  // ── お知らせ投稿 ──────────────────────────────────────────────
+  const handlePostNotice = async () => {
+    if (!noticeText.trim()) return
+    setPosting(true)
+    const supabase = createClient()
+    await supabase.from('notices').insert({
+      exhibit_id: id,
+      title:      noticeText.split('\n')[0].slice(0, 60) || 'お知らせ',
+      body:       noticeText,
+      is_urgent:  noticeUrgent,
+    })
+    setNoticeText(''); setNoticeUrgent(false); setPosting(false)
+  }
+
   const waitMin = calcWait(form.time_per_group, form.queue_count)
+
+  if (loading) {
+    return (
+      <div style={{ maxWidth:1200, textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
+        読み込み中…
+      </div>
+    )
+  }
 
   return (
     <>
@@ -77,13 +151,12 @@ export default function ExhibitEditPage() {
           <Link href="/admin/edit" style={{ color:'#94a3b8', textDecoration:'none', fontSize:20 }}>←</Link>
           <div>
             <h2 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', marginBottom:2 }}>
-              {form.name}
+              {form.name || '（名前未設定）'}
               <span style={{ fontSize:13, fontWeight:400, color:'#94a3b8', marginLeft:10, fontFamily:"'Kiwi Maru',serif" }}>
-                {form.room_display} · {form.floor}F
+                {form.room_display}{form.floor ? ` · ${form.floor}F` : ''}
               </span>
             </h2>
           </div>
-          {/* 保存ボタン（PC用） */}
           <button onClick={handleSave} disabled={saving} style={{
             marginLeft:'auto', padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer',
             background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
@@ -112,10 +185,9 @@ export default function ExhibitEditPage() {
         {/* ── レイアウト ── */}
         <div className="edit-layout" style={{ gridTemplateColumns:'1fr 340px', gap:20, alignItems:'start' }}>
 
-          {/* ────────────── 左エリア（更新頻度低） ────────────── */}
+          {/* ────────────── 左エリア ────────────── */}
           <div className="edit-left" data-tab={tab === 'basic' ? 'basic' : 'quick'}>
 
-            {/* 基本情報カード */}
             <Card title="基本情報" icon="📋">
               <FormField label="展示名">
                 <Input value={form.name} onChange={v=>set('name',v)} />
@@ -139,7 +211,6 @@ export default function ExhibitEditPage() {
               </div>
             </Card>
 
-            {/* 写真 */}
             <Card title="写真・画像" icon="🖼" style={{ marginTop:16 }}>
               <FormField label="カバー写真URL">
                 <Input value={form.cover_url} onChange={v=>set('cover_url',v)} placeholder="https://..." />
@@ -149,116 +220,62 @@ export default function ExhibitEditPage() {
               </FormField>
             </Card>
 
-            {/* セクション */}
             <Card title="本文セクション" icon="📖" style={{ marginTop:16 }}>
               <SectionsEditor sections={form.sections} onChange={v=>set('sections',v)} />
             </Card>
-
-            {/* type別専用エリア */}
-            {form.type === 'food' && (
-              <Card title="フードメニュー編集" icon="🍜" style={{ marginTop:16 }}>
-                <FoodEditor />
-              </Card>
-            )}
-            {form.type === 'band' && (
-              <Card title="軽音楽部編集" icon="🎸" style={{ marginTop:16 }}>
-                <BandEditor />
-              </Card>
-            )}
           </div>
 
-          {/* ────────────── 右エリア（更新頻度高） ────────────── */}
+          {/* ────────────── 右エリア ────────────── */}
           <div className="edit-right" data-tab={tab === 'quick' ? 'quick' : 'basic'}>
 
-            {/* ⚡ 待ち時間計算カード */}
             <Card title="⚡ 待ち時間" icon="" accent style={{ marginBottom:16 }}>
-              {/* 計算結果（大きく表示）*/}
               <div style={{
                 background:'linear-gradient(135deg,#0f172a,#1e293b)',
                 borderRadius:14, padding:'20px', textAlign:'center', marginBottom:18,
               }}>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>
-                  現在の待ち時間
-                </div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>現在の待ち時間</div>
                 <div style={{
                   fontFamily:"'Kaisei Decol',serif", fontSize:48, fontWeight:700,
-                  color: waitMin>=30?'#fca5a5':waitMin>=15?'#fcd34d':'#86efac',
-                  lineHeight:1,
-                }}>
-                  {waitMin}
-                </div>
+                  color: waitMin>=30?'#fca5a5':waitMin>=15?'#fcd34d':'#86efac', lineHeight:1,
+                }}>{waitMin}</div>
                 <div style={{ fontSize:14, color:'rgba(255,255,255,0.5)', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>分</div>
               </div>
 
-              {/* 計算式 */}
-              <div style={{
-                display:'flex', alignItems:'center', gap:8,
-                background:'#f8fafc', borderRadius:12, padding:'14px',
-                marginBottom:16,
-              }}>
-                {/* 1グループの時間 */}
-                <div style={{ flex:1, textAlign:'center' }}>
-                  <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>
-                    1組あたり
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
-                    <button onClick={()=>set('time_per_group',Math.max(1,form.time_per_group-1))} style={calcBtnStyle}>−</button>
-                    <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>
-                      {form.time_per_group}
-                    </span>
-                    <button onClick={()=>set('time_per_group',form.time_per_group+1)} style={calcBtnStyle}>＋</button>
-                  </div>
-                  <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>分</div>
-                </div>
-
-                {/* × */}
-                <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>
-
-                {/* 待ち組数 */}
-                <div style={{ flex:1, textAlign:'center' }}>
-                  <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>
-                    待ち組数
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
-                    <button onClick={()=>set('queue_count',Math.max(0,form.queue_count-1))} style={calcBtnStyle}>−</button>
-                    <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>
-                      {form.queue_count}
-                    </span>
-                    <button onClick={()=>set('queue_count',form.queue_count+1)} style={calcBtnStyle}>＋</button>
-                  </div>
-                  <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>組</div>
-                </div>
-
-                {/* = */}
+              <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:12, padding:'14px', marginBottom:16 }}>
+                {[
+                  { label:'1組あたり', val:form.time_per_group, key:'time_per_group' as const, unit:'分', min:1 },
+                  { label:'待ち組数',   val:form.queue_count,   key:'queue_count'   as const, unit:'組', min:0 },
+                ].map((item, idx) => (
+                  <>
+                    {idx > 0 && <div key={`op${idx}`} style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>}
+                    <div key={item.key} style={{ flex:1, textAlign:'center' }}>
+                      <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>{item.label}</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
+                        <button onClick={()=>set(item.key, Math.max(item.min, item.val-1))} style={calcBtnStyle}>−</button>
+                        <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>{item.val}</span>
+                        <button onClick={()=>set(item.key, item.val+1)} style={calcBtnStyle}>＋</button>
+                      </div>
+                      <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>{item.unit}</div>
+                    </div>
+                  </>
+                ))}
                 <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>=</div>
-
-                {/* 結果 */}
                 <div style={{ flex:1, textAlign:'center' }}>
                   <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>待ち時間</div>
-                  <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#FF6B00' }}>
-                    {waitMin}分
-                  </div>
+                  <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#FF6B00' }}>{waitMin}分</div>
                 </div>
               </div>
 
-              {/* 直接入力も可 */}
               <div style={{ marginBottom:14 }}>
-                <label style={{ fontSize:11, color:'#94a3b8', display:'block', marginBottom:4, fontFamily:"'Kiwi Maru',serif" }}>
-                  または直接入力
-                </label>
+                <label style={{ fontSize:11, color:'#94a3b8', display:'block', marginBottom:4, fontFamily:"'Kiwi Maru',serif" }}>または直接入力</label>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <input
-                    type="number" min={0} value={form.queue_count}
+                  <input type="number" min={0} value={form.queue_count}
                     onChange={e=>set('queue_count',Number(e.target.value))}
-                    className="field-input"
-                    style={{ ...inputStyle, flex:1 }}
-                    placeholder="待ち組数を入力"
-                  />
+                    className="field-input" style={{ ...inputStyle, flex:1 }} placeholder="待ち組数を入力" />
                   <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>組</span>
                 </div>
               </div>
 
-              {/* 更新ボタン */}
               <button onClick={handleSave} disabled={saving} style={{
                 width:'100%', padding:'12px 0', borderRadius:10, border:'none', cursor:'pointer',
                 background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
@@ -269,53 +286,21 @@ export default function ExhibitEditPage() {
               </button>
             </Card>
 
-            {/* フード専用：販売状況 */}
-            {form.type === 'food' && (
-              <Card title="販売状況" icon="🍜" style={{ marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:10 }}>
-                  メニューごとの在庫・販売状況
-                </div>
-                {[
-                  { name:'焼きそば', stock:12, selling:true },
-                  { name:'フランクフルト', stock:0, selling:true },
-                ].map(m=>(
-                  <div key={m.name} style={{
-                    display:'flex', alignItems:'center', gap:10,
-                    padding:'10px 12px', borderRadius:10, background:'#f8fafc',
-                    marginBottom:8,
-                  }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:'#1e293b', fontFamily:"'Kaisei Decol',serif" }}>{m.name}</div>
-                      <div style={{ fontSize:11, color:m.stock===0?'#ef4444':'#10b981', fontFamily:"'Kiwi Maru',serif" }}>
-                        {m.stock===0?'売り切れ':`残${m.stock}個`}
-                      </div>
-                    </div>
-                    <input type="number" defaultValue={m.stock} min={0} style={{ ...inputStyle, width:64 }} />
-                  </div>
-                ))}
-                <button style={{
-                  width:'100%', padding:'10px 0', borderRadius:10, border:'none', cursor:'pointer',
-                  background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
-                  color:'#fff', fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
-                }}>
-                  在庫を更新する
-                </button>
-              </Card>
-            )}
-
             {/* お知らせ投稿 */}
             <Card title="お知らせを投稿" icon="📣">
-              <Textarea placeholder="内容を入力…" rows={3} value="" onChange={()=>{}} />
+              <Textarea placeholder="内容を入力…" rows={3} value={noticeText} onChange={setNoticeText} />
               <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10 }}>
                 <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#64748b', cursor:'pointer', fontFamily:"'Kiwi Maru',serif" }}>
-                  <input type="checkbox" style={{ accentColor:'#FF6B00' }} />
+                  <input type="checkbox" checked={noticeUrgent} onChange={e=>setNoticeUrgent(e.target.checked)} style={{ accentColor:'#FF6B00' }} />
                   重要マークをつける
                 </label>
-                <button style={{
+                <button onClick={handlePostNotice} disabled={posting || !noticeText.trim()} style={{
                   marginLeft:'auto', padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer',
-                  background:'#1e293b', color:'#fff', fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                  background: noticeText.trim() ? '#1e293b' : '#e2e8f0',
+                  color: noticeText.trim() ? '#fff' : '#94a3b8',
+                  fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
                 }}>
-                  投稿する
+                  {posting ? '投稿中…' : '投稿する'}
                 </button>
               </div>
             </Card>
@@ -331,7 +316,7 @@ function SectionsEditor({ sections, onChange }:{sections:Section[];onChange:(v:S
   const sorted = [...sections].sort((a,b)=>a.order-b.order)
 
   const addSection = () => {
-    const newSec:Section = { id:`s${Date.now()}`, heading:'', body:[{type:'text',text:''}], order: sections.length+1 }
+    const newSec:Section = { id:`new_${Date.now()}`, heading:'', body:[{type:'text',text:''}], order: sections.length+1 }
     onChange([...sections, newSec])
   }
   const removeSection = (id:string) => onChange(sections.filter(s=>s.id!==id))
@@ -356,16 +341,8 @@ function SectionsEditor({ sections, onChange }:{sections:Section[];onChange:(v:S
             <Input value={sec.heading} onChange={v=>updateHeading(sec.id,v)} placeholder="例: 展示内容について" />
           </FormField>
           <FormField label="本文">
-            <Textarea value={sec.body.find(b=>b.type==='text')?.text || ''} onChange={v=>updateText(sec.id,v)} rows={4} />
+            <Textarea value={sec.body.find(b=>b.type==='text') ? (sec.body.find(b=>b.type==='text') as {type:'text';text:string}).text : ''} onChange={v=>updateText(sec.id,v)} rows={4} />
           </FormField>
-          <div style={{ marginTop:8 }}>
-            <button style={{
-              fontSize:11, color:'#94a3b8', background:'none', border:'1px dashed #e2e8f0',
-              borderRadius:8, padding:'5px 12px', cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
-            }}>
-              + リンクを追加
-            </button>
-          </div>
         </div>
       ))}
       <button onClick={addSection} style={{
@@ -377,16 +354,6 @@ function SectionsEditor({ sections, onChange }:{sections:Section[];onChange:(v:S
       </button>
     </div>
   )
-}
-
-// ─── フード専用編集（スタブ）─────────────────────────────────
-function FoodEditor() {
-  return <div style={{ fontSize:13, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>メニューの追加・価格・説明編集（実装予定）</div>
-}
-
-// ─── 軽音専用編集（スタブ）───────────────────────────────────
-function BandEditor() {
-  return <div style={{ fontSize:13, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>バンド・スケジュール編集（実装予定）</div>
 }
 
 // ─── UIパーツ ─────────────────────────────────────────────────

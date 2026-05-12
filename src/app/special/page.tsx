@@ -2,77 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { PerformanceStatus, timeToMin, getPerformanceStatus } from '@/types'
-
-// ─── 型定義（ローカル）────────────────────────────────────────
-interface SpecialGroup {
-  id: string
-  name: string
-  category: string   // 'dance' | 'drama' | 'chorus' | 'other' など
-  description: string
-  thumbnail_url?: string
-  schedules: SpecialSched[]
-}
-
-interface SpecialSched {
-  id: string
-  day: 'sat' | 'sun'
-  start_at: string
-  end_at: string
-  location: string
-  note?: string
-}
-
-// ─── ダミーデータ ─────────────────────────────────────────────
-const DUMMY_GROUPS: SpecialGroup[] = [
-  {
-    id: 'g1', name: 'ダンス部', category: 'ダンス',
-    description: '総勢30名によるストリートダンスショー。今年は新ジャンルにも挑戦！',
-    schedules: [
-      { id: 's1', day: 'sat', start_at: '10:30', end_at: '11:00', location: 'メインアリーナ', note: 'ヒップホップステージ' },
-      { id: 's2', day: 'sat', start_at: '14:00', end_at: '14:30', location: 'メインアリーナ', note: 'K-POPステージ' },
-      { id: 's3', day: 'sun', start_at: '10:00', end_at: '10:30', location: 'メインアリーナ' },
-    ],
-  },
-  {
-    id: 'g2', name: '演劇部', category: '演劇',
-    description: '今年のテーマは「時間」。オリジナル脚本の短編2作を上演します。',
-    schedules: [
-      { id: 's4', day: 'sat', start_at: '11:30', end_at: '12:30', location: '視聴覚室（5F）', note: '第1回公演' },
-      { id: 's5', day: 'sun', start_at: '11:00', end_at: '12:00', location: '視聴覚室（5F）', note: '第2回公演' },
-      { id: 's6', day: 'sun', start_at: '14:00', end_at: '15:00', location: '視聴覚室（5F）', note: '第3回公演（最終）' },
-    ],
-  },
-  {
-    id: 'g3', name: '合唱部', category: '合唱',
-    description: 'アカペラと伴奏ありの2ステージ構成。美しいハーモニーをお楽しみに。',
-    schedules: [
-      { id: 's7', day: 'sat', start_at: '13:00', end_at: '13:40', location: 'メインアリーナ' },
-      { id: 's8', day: 'sun', start_at: '13:30', end_at: '14:10', location: 'メインアリーナ' },
-    ],
-  },
-  {
-    id: 'g4', name: 'マジック同好会', category: 'マジック',
-    description: '目の前で起こる不思議。プロ顔負けの本格マジックショー！',
-    schedules: [
-      { id: 's9',  day: 'sat', start_at: '12:00', end_at: '12:30', location: 'サブアリーナ' },
-      { id: 's10', day: 'sun', start_at: '12:30', end_at: '13:00', location: 'サブアリーナ' },
-    ],
-  },
-  {
-    id: 'g5', name: '有志バンド（中学生）', category: '音楽',
-    description: '中学生有志によるバンドパフォーマンス。初々しい演奏にご注目！',
-    schedules: [
-      { id: 's11', day: 'sat', start_at: '15:00', end_at: '15:30', location: 'サブアリーナ' },
-    ],
-  },
-  {
-    id: 'g6', name: 'よさこい同好会', category: 'よさこい',
-    description: '鳴子を響かせ、魂のよさこいを披露します！',
-    schedules: [
-      { id: 's12', day: 'sun', start_at: '15:00', end_at: '15:30', location: 'クスノキ広場' },
-    ],
-  },
-]
+import { DUMMY_GROUPS, fetchSpecialGroups } from '@/lib/special'
+import type { SpecialGroup, SpecialSched } from '@/lib/special'
+import BackButton from '@/components/ui/BackButton'
 
 // ─── カテゴリー絵文字 ─────────────────────────────────────────
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -93,9 +25,14 @@ const STATUS_CONFIG: Record<PerformanceStatus, { label: string; color: string; b
 
 // ─── メインページ ──────────────────────────────────────────────
 export default function SpecialPage() {
-  const [day, setDay] = useState<'sat' | 'sun'>('sat')
-  const [nowMin, setNowMin] = useState(0)
+  const [day, setDay]           = useState<'sat' | 'sun'>('sat')
+  const [nowMin, setNowMin]     = useState(0)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [groups, setGroups]     = useState<SpecialGroup[]>(DUMMY_GROUPS)
+
+  useEffect(() => {
+    fetchSpecialGroups().then(setGroups)
+  }, [])
 
   useEffect(() => {
     const update = () => {
@@ -110,7 +47,7 @@ export default function SpecialPage() {
   // 当日のスケジュールを時刻順にフラット化
   const timelineItems = useMemo(() => {
     const items: { group: SpecialGroup; sched: SpecialSched; status: PerformanceStatus }[] = []
-    DUMMY_GROUPS.forEach((group) => {
+    groups.forEach((group) => {
       group.schedules
         .filter((s) => s.day === day)
         .forEach((sched) => {
@@ -118,12 +55,12 @@ export default function SpecialPage() {
         })
     })
     return items.sort((a, b) => timeToMin(a.sched.start_at) - timeToMin(b.sched.start_at))
-  }, [day, nowMin])
+  }, [groups, day, nowMin])
 
   // 当日に出演するグループのみ
   const activeGroups = useMemo(
-    () => DUMMY_GROUPS.filter((g) => g.schedules.some((s) => s.day === day)),
-    [day]
+    () => groups.filter((g) => g.schedules.some((s) => s.day === day)),
+    [groups, day]
   )
 
   const liveItem = timelineItems.find((x) => x.status === 'live')
@@ -148,6 +85,7 @@ export default function SpecialPage() {
           display: 'flex', alignItems: 'center', gap: 10,
           position: 'sticky', top: 0, zIndex: 40,
         }}>
+          <BackButton fallbackHref="/map" />
           <div style={{
             width: 38, height: 38, borderRadius: '50%',
             background: 'linear-gradient(135deg,#FF6B00,#FFAA28)',

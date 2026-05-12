@@ -1,72 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { Band, BandSchedule } from '@/types'
-
-// ─── 試作ダミーデータ（後で Supabase から取得）───────────────
-const DUMMY_BANDS: (Band & { schedules: BandSchedule[] })[] = [
-  {
-    id: '1', exhibit_id: 'band',
-    name: 'The Crimson',
-    members: ['田中 颯', '鈴木 葵', '佐藤 陸', '山田 蓮'],
-    instagram: 'the_crimson_band',
-    schedules: [
-      { id: 's1', band_id: '1', day: 'sat', start_at: '09:30', end_at: '09:50', stage: 'メインステージ' },
-      { id: 's2', band_id: '1', day: 'sun', start_at: '10:00', end_at: '10:20', stage: 'メインステージ' },
-    ],
-  },
-  {
-    id: '2', exhibit_id: 'band',
-    name: 'Neon Dreams',
-    members: ['高橋 凛', '伊藤 悠', '中村 空'],
-    instagram: 'neon_dreams_official',
-    schedules: [
-      { id: 's3', band_id: '2', day: 'sat', start_at: '10:00', end_at: '10:25', stage: 'メインステージ' },
-      { id: 's4', band_id: '2', day: 'sun', start_at: '10:30', end_at: '10:55', stage: 'メインステージ' },
-    ],
-  },
-  {
-    id: '3', exhibit_id: 'band',
-    name: 'Acoustic Forest',
-    members: ['小林 詩', '加藤 樹', '吉田 花', '松本 奏', '井上 海'],
-    instagram: 'acoustic_forest_band',
-    schedules: [
-      { id: 's5', band_id: '3', day: 'sat', start_at: '10:35', end_at: '11:00', stage: 'メインステージ' },
-      { id: 's6', band_id: '3', day: 'sun', start_at: '11:10', end_at: '11:35', stage: 'メインステージ' },
-    ],
-  },
-  {
-    id: '4', exhibit_id: 'band',
-    name: 'Electric Sky',
-    members: ['木村 陽', '林 月', '清水 星'],
-    instagram: 'electric_sky_band',
-    schedules: [
-      { id: 's7', band_id: '4', day: 'sat', start_at: '11:10', end_at: '11:40', stage: 'メインステージ' },
-      { id: 's8', band_id: '4', day: 'sun', start_at: '12:00', end_at: '12:30', stage: 'メインステージ' },
-    ],
-  },
-  {
-    id: '5', exhibit_id: 'band',
-    name: 'Midnight Echo',
-    members: ['山口 夜', '斎藤 影', '松田 霧', '原田 闇'],
-    instagram: 'midnight_echo_jp',
-    schedules: [
-      { id: 's9',  band_id: '5', day: 'sat', start_at: '13:00', end_at: '13:35', stage: 'メインステージ' },
-      { id: 's10', band_id: '5', day: 'sun', start_at: '14:00', end_at: '14:35', stage: 'メインステージ' },
-    ],
-  },
-  {
-    id: '6', exhibit_id: 'band',
-    name: 'Sunny Parade',
-    members: ['藤原 日', '岡田 空', '橋本 風'],
-    instagram: 'sunny_parade_band',
-    schedules: [
-      { id: 's11', band_id: '6', day: 'sat', start_at: '14:00', end_at: '14:25', stage: 'メインステージ' },
-      { id: 's12', band_id: '6', day: 'sun', start_at: '14:45', end_at: '15:10', stage: 'メインステージ' },
-    ],
-  },
-]
+import { BandSchedule } from '@/types'
+import { DUMMY_BANDS, fetchBands } from '@/lib/bands'
+import type { BandWithSchedules } from '@/types'
+import BackButton from '@/components/ui/BackButton'
 
 // ─── ユーティリティ ───────────────────────────────────────────
 const toMin = (t: string) => {
@@ -121,8 +59,8 @@ function IGIcon() {
 function HeroCard({
   live, next,
 }: {
-  live: { band: typeof DUMMY_BANDS[0]; sch: BandSchedule } | null
-  next: { band: typeof DUMMY_BANDS[0]; sch: BandSchedule } | null
+  live: { band: BandWithSchedules; sch: BandSchedule } | null
+  next: { band: BandWithSchedules; sch: BandSchedule } | null
 }) {
   if (live) {
     return (
@@ -202,7 +140,7 @@ function HeroCard({
 
 /** バンドサムネイル（画像 or 絵文字フォールバック） */
 const BAND_COLORS = ['#e11d48', '#7c3aed', '#059669', '#0284c7', '#334155', '#d97706']
-function BandThumb({ band, size }: { band: typeof DUMMY_BANDS[0]; size: number }) {
+function BandThumb({ band, size }: { band: BandWithSchedules; size: number }) {
   const idx = parseInt(band.id) - 1
   const color = BAND_COLORS[idx % BAND_COLORS.length]
   return (
@@ -231,8 +169,13 @@ function LiveDot() {
 
 // ─── メインページ ──────────────────────────────────────────────
 export default function BandPage() {
-  const [day, setDay]     = useState<'sat' | 'sun'>('sat')
+  const [day, setDay]       = useState<'sat' | 'sun'>('sat')
   const [nowMin, setNowMin] = useState<number>(0)
+  const [bands, setBands]   = useState<BandWithSchedules[]>(DUMMY_BANDS)
+
+  useEffect(() => {
+    fetchBands().then(setBands)
+  }, [])
 
   // 現在時刻を分で管理（1分ごとに更新）
   useEffect(() => {
@@ -246,7 +189,7 @@ export default function BandPage() {
   }, [])
 
   // 今日のスケジュール（時刻順）
-  const todayItems = DUMMY_BANDS
+  const todayItems = bands
     .flatMap((band) => {
       const sch = band.schedules.find((s) => s.day === day)
       if (!sch) return []
@@ -259,6 +202,7 @@ export default function BandPage() {
 
   return (
     <>
+      
       <style>{`
         @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes glowPulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,107,0,0.45)} 50%{box-shadow:0 0 0 8px rgba(255,107,0,0)} }
@@ -276,6 +220,7 @@ export default function BandPage() {
           borderBottom: '1px solid rgba(255,140,0,0.12)',
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
+          <BackButton fallbackHref="/map" />
           <div style={{
             width: 38, height: 38, borderRadius: '50%',
             background: 'linear-gradient(135deg,#FF6B00,#FFAA28)',
@@ -322,7 +267,7 @@ export default function BandPage() {
 
           {/* ── バンド一覧 ── */}
           <SectionLabel emoji="🎵" label="バンド一覧" />
-          <BandList bands={DUMMY_BANDS} day={day} nowMin={nowMin} />
+          <BandList bands={bands} day={day} nowMin={nowMin} />
         </div>
       </div>
     </>
@@ -345,20 +290,16 @@ function SectionLabel({ emoji, label }: { emoji: string; label: string }) {
 function Timeline({
   items,
 }: {
-  items: { band: typeof DUMMY_BANDS[0]; sch: BandSchedule; status: Status }[]
+  items: { band: BandWithSchedules; sch: BandSchedule; status: Status }[]
 }) {
-  const BAND_COLORS_MAP: Record<string, string> = Object.fromEntries(
-    DUMMY_BANDS.map((b, i) => [b.id, BAND_COLORS[i % BAND_COLORS.length]])
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       {items.map(({ band, sch, status }, i) => {
-        const isLast  = i === items.length - 1
-        const isLive  = status === 'live'
-        const isDone  = status === 'done'
+        const isLast   = i === items.length - 1
+        const isLive   = status === 'live'
+        const isDone   = status === 'done'
         const dotColor = isLive ? '#FF6B00' : isDone ? '#d1d5db' : '#94a3b8'
-        const bandColor = BAND_COLORS_MAP[band.id]
+        const bandColor = BAND_COLORS[i % BAND_COLORS.length]
 
         return (
           <div key={band.id} style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
@@ -458,7 +399,7 @@ function Timeline({
 function BandList({
   bands, day, nowMin,
 }: {
-  bands: typeof DUMMY_BANDS
+  bands: BandWithSchedules[]
   day: 'sat' | 'sun'
   nowMin: number
 }) {

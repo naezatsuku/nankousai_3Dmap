@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import type { Profile } from '@/types'
 
 const NAV = [
   { href:'/admin',          icon:'⊞', label:'ダッシュボード' },
@@ -11,16 +13,33 @@ const NAV = [
   { href:'/admin/exhibits', icon:'🏫', label:'団体管理',   adminOnly:true },
 ]
 
-// ダミーユーザー（後でSupabase Authに差し替え）
-const MOCK_USER = { name:'田中 颯', role:'admin' as 'admin'|'editor', class_label:'高2-1' }
-
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
+  const pathname    = usePathname()
+  const router      = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [profile, setProfile]       = useState<Profile | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('*').eq('id', user.id).single()
+        .then(({ data }) => { if (data) setProfile(data as Profile) })
+    })
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/admin/login')
+    router.refresh()
+  }
 
   if (pathname === '/admin/login') return <>{children}</>
 
-  const visibleNav = NAV.filter(n => !n.adminOnly || MOCK_USER.role === 'admin')
+  const isAdmin     = profile?.role === 'admin'
+  const displayName = profile?.name || '…'
+  const visibleNav  = NAV.filter(n => !n.adminOnly || isAdmin)
 
   return (
     <>
@@ -51,7 +70,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           南高祭 管理
         </span>
         <div style={{ marginLeft:'auto', fontSize:11, color:'rgba(255,255,255,0.5)' }}>
-          {MOCK_USER.name}
+          {displayName}
         </div>
       </div>
 
@@ -113,33 +132,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:14, fontWeight:700, color:'#fff',
             }}>
-              {MOCK_USER.name[0]}
+              {displayName[0] ?? '?'}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:1 }}>{MOCK_USER.name}</div>
+              <div style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:1 }}>{displayName}</div>
               <div style={{
                 fontSize:10, color:'rgba(255,255,255,0.4)',
                 display:'flex', alignItems:'center', gap:4,
               }}>
                 <span style={{
-                  background: MOCK_USER.role==='admin' ? 'rgba(255,107,0,0.3)' : 'rgba(255,255,255,0.1)',
-                  color: MOCK_USER.role==='admin' ? '#FF8C00' : 'rgba(255,255,255,0.5)',
+                  background: isAdmin ? 'rgba(255,107,0,0.3)' : 'rgba(255,255,255,0.1)',
+                  color: isAdmin ? '#FF8C00' : 'rgba(255,255,255,0.5)',
                   padding:'1px 6px', borderRadius:99, fontSize:9, fontWeight:700,
                 }}>
-                  {MOCK_USER.role === 'admin' ? 'ADMIN' : 'EDITOR'}
+                  {isAdmin ? 'ADMIN' : 'EDITOR'}
                 </span>
-                {MOCK_USER.class_label}
               </div>
             </div>
           </div>
-          <Link href="/admin/login" style={{
-            display:'block', marginTop:12, padding:'8px 0', textAlign:'center',
+          <button onClick={handleLogout} style={{
+            display:'block', width:'100%', marginTop:12, padding:'8px 0', textAlign:'center',
             borderRadius:8, background:'rgba(255,255,255,0.06)',
-            color:'rgba(255,255,255,0.4)', fontSize:11, textDecoration:'none',
-            fontFamily:"'Kiwi Maru',serif",
+            color:'rgba(255,255,255,0.4)', fontSize:11,
+            fontFamily:"'Kiwi Maru',serif", border:'none', cursor:'pointer',
           }}>
             ログアウト
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -158,7 +176,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Breadcrumb pathname={pathname} />
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
-              {MOCK_USER.name}
+              {displayName}
             </div>
             <div style={{
               width:32, height:32, borderRadius:'50%',
@@ -166,7 +184,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:13, fontWeight:700, color:'#fff',
             }}>
-              {MOCK_USER.name[0]}
+              {displayName[0] ?? '?'}
             </div>
           </div>
         </div>

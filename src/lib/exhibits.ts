@@ -1,9 +1,10 @@
 /**
  * lib/exhibits.ts
- * 展示詳細ページ用の型・ダミーデータ
+ * 展示詳細ページ用の型・データ取得ロジック
  */
 
 import { ExhibitType, Day } from '@/types'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── 型 ──────────────────────────────────────────────────────
 
@@ -51,9 +52,82 @@ export interface ExhibitDetail {
   media:         ExhibitMedia[]
 }
 
-// ─── ダミーデータ ──────────────────────────────────────────────
+// ─── Supabase レスポンス用中間型 ─────────────────────────────
+
+interface RawImage { id: string; url: string; type: 'image'|'video'; caption: string|null; order_index: number }
+interface RawSection { id: string; heading: string; body: BodySegment[]; order_index: number; section_images: RawImage[] }
+interface RawExhibit {
+  id: string; name: string; class_label: string|null; type: string
+  room_display: string|null; floor: number|null; day: string|null
+  catch_copy: string|null; cover_url: string|null; thumbnail_url: string|null; description: string|null
+  sections: RawSection[]; images: RawImage[]
+}
+
+// ─── Supabase データ取得 ──────────────────────────────────────
+
+export async function fetchExhibitDetail(id: string): Promise<ExhibitDetail | null> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('exhibits')
+    .select(`
+      id, name, class_label, type, room_display, floor, day,
+      catch_copy, cover_url, thumbnail_url, description,
+      sections:exhibit_sections(id, heading, body, order_index,
+        section_images:exhibit_images(id, url, type, caption, order_index)
+      ),
+      images:exhibit_images(id, url, type, caption, order_index)
+    `)
+    .eq('id', id)
+    .is('images.section_id', null)
+    .single()
+
+  if (error || !data) return null
+
+  const raw = data as unknown as RawExhibit
+
+  return {
+    id:            raw.id,
+    name:          raw.name,
+    class_label:   raw.class_label ?? undefined,
+    type:          raw.type as ExhibitType,
+    room_display:  raw.room_display ?? undefined,
+    floor:         raw.floor ?? undefined,
+    day:           (raw.day ?? 'both') as Day,
+    catch_copy:    raw.catch_copy ?? undefined,
+    cover_url:     raw.cover_url ?? undefined,
+    thumbnail_url: raw.thumbnail_url ?? undefined,
+    description:   raw.description ?? undefined,
+    sections: (raw.sections ?? [])
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((s): ExhibitSection => ({
+        id:      s.id,
+        heading: s.heading,
+        body:    Array.isArray(s.body) ? s.body : [],
+        media:   (s.section_images ?? [])
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((img): SectionMedia => ({
+            id:      img.id,
+            type:    img.type,
+            url:     img.url,
+            caption: img.caption ?? undefined,
+          })),
+        order: s.order_index,
+      })),
+    media: (raw.images ?? [])
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((img): ExhibitMedia => ({
+        id:      img.id,
+        type:    img.type,
+        url:     img.url,
+        caption: img.caption ?? undefined,
+      })),
+  }
+}
+
+// ─── ダミーデータ（Supabase 未設定時のフォールバック）──────────
+
 export const DUMMY_EXHIBITS: ExhibitDetail[] = [
-  // ── class（標準） ───────────────────────────────────────────
   {
     id: '1',
     name: 'お化け屋敷',
@@ -82,7 +156,7 @@ export const DUMMY_EXHIBITS: ExhibitDetail[] = [
         id: 'sec2', order: 2,
         heading: '制作の裏側',
         body: [
-          { type:'text', text:'放課後3ヶ月間、クラス全員で毎日準備してきました。\n大道具・小道具・音響・照明・演者など、すべて自分たちで手がけています。' },
+          { type:'text', text:'放課後3ヶ月間、クラス全員で毎日準備してきました。' },
           { type:'break' },
           { type:'link', label:'マップで場所を確認する', href:'/map' },
         ],
@@ -97,8 +171,6 @@ export const DUMMY_EXHIBITS: ExhibitDetail[] = [
       { id:'m3', type:'video', url:'', caption:'予告動画' },
     ],
   },
-
-  // ── food（レストランメニュー） ──────────────────────────────
   {
     id: 'food1',
     name: '焼きそば・フランクフルト',
@@ -109,20 +181,9 @@ export const DUMMY_EXHIBITS: ExhibitDetail[] = [
     day: 'both',
     catch_copy: '秘伝ソースで、ひとくち幸せ。',
     cover_url: '',
-    sections: [
-      {
-        id: 'fsec1', order: 1,
-        heading: 'こだわりのポイント',
-        body: [
-          { type:'text', text:'地元の老舗ソースメーカーと共同開発した秘伝ソースを使用。\n麺はもちもち食感にこだわり、特製ブレンドを採用しています。' },
-        ],
-        media: [],
-      },
-    ],
+    sections: [],
     media: [],
   },
-
-  // ── band ───────────────────────────────────────────────────
   {
     id: 'band1',
     name: '軽音楽部',

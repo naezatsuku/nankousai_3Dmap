@@ -5,15 +5,21 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   DUMMY_NOTICES, markAsRead, getReadIds,
-  formatDate, BodySegment, NoticeMedia, NoticeItem,
+  formatDate, BodySegment, NoticeMedia, NoticeItem, fetchNotice,
 } from '@/lib/notices'
 
 export default function NoticeDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const notice  = DUMMY_NOTICES.find((n) => n.id === id) ?? null
+  const [notice, setNotice] = useState<NoticeItem | null>(
+    DUMMY_NOTICES.find((n) => n.id === id) ?? null
+  )
 
   const [activeMedia, setActiveMedia] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetchNotice(id).then(data => { if (data) setNotice(data) })
+  }, [id])
 
   // ── 開いたら既読にする ──
   useEffect(() => {

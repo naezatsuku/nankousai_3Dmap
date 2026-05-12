@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -13,13 +14,16 @@ export default function AdminLogin() {
   const handleSubmit = async () => {
     if (!email || !password) { setError('メールアドレスとパスワードを入力してください'); return }
     setLoading(true); setError('')
-    // TODO: Supabase Auth に差し替え
-    await new Promise(r => setTimeout(r, 800))
-    if (email === 'admin@example.com' && password === 'password') {
-      router.push('/admin')
-    } else {
+
+    const supabase = createClient()
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (authError) {
       setError('メールアドレスまたはパスワードが正しくありません')
       setLoading(false)
+    } else {
+      router.push('/admin')
+      router.refresh()
     }
   }
 
@@ -91,6 +95,7 @@ function Field({ label, type, value, onChange, placeholder }: {
       <input
         type={type} value={value}
         onChange={e=>onChange(e.target.value)}
+        onKeyDown={e=>e.key==='Enter' && onChange(value)}
         placeholder={placeholder}
         style={{
           width:'100%', padding:'11px 14px', borderRadius:10,

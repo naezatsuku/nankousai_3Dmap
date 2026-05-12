@@ -2,8 +2,8 @@
 
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { getExhibit, ExhibitDetail, ExhibitSection, SectionMedia, ExhibitMedia, BodySegment } from '@/lib/exhibits'
-import { useState } from 'react'
+import { getExhibit, fetchExhibitDetail, ExhibitDetail, ExhibitSection, SectionMedia, ExhibitMedia, BodySegment } from '@/lib/exhibits'
+import { useState, useEffect } from 'react'
 import { FoodMenu, getFoodMenuStatus } from '@/types'
 
 // ─── フード用ダミーメニュー（後でSupabaseから取得）─────────────
@@ -20,7 +20,11 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default function ExhibitDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const exhibit = getExhibit(id)
+  const [exhibit, setExhibit] = useState<ExhibitDetail | null>(() => getExhibit(id))
+
+  useEffect(() => {
+    fetchExhibitDetail(id).then(data => { if (data) setExhibit(data) })
+  }, [id])
 
   if (!exhibit) {
     return (

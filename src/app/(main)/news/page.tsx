@@ -4,22 +4,27 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   DUMMY_NOTICES, getReadIds, markAllAsRead,
-  formatDate, NoticeItem,
+  formatDate, NoticeItem, fetchNotices,
 } from '@/lib/notices'
 
 export default function NewsPage() {
   const router   = useRouter()
+  const [notices, setNotices] = useState<NoticeItem[]>(DUMMY_NOTICES)
   const [readIds, setReadIds] = useState<Set<string>>(() => getReadIds())
 
-  const handleMarkAll = useCallback(() => {
-    markAllAsRead()
-    setReadIds(new Set(DUMMY_NOTICES.map((n) => n.id)))
+  useEffect(() => {
+    fetchNotices().then(setNotices)
   }, [])
 
-  const unreadCount = DUMMY_NOTICES.filter((n) => !readIds.has(n.id)).length
+  const handleMarkAll = useCallback(() => {
+    markAllAsRead(notices.map(n => n.id))
+    setReadIds(new Set(notices.map((n) => n.id)))
+  }, [notices])
+
+  const unreadCount = notices.filter((n) => !readIds.has(n.id)).length
 
   // 新しい順
-  const sorted = [...DUMMY_NOTICES].sort(
+  const sorted = [...notices].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
 
