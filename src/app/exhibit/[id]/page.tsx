@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getExhibit, fetchExhibitDetail, ExhibitDetail, ExhibitSection, SectionMedia, ExhibitMedia, BodySegment } from '@/lib/exhibits'
+import NotifyButton from '@/components/ui/NotifyButton'
 import { useState, useEffect } from 'react'
 import { FoodMenu, getFoodMenuStatus } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -126,6 +127,10 @@ function Hero({ exhibit }: { exhibit: ExhibitDetail }) {
         display:'flex', alignItems:'center', justifyContent:'center',
         color:'#fff', fontSize:18, textDecoration:'none',
       }}>←</Link>
+      {/* 🔔 通知ボタン */}
+      <div style={{ position:'absolute', top:12, right:12 }}>
+        <NotifyButton exhibitId={exhibit.id} variant="icon" />
+      </div>
       {/* タイトルオーバーレイ */}
       <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'16px 16px 20px' }}>
         {exhibit.class_label && (

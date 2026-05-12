@@ -19,16 +19,6 @@ export default function AnnouncementsPage() {
   const [newUrgent, setNewUrgent] = useState(false)
   const [saving, setSaving]     = useState(false)
 
-  const load = async () => {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (data) setRows(data as AnnouncementRow[])
-    setLoading(false)
-  }
-
   useEffect(() => {
     const supabase = createClient()
     supabase
@@ -50,6 +40,16 @@ export default function AnnouncementsPage() {
       .insert({ body: newBody.trim(), is_urgent: newUrgent, is_active: true })
       .select().single()
     if (data) setRows(prev => [data as AnnouncementRow, ...prev])
+
+    // プッシュ通知を全登録者に送信
+    const fnUrl  = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/announce-notify`
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    fetch(fnUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newUrgent ? '🚨 南高祭 緊急お知らせ' : '📢 南高祭', body: newBody.trim() }),
+    }).catch(() => { /* 通知失敗は無視 */ })
+
     setNewBody('')
     setNewUrgent(false)
     setAdding(false)

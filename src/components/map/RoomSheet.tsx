@@ -35,8 +35,9 @@
  *   </div>
  */
 
-import Link        from 'next/link'
-import { Exhibit } from '@/types'
+import Link         from 'next/link'
+import { Exhibit }  from '@/types'
+import NotifyButton from '@/components/ui/NotifyButton'
 
 interface RoomSheetProps {
   exhibits:    Exhibit[]
@@ -195,15 +196,18 @@ function SingleExhibitView({ exhibit }: { exhibit: Exhibit }) {
         </div>
       )}
 
-      <Link href={`/exhibit/${exhibit.id}`} style={{
-        display:'block', marginTop:20, padding:'14px 0', borderRadius:16,
-        background:'linear-gradient(100deg,#F07818,#FFAA28)',
-        color:'#fff', fontSize:16, fontWeight:700, textAlign:'center',
-        textDecoration:'none', fontFamily:"'Kaisei Decol',serif",
-        boxShadow:'0 6px 20px rgba(240,120,24,0.3)',
-      }}>
-        展示の詳細を見る →
-      </Link>
+      <div style={{ display:'flex', gap:8, marginTop:20 }}>
+        <Link href={`/exhibit/${exhibit.id}`} style={{
+          flex:1, display:'block', padding:'14px 0', borderRadius:16,
+          background:'linear-gradient(100deg,#F07818,#FFAA28)',
+          color:'#fff', fontSize:16, fontWeight:700, textAlign:'center',
+          textDecoration:'none', fontFamily:"'Kaisei Decol',serif",
+          boxShadow:'0 6px 20px rgba(240,120,24,0.3)',
+        }}>
+          展示の詳細を見る →
+        </Link>
+        <NotifyButton exhibitId={exhibit.id} variant="pill" />
+      </div>
     </>
   )
 }

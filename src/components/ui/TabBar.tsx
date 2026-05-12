@@ -3,8 +3,9 @@
 import { usePathname, useRouter } from 'next/navigation'
 
 const TABS = [
-  { id: 'map',  href: '/map',  label: 'マップ' },
-  { id: 'news', href: '/news', label: 'お知らせ', badge: true },
+  { id: 'map',           href: '/map',           label: 'マップ' },
+  { id: 'notifications', href: '/notifications', label: '通知' },
+  { id: 'news',          href: '/news',           label: 'お知らせ', badge: true },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -20,8 +21,8 @@ export default function TabBar({ unreadCount = 0 }: TabBarProps) {
   const activeId: TabId =
     TABS.find((t) => pathname.startsWith(t.href))?.id ?? 'map'
 
-  // インジケーターの left 位置 (タブ幅 50% 想定)
-  const indicatorLeft = activeId === 'map' ? '5%' : '55%'
+  // インジケーターの left 位置 (タブ幅 33.3% × 3)
+  const indicatorLeft = activeId === 'map' ? '4%' : activeId === 'notifications' ? '37%' : '70%'
 
   return (
     <>
@@ -52,7 +53,7 @@ export default function TabBar({ unreadCount = 0 }: TabBarProps) {
             position: 'absolute',
             top: 0,
             height: 2.5,
-            width: '40%',
+            width: '26%',
             background: 'linear-gradient(90deg, #FF6B00, #FFB347)',
             borderRadius: '0 0 4px 4px',
             left: indicatorLeft,
@@ -136,6 +137,18 @@ export default function TabBar({ unreadCount = 0 }: TabBarProps) {
 function TabIcon({ id, active }: { id: TabId; active: boolean }) {
   const c = active ? '#FF6B00' : '#bbb'
   const fill = active ? 'rgba(255,107,0,0.10)' : 'none'
+
+  if (id === 'notifications') {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"
+          stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill={fill}
+        />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  }
 
   if (id === 'map') {
     return (

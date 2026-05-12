@@ -4,7 +4,10 @@
       "Bash(attrib \"c:\\\\Users\\\\owner\\\\Desktop\\\\PROJECT\\\\3d-map_ver2\\\\src\\\\components\\\\ui\\\\Header.tsx\")",
       "Bash(chmod 644 \"c:/Users/owner/Desktop/PROJECT/3d-map_ver2/src/components/ui/Header.tsx\")",
       "Bash(mkdir -p \"c:/Users/owner/Desktop/PROJECT/3d-map_ver2/src/app/admin/announcements\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(chmod 644 \"c:/Users/owner/Desktop/PROJECT/3d-map_ver2/src/components/ui/TabBar.tsx\")",
+      "Bash(chmod 644 \"c:/Users/owner/Desktop/PROJECT/3d-map_ver2/src/app/exhibit/[id]/page.tsx\")",
+      "Bash(chmod 644 \"c:/Users/owner/Desktop/PROJECT/3d-map_ver2/src/components/map/RoomSheet.tsx\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\owner\\Desktop\\PROJECT\\3d-map_ver2\\src\\app\\admin"
