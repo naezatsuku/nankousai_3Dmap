@@ -140,6 +140,15 @@ CREATE TABLE IF NOT EXISTS public.special_schedules (
   description TEXT
 );
 
+-- ─── announcements ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  body       TEXT NOT NULL,
+  is_urgent  BOOLEAN NOT NULL DEFAULT false,
+  is_active  BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- =================================================================
 -- Row Level Security
 -- =================================================================
@@ -155,6 +164,7 @@ ALTER TABLE public.bands             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.band_schedules    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.food_menus        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.special_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements     ENABLE ROW LEVEL SECURITY;
 
 -- 全員が読める
 CREATE POLICY "exhibits: public read"           ON public.exhibits          FOR SELECT USING (true);
@@ -166,6 +176,7 @@ CREATE POLICY "bands: public read"              ON public.bands             FOR 
 CREATE POLICY "band_schedules: public read"     ON public.band_schedules    FOR SELECT USING (true);
 CREATE POLICY "food_menus: public read"         ON public.food_menus        FOR SELECT USING (true);
 CREATE POLICY "special_schedules: public read"  ON public.special_schedules FOR SELECT USING (true);
+CREATE POLICY "announcements: public read"      ON public.announcements     FOR SELECT USING (true);
 
 -- 認証ユーザーが書ける
 CREATE POLICY "exhibits: auth write"            ON public.exhibits          FOR ALL USING (auth.role() = 'authenticated');
@@ -178,6 +189,7 @@ CREATE POLICY "bands: auth write"               ON public.bands             FOR 
 CREATE POLICY "band_schedules: auth write"      ON public.band_schedules    FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "food_menus: auth write"          ON public.food_menus        FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "special_schedules: auth write"   ON public.special_schedules FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "announcements: auth write"       ON public.announcements     FOR ALL USING (auth.role() = 'authenticated');
 
 -- profiles: 認証ユーザーが全員を読める、自分のみ更新
 CREATE POLICY "profiles: auth read"    ON public.profiles FOR SELECT TO authenticated USING (true);

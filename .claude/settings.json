@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(attrib \"c:\\\\Users\\\\owner\\\\Desktop\\\\PROJECT\\\\3d-map_ver2\\\\src\\\\components\\\\ui\\\\Header.tsx\")",
+      "Bash(chmod 644 \"c:/Users/owner/Desktop/PROJECT/3d-map_ver2/src/components/ui/Header.tsx\")",
+      "Bash(mkdir -p \"c:/Users/owner/Desktop/PROJECT/3d-map_ver2/src/app/admin/announcements\")",
+      "Bash(npx tsc *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\owner\\Desktop\\PROJECT\\3d-map_ver2\\src\\app\\admin"
+    ]
+  }
+}

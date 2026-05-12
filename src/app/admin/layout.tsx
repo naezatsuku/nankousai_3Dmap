@@ -7,11 +7,12 @@ import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 
 const NAV = [
-  { href:'/admin',          icon:'⊞', label:'ダッシュボード' },
-  { href:'/admin/edit',     icon:'✏',  label:'展示編集' },
-  { href:'/admin/notices',  icon:'🔔', label:'お知らせ管理' },
-  { href:'/admin/users',    icon:'👥', label:'権限管理',   adminOnly:true },
-  { href:'/admin/exhibits', icon:'🏫', label:'団体管理',   adminOnly:true },
+  { href:'/admin',               icon:'⊞', label:'ダッシュボード' },
+  { href:'/admin/edit',          icon:'✏',  label:'展示編集' },
+  { href:'/admin/notices',       icon:'🔔', label:'お知らせ管理' },
+  { href:'/admin/announcements', icon:'📢', label:'アナウンス管理' },
+  { href:'/admin/users',         icon:'👥', label:'権限管理',       adminOnly:true },
+  { href:'/admin/exhibits',      icon:'🏫', label:'団体管理',       adminOnly:true },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -212,12 +213,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
 function Breadcrumb({ pathname }: { pathname: string }) {
   const MAP: Record<string, string> = {
-    '/admin': 'ダッシュボード',
-    '/admin/edit': '展示編集',
-    '/admin/notices': 'お知らせ管理',
-    '/admin/users': '権限管理',
-    '/admin/exhibits': '団体管理',
-    '/admin/profile': 'プロフィール',
+    '/admin':               'ダッシュボード',
+    '/admin/edit':          '展示編集',
+    '/admin/notices':       'お知らせ管理',
+    '/admin/announcements': 'アナウンス管理',
+    '/admin/users':         '権限管理',
+    '/admin/exhibits':      '団体管理',
+    '/admin/profile':       'プロフィール',
   }
   const label = Object.entries(MAP)
     .filter(([path]) => pathname.startsWith(path))

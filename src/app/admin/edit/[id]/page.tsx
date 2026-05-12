@@ -139,8 +139,6 @@ export default function ExhibitEditPage() {
             .from('special_schedules')
             .select('*')
             .eq('exhibit_id', id)
-          if (specialError) console.error('special_schedules fetch error:', specialError)
-          console.log('specialData:', specialData, 'exhibit_id:', id)
           if (specialData) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setSpecials((specialData as any[]).map(s => ({
