@@ -27,6 +27,7 @@ export default function NotificationsPage() {
   const [toggling, setToggling]     = useState<string | null>(null)
   const [globalOn, setGlobalOn]     = useState(true)
   const [globalBusy, setGlobalBusy] = useState(false)
+  const [subError, setSubError]     = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -51,40 +52,52 @@ export default function NotificationsPage() {
     const p = await Notification.requestPermission()
     setPerm(p)
     if (p === 'granted') {
-      await getFCMToken()
-      setGlobalOn(true)
+      try {
+        await getFCMToken()
+        setGlobalOn(true)
+      } catch (err) {
+        setSubError(err instanceof Error ? err.message : '通知トークンの取得に失敗しました')
+      }
     }
     return p === 'granted'
   }
 
   const handleGlobalToggle = async () => {
+    setSubError(null)
     if (perm !== 'granted') {
       await requestPerm()
       return
     }
     setGlobalBusy(true)
-    if (globalOn) {
-      await unsubscribeFromGlobal()
-      setGlobalOn(false)
-    } else {
-      await subscribeToGlobal()
-      setGlobalOn(true)
+    try {
+      if (globalOn) {
+        await unsubscribeFromGlobal()
+        setGlobalOn(false)
+      } else {
+        await subscribeToGlobal()
+        setGlobalOn(true)
+      }
+    } catch (err) {
+      setSubError(err instanceof Error ? err.message : '操作に失敗しました')
     }
     setGlobalBusy(false)
   }
 
   const handleToggle = async (exhibitId: string) => {
+    setSubError(null)
     if (perm !== 'granted') {
-      // Notification.permission は iOS では許可直後も即時反映されないため
-      // requestPerm() の戻り値で判断する
       const granted = await requestPerm()
       if (!granted) return
     }
     setToggling(exhibitId)
-    if (subs.has(exhibitId)) {
-      await unsubscribeFromExhibit(exhibitId)
-    } else {
-      await subscribeToExhibit(exhibitId)
+    try {
+      if (subs.has(exhibitId)) {
+        await unsubscribeFromExhibit(exhibitId)
+      } else {
+        await subscribeToExhibit(exhibitId)
+      }
+    } catch (err) {
+      setSubError(err instanceof Error ? err.message : '購読の登録に失敗しました')
     }
     setSubs(getLocalSubs())
     setToggling(null)
@@ -100,9 +113,24 @@ export default function NotificationsPage() {
       }}>
         通知設定
       </h1>
-      <p style={{ fontSize: 11, color: '#999', fontFamily: "'Kiwi Maru',serif", marginBottom: 24 }}>
+      <p style={{ fontSize: 11, color: '#999', fontFamily: "'Kiwi Maru',serif", marginBottom: subError ? 12 : 24 }}>
         お知らせや催しの開始前に通知が届きます
       </p>
+
+      {/* エラー表示 */}
+      {subError && (
+        <div style={{
+          marginBottom: 20, padding: '10px 14px', borderRadius: 12,
+          background: '#fff1f1', border: '1px solid #fca5a5',
+          display: 'flex', alignItems: 'flex-start', gap: 8,
+        }}>
+          <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
+          <p style={{ fontSize: 12, color: '#b91c1c', fontFamily: "'Kiwi Maru',serif", margin: 0, lineHeight: 1.6 }}>
+            {subError}
+          </p>
+          <button onClick={() => setSubError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 16, flexShrink: 0 }}>✕</button>
+        </div>
+      )}
 
       {/* ── 全体のお知らせ ── */}
       <div style={{ marginBottom: 28 }}>

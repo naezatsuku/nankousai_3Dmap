@@ -8,26 +8,23 @@ const SUBS_KEY       = 'push_subs'
 const GLOBAL_OPT_OUT = 'push_global_off'
 
 // ── FCM トークン取得 ─────────────────────────────────────────────
-export async function getFCMToken(): Promise<string | null> {
-  try {
-    const supported = await isSupported()
-    if (!supported) return null
+// エラーは呼び出し元に伝える（return null ではなく throw）
+export async function getFCMToken(): Promise<string> {
+  const supported = await isSupported()
+  if (!supported) throw new Error('このブラウザは通知に対応していません。PWAとしてホーム画面に追加してください。')
 
-    const messaging = getMessaging(firebaseApp)
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY })
-    if (!token) return null
+  const messaging = getMessaging(firebaseApp)
+  const token = await getToken(messaging, { vapidKey: VAPID_KEY })
+  if (!token) throw new Error('FCMトークンを取得できませんでした。通知の許可を確認してください。')
 
-    localStorage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(TOKEN_KEY, token)
 
-    const supabase = createClient()
-    await supabase
-      .from('push_subscriptions')
-      .upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
+  const supabase = createClient()
+  await supabase
+    .from('push_subscriptions')
+    .upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
 
-    return token
-  } catch {
-    return null
-  }
+  return token
 }
 
 export function getStoredToken(): string | null {
@@ -36,17 +33,19 @@ export function getStoredToken(): string | null {
 }
 
 // ── 団体購読 ────────────────────────────────────────────────────
-export async function subscribeToExhibit(exhibitId: string): Promise<boolean> {
+// throws if token cannot be obtained
+export async function subscribeToExhibit(exhibitId: string): Promise<void> {
   const token = getStoredToken() ?? await getFCMToken()
-  if (!token) return false
 
   const supabase = createClient()
-  await supabase.from('exhibit_push_subs').upsert({ fcm_token: token, exhibit_id: exhibitId })
+  const { error } = await supabase
+    .from('exhibit_push_subs')
+    .upsert({ fcm_token: token, exhibit_id: exhibitId })
+  if (error) throw new Error(`購読の保存に失敗しました: ${error.message}`)
 
   const subs = getLocalSubs()
   subs.add(exhibitId)
   localStorage.setItem(SUBS_KEY, JSON.stringify([...subs]))
-  return true
 }
 
 export async function unsubscribeFromExhibit(exhibitId: string): Promise<void> {
@@ -70,7 +69,6 @@ export function isGlobalOn(): boolean {
 export async function subscribeToGlobal(): Promise<void> {
   localStorage.removeItem(GLOBAL_OPT_OUT)
   const token = getStoredToken() ?? await getFCMToken()
-  if (!token) return
   const supabase = createClient()
   await supabase.from('push_subscriptions').upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
 }
