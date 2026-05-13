@@ -13,7 +13,12 @@ export default function NewsPage() {
   const [readIds, setReadIds] = useState<Set<string>>(() => getReadIds())
 
   useEffect(() => {
-    fetchNotices().then(setNotices)
+    fetchNotices().then(data => {
+      setNotices(data)
+      // ページを開いた時点で全件既読にする
+      markAllAsRead(data.map(n => n.id))
+      setReadIds(new Set(data.map(n => n.id)))
+    })
   }, [])
 
   const handleMarkAll = useCallback(() => {

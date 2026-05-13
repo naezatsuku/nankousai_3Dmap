@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { Exhibit } from '@/types'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import FloorSelector from '@/components/map/FloorSelector'
 import SearchBar     from '@/components/map/SearchBar'
 import RoomSheet     from '@/components/map/RoomSheet'
@@ -34,17 +35,27 @@ export default function MapPage() {
   const [focusRoom, setFocusRoom]       = useState<string | null>(null)
   const floorRef                        = useRef(floor)
 
+  const fetchExhibits = useCallback(async () => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('exhibits')
+      .select('id, name, class_label, type, room_object, room_display, floor, has_wait_time, wait_minutes, is_active, day, thumbnail_url')
+      .eq('is_active', true)
+    if (data) setExhibits(data as Exhibit[])
+  }, [])
+
+  // プルダウン更新 / フォーカス復帰で再取得
+  useRefreshOnFocus(fetchExhibits, 2 * 60 * 1000)
+  useEffect(() => {
+    window.addEventListener('app-refresh', fetchExhibits)
+    return () => window.removeEventListener('app-refresh', fetchExhibits)
+  }, [fetchExhibits])
+
   // Supabase から is_active な展示を全件取得し、リアルタイム更新も購読
   useEffect(() => {
     const supabase = createClient()
 
-    supabase
-      .from('exhibits')
-      .select('id, name, class_label, type, room_object, room_display, floor, has_wait_time, wait_minutes, is_active, day, thumbnail_url')
-      .eq('is_active', true)
-      .then(({ data }) => {
-        if (data) setExhibits(data as Exhibit[])
-      })
+    fetchExhibits()
 
     // 待ち時間のリアルタイム更新
     const channel = supabase
@@ -70,7 +81,7 @@ export default function MapPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [fetchExhibits])
 
   const floorExhibits = exhibits.filter(e => e.floor === floor)
 

@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 
 interface TickerMsg {
   text:   string
@@ -115,6 +117,13 @@ export default function Header() {
     return () => clearInterval(id)
   }, [fetchMsgs])
 
+  // プルダウン更新 / フォーカス復帰で再取得
+  useRefreshOnFocus(fetchMsgs, 2 * 60 * 1000)
+  useEffect(() => {
+    window.addEventListener('app-refresh', fetchMsgs)
+    return () => window.removeEventListener('app-refresh', fetchMsgs)
+  }, [fetchMsgs])
+
   // announcements リアルタイム更新
   useEffect(() => {
     const supabase = createClient()
@@ -177,7 +186,7 @@ export default function Header() {
 
         {/* 1行目: タイトル + 時刻ピル */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'baseline', gap: 5, textDecoration: 'none' }}>
             <span style={{
               fontFamily:           "'Kaisei Decol', serif",
               fontSize:             22,
@@ -194,7 +203,7 @@ export default function Header() {
             <span style={{ fontFamily: "'Kiwi Maru', serif", fontSize: 10, color: '#ccc', letterSpacing: '0.1em' }}>
               2025
             </span>
-          </div>
+          </Link>
 
           <div style={{
             display:      'flex',

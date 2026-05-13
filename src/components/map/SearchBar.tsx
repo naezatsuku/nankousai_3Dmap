@@ -48,7 +48,7 @@ export default function SearchBar({ onSearch, onConfirm, onSelect, exhibits = []
   }, [])
 
   return (
-    <div ref={wrapRef} className="absolute top-3 right-16 left-56 z-20">
+    <div ref={wrapRef} className="absolute top-3 left-3 right-3 sm:left-56 sm:right-16 z-20">
       {/* 入力バー */}
       <div
         className="flex items-center rounded-xl px-3 gap-2"

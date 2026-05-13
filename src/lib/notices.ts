@@ -198,6 +198,7 @@ export const markAsRead = (id: string): void => {
     const ids = getReadIds()
     ids.add(id)
     localStorage.setItem(LS_KEY, JSON.stringify([...ids]))
+    window.dispatchEvent(new Event('notices-read-changed'))
   } catch { /* noop */ }
 }
 
@@ -207,6 +208,7 @@ export const markAllAsRead = (noticeIds?: string[]): void => {
   try {
     const ids = noticeIds ?? DUMMY_NOTICES.map((n) => n.id)
     localStorage.setItem(LS_KEY, JSON.stringify(ids))
+    window.dispatchEvent(new Event('notices-read-changed'))
   } catch { /* noop */ }
 }
 
