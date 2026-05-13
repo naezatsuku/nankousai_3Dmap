@@ -34,12 +34,16 @@ export default function NotifyButton({ exhibitId, variant = 'icon' }: Props) {
     }
 
     setLoading(true)
-    if (on) {
-      await unsubscribeFromExhibit(exhibitId)
-      setOn(false)
-    } else {
-      const ok = await subscribeToExhibit(exhibitId)
-      if (ok) setOn(true)
+    try {
+      if (on) {
+        await unsubscribeFromExhibit(exhibitId)
+        setOn(false)
+      } else {
+        await subscribeToExhibit(exhibitId)
+        setOn(true)
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '通知の設定に失敗しました')
     }
     setLoading(false)
   }
