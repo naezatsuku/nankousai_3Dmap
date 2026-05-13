@@ -59,7 +59,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         @media (max-width:768px){
           .admin-sidebar{ transform: translateX(-100%); }
           .admin-sidebar.open{ transform: translateX(0); }
-          .admin-main{ margin-left:0 !important; }
+          .admin-main{ margin-left:0 !important; padding-top:52px !important; }
+          .desktop-topbar{ display:none !important; }
         }
         @media (min-width:769px){
           .admin-overlay{ display:none !important; }
@@ -181,7 +182,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         background:'#f8fafc', paddingTop:0,
       }}>
         {/* デスクトップトップバー */}
-        <div style={{
+        <div className="desktop-topbar" style={{
           height:56, background:'#fff',
           borderBottom:'1px solid #e2e8f0',
           display:'flex', alignItems:'center', padding:'0 28px',

@@ -220,10 +220,12 @@ export default function MapCanvas({
   const rafRef        = useRef<number>(0)
   const roomMeshes    = useRef<Map<string, THREE.Mesh>>(new Map())
   const css2dObjects  = useRef<CSS2DObject[]>([])
-  const pointerStart   = useRef({ x: 0, y: 0 })
-  const onRoomClickRef = useRef(onRoomClick)
-  const focusAnimRef   = useRef<FocusAnim | null>(null)
-  const hasFocusedRef  = useRef(false)
+  const pointerStart        = useRef({ x: 0, y: 0 })
+  const onRoomClickRef      = useRef(onRoomClick)
+  const focusAnimRef        = useRef<FocusAnim | null>(null)
+  const hasFocusedRef       = useRef(false)
+  const applyRoomColorsRef  = useRef<() => void>(() => {})
+  const rebuildMarkersRef   = useRef<(scene: THREE.Scene) => void>(() => {})
 
   useEffect(() => {
     onRoomClickRef.current = onRoomClick
@@ -276,6 +278,10 @@ export default function MapCanvas({
       css2dObjects.current.push(css2d)
     })
   }, [exhibitMap])
+
+  // ref を常に最新に保つ（loadFloor の deps から外すため）
+  useEffect(() => { applyRoomColorsRef.current = applyRoomColors }, [applyRoomColors])
+  useEffect(() => { rebuildMarkersRef.current  = rebuildMarkers  }, [rebuildMarkers])
 
   // ── GLBロード ───────────────────────────────────────────
   const loadFloor = useCallback((scene: THREE.Scene, f: number) => {
@@ -333,8 +339,8 @@ export default function MapCanvas({
         // ★ ワールド行列を強制更新してからマーカー位置を計算する
         //    （各GLBのscale/translationがマトリクスに反映される）
         scene.updateMatrixWorld(true)
-        applyRoomColors()
-        rebuildMarkers(scene)
+        applyRoomColorsRef.current()
+        rebuildMarkersRef.current(scene)
 
         // カメラフィット
         const fittedBox = new THREE.Box3().setFromObject(root)
@@ -355,7 +361,8 @@ export default function MapCanvas({
       undefined,
       (err) => console.error(`GLB load error (${f}F):`, err)
     )
-  }, [applyRoomColors, rebuildMarkers])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Three.js 初期化（マウント時1回）──────────────────────
   useEffect(() => {

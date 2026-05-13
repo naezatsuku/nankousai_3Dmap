@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { Exhibit } from '@/types'
@@ -83,7 +83,7 @@ export default function MapPage() {
     return () => { supabase.removeChannel(channel) }
   }, [fetchExhibits])
 
-  const floorExhibits = exhibits.filter(e => e.floor === floor)
+  const floorExhibits = useMemo(() => exhibits.filter(e => e.floor === floor), [exhibits, floor])
 
   // floorRef を常に最新に保つ
   useEffect(() => { floorRef.current = floor }, [floor])

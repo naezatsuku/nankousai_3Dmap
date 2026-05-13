@@ -46,13 +46,15 @@ export default function NotificationsPage() {
       })
   }, [])
 
-  const requestPerm = async () => {
+  // 許可リクエスト。付与された場合 true を返す
+  const requestPerm = async (): Promise<boolean> => {
     const p = await Notification.requestPermission()
     setPerm(p)
     if (p === 'granted') {
       await getFCMToken()
       setGlobalOn(true)
     }
+    return p === 'granted'
   }
 
   const handleGlobalToggle = async () => {
@@ -73,8 +75,10 @@ export default function NotificationsPage() {
 
   const handleToggle = async (exhibitId: string) => {
     if (perm !== 'granted') {
-      await requestPerm()
-      if (Notification.permission !== 'granted') return
+      // Notification.permission は iOS では許可直後も即時反映されないため
+      // requestPerm() の戻り値で判断する
+      const granted = await requestPerm()
+      if (!granted) return
     }
     setToggling(exhibitId)
     if (subs.has(exhibitId)) {

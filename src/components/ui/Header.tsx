@@ -201,7 +201,7 @@ export default function Header() {
               南高祭
             </span>
             <span style={{ fontFamily: "'Kiwi Maru', serif", fontSize: 10, color: '#ccc', letterSpacing: '0.1em' }}>
-              2025
+              {new Date().getFullYear()}
             </span>
           </Link>
 
