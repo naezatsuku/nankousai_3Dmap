@@ -171,6 +171,7 @@ export default function UsersPage() {
 
             return (
               <div key={p.id} style={{ background:'#fff', borderRadius:16, padding:'18px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid #f1f5f9' }}>
+                {/* 上段: アバター + 情報 */}
                 <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
                   {/* アバター */}
                   <div style={{
@@ -202,7 +203,7 @@ export default function UsersPage() {
                         <span style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>（自分）</span>
                       )}
                     </div>
-                    <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom: assignedExhibits.length > 0 ? 8 : 0 }}>
+                    <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", wordBreak:'break-all', marginBottom: assignedExhibits.length > 0 ? 8 : 0 }}>
                       {p.email}
                     </div>
 
@@ -234,39 +235,37 @@ export default function UsersPage() {
                       </div>
                     )}
                   </div>
-
-                  {/* アクション */}
-                  {p.id !== myId && (
-                    <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0, alignItems:'flex-end' }}>
-                      {p.role === 'editor' && (
-                        <button onClick={() => openAssign(p)} style={{
-                          padding:'6px 12px', borderRadius:8,
-                          border:'1px solid #bae6fd', background:'#f0f9ff',
-                          fontSize:11, color:'#0284c7', cursor:'pointer',
-                          fontFamily:"'Kiwi Maru',serif", fontWeight:700,
-                        }}>
-                          展示を割り当て
-                        </button>
-                      )}
-                      <div style={{ display:'flex', gap:6 }}>
-                        <button onClick={() => toggleRole(p)} style={{
-                          padding:'6px 12px', borderRadius:8, border:'1px solid #e2e8f0',
-                          background:'#fff', fontSize:11, color:'#64748b',
-                          cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
-                        }}>
-                          {p.role === 'admin' ? 'editorに変更' : 'adminに昇格'}
-                        </button>
-                        <button onClick={() => setDeleteId(p.id)} style={{
-                          padding:'6px 12px', borderRadius:8, border:'1px solid #fee2e2',
-                          background:'#fff', fontSize:11, color:'#ef4444',
-                          cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
-                        }}>
-                          削除
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
+
+                {/* 下段: アクションボタン（自分以外） */}
+                {p.id !== myId && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-end', marginTop:12, paddingTop:12, borderTop:'1px solid #f1f5f9' }}>
+                    {p.role === 'editor' && (
+                      <button onClick={() => openAssign(p)} style={{
+                        padding:'6px 12px', borderRadius:8,
+                        border:'1px solid #bae6fd', background:'#f0f9ff',
+                        fontSize:11, color:'#0284c7', cursor:'pointer',
+                        fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+                      }}>
+                        展示を割り当て
+                      </button>
+                    )}
+                    <button onClick={() => toggleRole(p)} style={{
+                      padding:'6px 12px', borderRadius:8, border:'1px solid #e2e8f0',
+                      background:'#fff', fontSize:11, color:'#64748b',
+                      cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
+                    }}>
+                      {p.role === 'admin' ? 'editorに変更' : 'adminに昇格'}
+                    </button>
+                    <button onClick={() => setDeleteId(p.id)} style={{
+                      padding:'6px 12px', borderRadius:8, border:'1px solid #fee2e2',
+                      background:'#fff', fontSize:11, color:'#ef4444',
+                      cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
+                    }}>
+                      削除
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
