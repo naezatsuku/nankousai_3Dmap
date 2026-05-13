@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getFCMToken, subscribeToExhibit, unsubscribeFromExhibit, getLocalSubs } from '@/lib/push'
+import {
+  getFCMToken, subscribeToExhibit, unsubscribeFromExhibit, getLocalSubs,
+  isGlobalOn, subscribeToGlobal, unsubscribeFromGlobal,
+} from '@/lib/push'
 
 interface ExhibitItem {
   id:            string
@@ -17,16 +20,19 @@ const TYPE_LABEL: Record<string, string> = {
 }
 
 export default function NotificationsPage() {
-  const [exhibits, setExhibits]   = useState<ExhibitItem[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [subs, setSubs]           = useState<Set<string>>(new Set())
-  const [perm, setPerm]           = useState<string>('default')
-  const [toggling, setToggling]   = useState<string | null>(null)
+  const [exhibits, setExhibits]     = useState<ExhibitItem[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [subs, setSubs]             = useState<Set<string>>(new Set())
+  const [perm, setPerm]             = useState<string>('default')
+  const [toggling, setToggling]     = useState<string | null>(null)
+  const [globalOn, setGlobalOn]     = useState(true)
+  const [globalBusy, setGlobalBusy] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     setPerm(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
     setSubs(getLocalSubs())
+    setGlobalOn(isGlobalOn())
 
     const supabase = createClient()
     supabase
@@ -43,7 +49,26 @@ export default function NotificationsPage() {
   const requestPerm = async () => {
     const p = await Notification.requestPermission()
     setPerm(p)
-    if (p === 'granted') await getFCMToken()
+    if (p === 'granted') {
+      await getFCMToken()
+      setGlobalOn(true)
+    }
+  }
+
+  const handleGlobalToggle = async () => {
+    if (perm !== 'granted') {
+      await requestPerm()
+      return
+    }
+    setGlobalBusy(true)
+    if (globalOn) {
+      await unsubscribeFromGlobal()
+      setGlobalOn(false)
+    } else {
+      await subscribeToGlobal()
+      setGlobalOn(true)
+    }
+    setGlobalBusy(false)
   }
 
   const handleToggle = async (exhibitId: string) => {
@@ -61,131 +86,181 @@ export default function NotificationsPage() {
     setToggling(null)
   }
 
+  const permGranted = perm === 'granted'
+
   return (
-    <div style={{ padding: '16px 16px 24px' }}>
+    <div style={{ padding: '16px 16px 32px' }}>
       <h1 style={{
         fontFamily: "'Kaisei Decol',serif", fontSize: 20, fontWeight: 700,
         color: '#1a1a1a', marginBottom: 4,
       }}>
         通知設定
       </h1>
-      <p style={{ fontSize: 11, color: '#999', fontFamily: "'Kiwi Maru',serif", marginBottom: 20 }}>
-        催しが始まる30分前に通知が届きます
+      <p style={{ fontSize: 11, color: '#999', fontFamily: "'Kiwi Maru',serif", marginBottom: 24 }}>
+        お知らせや催しの開始前に通知が届きます
       </p>
 
-      {/* 権限バナー */}
-      {perm === 'default' && (
+      {/* ── 全体のお知らせ ── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginBottom: 10, letterSpacing: '0.05em' }}>
+          全体のお知らせ
+        </div>
+
         <div style={{
-          marginBottom: 20, padding: 16, borderRadius: 14,
-          background: '#FFF8F0', border: '1px solid rgba(255,140,0,0.2)',
+          padding: '14px 16px', borderRadius: 16,
+          background: permGranted && globalOn
+            ? 'linear-gradient(135deg,rgba(255,107,0,0.06),rgba(255,170,40,0.06))'
+            : '#f8f9fa',
+          border: permGranted && globalOn
+            ? '1px solid rgba(255,140,0,0.25)'
+            : '1px solid #e2e8f0',
+          display: 'flex', alignItems: 'center', gap: 14,
+          transition: 'background 0.3s, border-color 0.3s',
         }}>
-          <p style={{ fontSize: 13, color: '#b36000', fontFamily: "'Kiwi Maru',serif", marginBottom: 12 }}>
-            通知を受け取るには許可が必要です
-          </p>
-          <button onClick={requestPerm} style={{
-            padding: '8px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
-            background: 'linear-gradient(135deg,#FF6B00,#FFAA28)',
-            color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+            background: permGranted && globalOn
+              ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
+              : '#e2e8f0',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, transition: 'background 0.3s',
           }}>
-            通知を許可する
+            📢
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 14, fontWeight: 700,
+              color: permGranted && globalOn ? '#1a1a1a' : '#94a3b8',
+              fontFamily: "'Kaisei Decol',serif", marginBottom: 2,
+            }}>
+              南高祭 公式アナウンス
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif" }}>
+              {permGranted
+                ? globalOn ? '緊急連絡・全体お知らせが届きます' : '現在オフにしています'
+                : '通知を許可すると受け取れます'}
+            </div>
+          </div>
+
+          {/* トグルボタン */}
+          <button
+            onClick={perm === 'denied' || perm === 'unsupported' ? undefined : handleGlobalToggle}
+            disabled={globalBusy || perm === 'denied' || perm === 'unsupported'}
+            style={{
+              flexShrink: 0, padding: '6px 14px', borderRadius: 99, border: 'none',
+              cursor: (perm === 'denied' || perm === 'unsupported') ? 'default' : 'pointer',
+              background: permGranted && globalOn
+                ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
+                : '#f0f0f0',
+              color: permGranted && globalOn ? '#fff' : '#999',
+              fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+              transition: 'background 0.2s',
+              minWidth: 72, textAlign: 'center',
+            }}
+          >
+            {globalBusy
+              ? '…'
+              : perm === 'denied'
+              ? 'ブロック中'
+              : perm === 'unsupported'
+              ? '非対応'
+              : !permGranted
+              ? '許可する'
+              : globalOn ? '🔔 ON' : '🔕 OFF'}
           </button>
         </div>
-      )}
 
-      {perm === 'denied' && (
-        <div style={{
-          marginBottom: 20, padding: 16, borderRadius: 14,
-          background: '#FFF0F0', border: '1px solid rgba(239,68,68,0.2)',
-        }}>
-          <p style={{ fontSize: 13, color: '#b91c1c', fontFamily: "'Kiwi Maru',serif" }}>
+        {perm === 'denied' && (
+          <p style={{ fontSize: 11, color: '#ef4444', marginTop: 8, padding: '0 4px', fontFamily: "'Kiwi Maru',serif" }}>
             通知がブロックされています。ブラウザの設定から許可してください。
           </p>
-        </div>
-      )}
-
-      {perm === 'unsupported' && (
-        <div style={{
-          marginBottom: 20, padding: 16, borderRadius: 14,
-          background: '#f8f9fa', border: '1px solid #e2e8f0',
-        }}>
-          <p style={{ fontSize: 13, color: '#64748b', fontFamily: "'Kiwi Maru',serif" }}>
+        )}
+        {perm === 'unsupported' && (
+          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, padding: '0 4px', fontFamily: "'Kiwi Maru',serif" }}>
             このブラウザは通知に対応していません。
           </p>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* 団体一覧 */}
-      {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[...Array(5)].map((_, i) => (
-            <div key={i} style={{
-              height: 64, borderRadius: 14, background: '#f8f8f8',
-              animation: 'pulse 1.5s ease infinite',
-            }} />
-          ))}
+      {/* ── 団体ごとの通知 ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginBottom: 10, letterSpacing: '0.05em' }}>
+          団体ごとの通知
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {exhibits.map(ex => {
-            const on = subs.has(ex.id)
-            return (
-              <div key={ex.id} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 14px', borderRadius: 14, background: '#fff',
-                border: on ? '1px solid rgba(255,140,0,0.3)' : '1px solid #f0f0f0',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-                transition: 'border-color 0.2s',
-              }}>
-                {/* サムネイル */}
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                  overflow: 'hidden', background: 'linear-gradient(135deg,#FFD166,#FF8C00)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+        <p style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif", marginBottom: 12 }}>
+          催しが始まる30分前に通知が届きます
+        </p>
+
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[...Array(5)].map((_, i) => (
+              <div key={i} style={{
+                height: 64, borderRadius: 14, background: '#f8f8f8',
+                animation: 'pulse 1.5s ease infinite',
+              }} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {exhibits.map(ex => {
+              const on = subs.has(ex.id)
+              return (
+                <div key={ex.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px', borderRadius: 14, background: '#fff',
+                  border: on ? '1px solid rgba(255,140,0,0.3)' : '1px solid #f0f0f0',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  transition: 'border-color 0.2s',
                 }}>
-                  {ex.thumbnail_url
-                    ? <img src={ex.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : '🎨'}
-                </div>
-
-                {/* テキスト */}
-                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 14, fontWeight: 700, color: '#1a1a1a',
-                    fontFamily: "'Kaisei Decol',serif",
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    marginBottom: 2,
+                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                    overflow: 'hidden', background: 'linear-gradient(135deg,#FFD166,#FF8C00)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
                   }}>
-                    {ex.class_label && (
-                      <span style={{ fontSize: 11, color: '#aaa', marginRight: 6 }}>{ex.class_label}</span>
-                    )}
-                    {ex.name}
+                    {ex.thumbnail_url
+                      ? <img src={ex.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : '🎨'}
                   </div>
-                  <div style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif" }}>
-                    {TYPE_LABEL[ex.type] ?? ex.type}
-                  </div>
-                </div>
 
-                {/* トグル */}
-                <button
-                  onClick={() => handleToggle(ex.id)}
-                  disabled={toggling === ex.id || perm === 'denied' || perm === 'unsupported'}
-                  style={{
-                    flexShrink: 0, padding: '6px 14px', borderRadius: 99, border: 'none',
-                    cursor: (perm === 'denied' || perm === 'unsupported') ? 'default' : 'pointer',
-                    background: on ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f0f0f0',
-                    color: on ? '#fff' : '#999',
-                    fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
-                    transition: 'background 0.2s',
-                    minWidth: 72, textAlign: 'center',
-                  }}
-                >
-                  {toggling === ex.id ? '…' : on ? '🔔 ON' : '🔕 OFF'}
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+                      fontFamily: "'Kaisei Decol',serif",
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      marginBottom: 2,
+                    }}>
+                      {ex.class_label && (
+                        <span style={{ fontSize: 11, color: '#aaa', marginRight: 6 }}>{ex.class_label}</span>
+                      )}
+                      {ex.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif" }}>
+                      {TYPE_LABEL[ex.type] ?? ex.type}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleToggle(ex.id)}
+                    disabled={toggling === ex.id || perm === 'denied' || perm === 'unsupported'}
+                    style={{
+                      flexShrink: 0, padding: '6px 14px', borderRadius: 99, border: 'none',
+                      cursor: (perm === 'denied' || perm === 'unsupported') ? 'default' : 'pointer',
+                      background: on ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f0f0f0',
+                      color: on ? '#fff' : '#999',
+                      fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+                      transition: 'background 0.2s',
+                      minWidth: 72, textAlign: 'center',
+                    }}
+                  >
+                    {toggling === ex.id ? '…' : on ? '🔔 ON' : '🔕 OFF'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
     </div>

@@ -18,6 +18,7 @@ export default function AnnouncementsPage() {
   const [newBody, setNewBody]   = useState('')
   const [newUrgent, setNewUrgent] = useState(false)
   const [saving, setSaving]     = useState(false)
+  const [notifyLog, setNotifyLog] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -42,13 +43,17 @@ export default function AnnouncementsPage() {
     if (data) setRows(prev => [data as AnnouncementRow, ...prev])
 
     // プッシュ通知を全登録者に送信
-    const fnUrl  = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/announce-notify`
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    fetch(fnUrl, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newUrgent ? '🚨 南高祭 緊急お知らせ' : '📢 南高祭', body: newBody.trim() }),
-    }).catch(() => { /* 通知失敗は無視 */ })
+    try {
+      const res = await fetch('/api/announce-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newUrgent ? '🚨 南高祭 緊急お知らせ' : '📢 南高祭', body: newBody.trim() }),
+      })
+      const json = await res.json()
+      setNotifyLog(`${res.status} ${JSON.stringify(json)}`)
+    } catch (e) {
+      setNotifyLog(`fetch error: ${e}`)
+    }
 
     setNewBody('')
     setNewUrgent(false)
@@ -97,6 +102,20 @@ export default function AnnouncementsPage() {
           ＋ 新規作成
         </button>
       </div>
+
+      {/* 通知送信ログ */}
+      {notifyLog && (
+        <div style={{
+          marginBottom:16, padding:'10px 14px', borderRadius:10,
+          background: notifyLog.startsWith('200') ? '#f0fdf4' : '#fef2f2',
+          border: `1px solid ${notifyLog.startsWith('200') ? '#86efac' : '#fca5a5'}`,
+          fontSize:12, fontFamily:'monospace', color:'#334155',
+          display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8,
+        }}>
+          <span style={{ wordBreak:'break-all' }}>{notifyLog}</span>
+          <button onClick={() => setNotifyLog(null)} style={{ flexShrink:0, background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:14 }}>✕</button>
+        </div>
+      )}
 
       {/* 追加フォーム */}
       {adding && (

@@ -9,23 +9,26 @@ const CORS = {
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 function toHHMMSS(d: Date) { return `${pad(d.getHours())}:${pad(d.getMinutes())}:00` }
+function addMin(d: Date, min: number) { return new Date(d.getTime() + min * 60 * 1000) }
 
 serve(async (_req) => {
   try {
-    const now   = new Date()
-    const dow   = now.getDay()
+    const now = new Date()
+    const dow = now.getDay()
     const today = dow === 6 ? 'sat' : dow === 0 ? 'sun' : null
 
-    // 祭当日以外はスキップ
     if (!today) {
       return new Response(JSON.stringify({ skipped: 'not a festival day' }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
 
-    // 25〜35分後のウィンドウ（通知は開始30分前に届く）
-    const from = toHHMMSS(new Date(now.getTime() + 25 * 60 * 1000))
-    const to   = toHHMMSS(new Date(now.getTime() + 35 * 60 * 1000))
+    // 10分前: now+8〜now+12
+    const w10from = toHHMMSS(addMin(now,  8))
+    const w10to   = toHHMMSS(addMin(now, 12))
+    // 開始時: now-2〜now+3
+    const w0from  = toHHMMSS(addMin(now, -2))
+    const w0to    = toHHMMSS(addMin(now,  3))
 
     const sa: ServiceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON')!)
     const accessToken = await getAccessToken(sa)
@@ -37,56 +40,51 @@ serve(async (_req) => {
 
     let sent = 0
 
-    // ── 催し（special_schedules） ───────────────────────────────
-    const { data: specials } = await supabase
-      .from('special_schedules')
-      .select('exhibit_id, start_at, location, description, exhibit:exhibits(name)')
-      .eq('day', today)
-      .gte('start_at', from)
-      .lte('start_at', to)
+    for (const [phase, from, to] of [['10min', w10from, w10to], ['start', w0from, w0to]] as const) {
+      // ── special_schedules ────────────────────────────────────
+      const { data: specials } = await supabase
+        .from('special_schedules')
+        .select('exhibit_id, start_at, location, exhibit:exhibits(name)')
+        .eq('day', today)
+        .gte('start_at', from)
+        .lte('start_at', to)
 
-    for (const s of (specials ?? []) as any[]) {
-      const { data: subs } = await supabase
-        .from('exhibit_push_subs')
-        .select('fcm_token')
-        .eq('exhibit_id', s.exhibit_id)
+      for (const s of (specials ?? []) as any[]) {
+        const { data: subs } = await supabase
+          .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', s.exhibit_id)
 
-      const name  = s.exhibit?.name ?? '催し'
-      const start = (s.start_at as string).slice(0, 5)
-      const loc   = s.location ? `（${s.location}）` : ''
-      const title = `⏰ まもなく開始 — ${name}`
-      const body  = `${start}〜 ${loc}`.trim()
+        const name  = s.exhibit?.name ?? '催し'
+        const start = (s.start_at as string).slice(0, 5)
+        const loc   = s.location ? `（${s.location}）` : ''
+        const title = phase === '10min' ? `⏰ 10分後に開始 — ${name}` : `🔔 始まりました — ${name}`
+        const body  = phase === '10min' ? `${start}〜 ${loc}に来てね！`.trim() : `${loc}でスタート！`.trim()
 
-      for (const sub of (subs ?? []) as any[]) {
-        const status = await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, body)
-        if (status === 200) sent++
+        for (const sub of (subs ?? []) as any[]) {
+          if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, body) === 200) sent++
+        }
       }
-    }
 
-    // ── 軽音（band_schedules） ──────────────────────────────────
-    const { data: bands } = await supabase
-      .from('band_schedules')
-      .select('start_at, stage, band:bands!inner(name, exhibit_id)')
-      .eq('day', today)
-      .gte('start_at', from)
-      .lte('start_at', to)
+      // ── band_schedules ───────────────────────────────────────
+      const { data: bands } = await supabase
+        .from('band_schedules')
+        .select('start_at, stage, band:bands!inner(name, exhibit_id)')
+        .eq('day', today)
+        .gte('start_at', from)
+        .lte('start_at', to)
 
-    for (const b of (bands ?? []) as any[]) {
-      const band = b.band as { name: string; exhibit_id: string }
+      for (const b of (bands ?? []) as any[]) {
+        const band = b.band as { name: string; exhibit_id: string }
+        const { data: subs } = await supabase
+          .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', band.exhibit_id)
 
-      const { data: subs } = await supabase
-        .from('exhibit_push_subs')
-        .select('fcm_token')
-        .eq('exhibit_id', band.exhibit_id)
+        const start = (b.start_at as string).slice(0, 5)
+        const stage = b.stage ? `（${b.stage}）` : ''
+        const title = phase === '10min' ? `🎸 10分後に開始 — ${band.name}` : `🎸 始まりました — ${band.name}`
+        const body  = phase === '10min' ? `${start}〜 ${stage}に来てね！`.trim() : `${stage}でスタート！`.trim()
 
-      const start = (b.start_at as string).slice(0, 5)
-      const stage = b.stage ? `（${b.stage}）` : ''
-      const title = `🎸 まもなく開始 — ${band.name}`
-      const body  = `${start}〜 ${stage}`.trim()
-
-      for (const sub of (subs ?? []) as any[]) {
-        const status = await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, body)
-        if (status === 200) sent++
+        for (const sub of (subs ?? []) as any[]) {
+          if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, body) === 200) sent++
+        }
       }
     }
 

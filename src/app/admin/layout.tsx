@@ -11,6 +11,7 @@ const NAV = [
   { href:'/admin/edit',          icon:'✏',  label:'展示編集' },
   { href:'/admin/notices',       icon:'🔔', label:'お知らせ管理' },
   { href:'/admin/announcements', icon:'📢', label:'アナウンス管理' },
+  { href:'/admin/notify-test',   icon:'🧪', label:'通知テスト' },
   { href:'/admin/users',         icon:'👥', label:'権限管理',       adminOnly:true },
   { href:'/admin/exhibits',      icon:'🏫', label:'団体管理',       adminOnly:true },
 ]
@@ -219,6 +220,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
     '/admin/announcements': 'アナウンス管理',
     '/admin/users':         '権限管理',
     '/admin/exhibits':      '団体管理',
+    '/admin/notify-test':   '通知テスト',
     '/admin/profile':       'プロフィール',
   }
   const label = Object.entries(MAP)

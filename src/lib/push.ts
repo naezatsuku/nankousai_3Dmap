@@ -2,9 +2,10 @@ import { getMessaging, getToken, isSupported } from 'firebase/messaging'
 import { firebaseApp } from './firebase'
 import { createClient } from './supabase/client'
 
-const VAPID_KEY   = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!
-const TOKEN_KEY   = 'fcm_token'
-const SUBS_KEY    = 'push_subs'
+const VAPID_KEY      = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!
+const TOKEN_KEY      = 'fcm_token'
+const SUBS_KEY       = 'push_subs'
+const GLOBAL_OPT_OUT = 'push_global_off'
 
 // ── FCM トークン取得 ─────────────────────────────────────────────
 export async function getFCMToken(): Promise<string | null> {
@@ -58,6 +59,28 @@ export async function unsubscribeFromExhibit(exhibitId: string): Promise<void> {
   const subs = getLocalSubs()
   subs.delete(exhibitId)
   localStorage.setItem(SUBS_KEY, JSON.stringify([...subs]))
+}
+
+// ── グローバルアナウンス購読 ─────────────────────────────────────
+export function isGlobalOn(): boolean {
+  if (typeof window === 'undefined') return true
+  return localStorage.getItem(GLOBAL_OPT_OUT) !== '1'
+}
+
+export async function subscribeToGlobal(): Promise<void> {
+  localStorage.removeItem(GLOBAL_OPT_OUT)
+  const token = getStoredToken() ?? await getFCMToken()
+  if (!token) return
+  const supabase = createClient()
+  await supabase.from('push_subscriptions').upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
+}
+
+export async function unsubscribeFromGlobal(): Promise<void> {
+  localStorage.setItem(GLOBAL_OPT_OUT, '1')
+  const token = getStoredToken()
+  if (!token) return
+  const supabase = createClient()
+  await supabase.from('push_subscriptions').delete().eq('fcm_token', token)
 }
 
 // ── ローカル購読状態 ─────────────────────────────────────────────
