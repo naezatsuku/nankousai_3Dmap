@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
+import type { Role } from '@/types'
 
 interface TickerMsg {
   text:   string
@@ -27,6 +28,7 @@ export default function Header() {
   const [msgs, setMsgs]   = useState<TickerMsg[]>(FALLBACK)
   const [idx, setIdx]     = useState(0)
   const [fade, setFade]   = useState(true)
+  const [role, setRole]   = useState<Role | null>(null)
 
   const fetchMsgs = useCallback(async () => {
     try {
@@ -134,6 +136,20 @@ export default function Header() {
     return () => { supabase.removeChannel(ch) }
   }, [fetchMsgs])
 
+  // admin / editor ロール確認
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single()
+        .then(({ data: p }) => { if (p?.role) setRole(p.role as Role) })
+    })
+  }, [])
+
   // メッセージローテーション
   useEffect(() => {
     if (msgs.length <= 1) return
@@ -184,7 +200,7 @@ export default function Header() {
           animation:      'headerShimmer 3s linear infinite',
         }} />
 
-        {/* 1行目: タイトル + 時刻ピル */}
+        {/* 1行目: タイトル + (管理ボタン) + 時刻ピル */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'baseline', gap: 5, textDecoration: 'none' }}>
             <span style={{
@@ -204,6 +220,29 @@ export default function Header() {
               {new Date().getFullYear()}
             </span>
           </Link>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {role && (
+              <Link
+                href="/admin"
+                style={{
+                  display:      'flex',
+                  alignItems:   'center',
+                  gap:          4,
+                  padding:      '4px 10px',
+                  borderRadius: 9,
+                  background:   'linear-gradient(135deg, #FF6B00, #FF8C00)',
+                  color:        '#fff',
+                  fontSize:     11,
+                  fontWeight:   700,
+                  fontFamily:   "'Kiwi Maru', serif",
+                  textDecoration: 'none',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                ⚙ 管理
+              </Link>
+            )}
 
           <div style={{
             display:      'flex',
@@ -228,6 +267,7 @@ export default function Header() {
             <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#FFB347', marginLeft: 2 }}>
               {ss}
             </span>
+          </div>
           </div>
         </div>
 

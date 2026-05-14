@@ -13,9 +13,12 @@ firebase.initializeApp({
 const messaging = firebase.messaging()
 
 messaging.onBackgroundMessage(payload => {
-  const { title, body } = payload.notification ?? {}
-  self.registration.showNotification(title ?? '南高祭', {
-    body:  body ?? '',
+  // onBackgroundMessage を登録した場合、表示は常にここで行う（SDK は自動表示しない）
+  // tag: 'nankosai-push' により同タグの通知は上書きされ重複表示を防ぐ
+  const title = payload.notification?.title ?? payload.data?.title ?? '南高祭'
+  const body  = payload.notification?.body  ?? payload.data?.body  ?? ''
+  self.registration.showNotification(title, {
+    body,
     icon:  '/nanpen.png',
     badge: '/nanpen.png',
     tag:   'nankosai-push',

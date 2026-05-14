@@ -59,7 +59,7 @@ async function sendFCM(
       message: {
         token: fcmToken,
         notification: { title, body },
-        webpush: { notification: { title, body, icon: '/nanpen.png', badge: '/nanpen.png' } },
+        webpush: { notification: { title, body, icon: '/nanpen.png', badge: '/nanpen.png', tag: 'nankosai-push' } },
       },
     }),
   })

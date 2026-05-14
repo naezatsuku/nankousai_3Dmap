@@ -298,13 +298,28 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
 // トップページ
 // ============================================================
 function TopPage({ onNavigate }: TopPageProps) {
+  const router = useRouter();
   const [nanpenTap, setNanpenTap] = useState<boolean>(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
-  const sitemapRef = useRef<HTMLDivElement>(null);
+  const sitemapRef    = useRef<HTMLDivElement>(null);
+  const tapCountRef   = useRef<number>(0);
+  const tapTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleNanpenTap = () => {
     setNanpenTap(true);
     setTimeout(() => setNanpenTap(false), 700);
+  };
+
+  const handleFooterNanpenTap = () => {
+    tapCountRef.current += 1;
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+
+    if (tapCountRef.current >= 3) {
+      tapCountRef.current = 0;
+      router.push('/admin');
+      return;
+    }
+    tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 1500);
   };
 
   return (
@@ -674,9 +689,11 @@ function TopPage({ onNavigate }: TopPageProps) {
           <img
             src="/nanpen.png"
             alt="なんぺん"
+            onClick={handleFooterNanpenTap}
             style={{
               width: 52, height: "auto", opacity: 0.65, marginBottom: 10,
               filter: "drop-shadow(0 4px 8px rgba(255,140,0,0.2))",
+              cursor: "pointer",
             }}
           />
           <div style={{

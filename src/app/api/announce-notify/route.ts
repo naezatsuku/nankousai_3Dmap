@@ -82,6 +82,7 @@ async function sendFCM(
               title, body,
               icon:  '/nanpen.png',
               badge: '/nanpen.png',
+              tag:   'nankosai-push',
             },
           },
         },
