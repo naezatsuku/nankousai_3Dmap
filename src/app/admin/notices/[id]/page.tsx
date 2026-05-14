@@ -223,6 +223,24 @@ export default function NoticeEditPage() {
         if (e) throw e
       }
 
+      // 新規作成時のみ全購読者に通知を送信（失敗しても保存は成功扱い）
+      if (isNew) {
+        const senderName =
+          form.sender_name.trim() ||
+          exhibits.find(e => e.id === form.exhibit_id)?.name ||
+          ''
+        fetch('/api/notice-notify', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            title:      form.title.trim(),
+            body:       form.body.trim(),
+            senderName,
+            exhibitId:  form.exhibit_id,
+          }),
+        }).catch(() => {})
+      }
+
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
       if (isNew) router.push(`/admin/notices/${nid}`)
