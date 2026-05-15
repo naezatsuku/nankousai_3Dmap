@@ -62,6 +62,12 @@ export default function MediaUpload({
     if (accept === 'image' && !isImg)    { setError('画像ファイルを選択してください'); return }
     if (accept === 'video' && !isVidFile){ setError('動画ファイルを選択してください'); return }
 
+    const MAX_VIDEO_BYTES = 100 * 1024 * 1024
+    if (isVidFile && file.size > MAX_VIDEO_BYTES) {
+      setError(`動画は100MB以下にしてください（現在: ${(file.size / 1024 / 1024).toFixed(1)}MB）`)
+      return
+    }
+
     setError('')
     setUploading(true)
     setProgress(10)

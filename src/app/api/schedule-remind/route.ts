@@ -42,34 +42,44 @@ export async function POST(req: Request) {
     const w0from  = toHHMMSS(addMin(now, -2))
     const w0to    = toHHMMSS(addMin(now,  3))
 
+    interface RawSpecial {
+      exhibit_id: string
+      start_at:   string
+      location:   string | null
+      exhibit:    { name: string; thumbnail_url: string | null } | null
+    }
+    interface RawBandSchedule {
+      start_at: string
+      stage:    string | null
+      band:     { id: string; name: string; exhibit_id: string; thumbnail_url: string | null }
+    }
+    interface Sub { fcm_token: string }
+
     const results: { phase: string; name: string; start: string; sent: number }[] = []
 
     // ── special_schedules ──────────────────────────────────────
     for (const [phase, from, to] of [['10min', w10from, w10to], ['start', w0from, w0to]] as const) {
       const { data: schedules } = await supabase
         .from('special_schedules')
-        .select('exhibit_id, start_at, location, exhibit:exhibits(name)')
+        .select('exhibit_id, start_at, location, exhibit:exhibits(name, thumbnail_url)')
         .eq('day', day)
         .gte('start_at', from)
         .lte('start_at', to)
 
-      for (const s of (schedules ?? []) as any[]) {
+      for (const s of (schedules ?? []) as unknown as RawSpecial[]) {
         const { data: subs } = await supabase
           .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', s.exhibit_id)
 
         const name  = s.exhibit?.name ?? '催し'
-        const start = (s.start_at as string).slice(0, 5)
+        const icon  = s.exhibit?.thumbnail_url ?? undefined
+        const start = s.start_at.slice(0, 5)
         const loc   = s.location ? `（${s.location}）` : ''
-        const title = phase === '10min'
-          ? `⏰ 10分後に開始 — ${name}`
-          : `🔔 始まりました — ${name}`
-        const msg   = phase === '10min'
-          ? `${start}〜 ${loc}に来てね！`.trim()
-          : `${loc}でスタート！`.trim()
+        const title = phase === '10min' ? `⏰ 10分後に開始 — ${name}` : `🔔 始まりました — ${name}`
+        const msg   = phase === '10min' ? `${start}〜 ${loc}に来てね！`.trim() : `${loc}でスタート！`.trim()
 
         let sent = 0
-        for (const sub of (subs ?? []) as any[]) {
-          if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, msg) === 200) sent++
+        for (const sub of (subs ?? []) as Sub[]) {
+          if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, msg, icon) === 200) sent++
         }
         results.push({ phase, name, start, sent })
       }
@@ -79,28 +89,30 @@ export async function POST(req: Request) {
     for (const [phase, from, to] of [['10min', w10from, w10to], ['start', w0from, w0to]] as const) {
       const { data: bands } = await supabase
         .from('band_schedules')
-        .select('start_at, stage, band:bands!inner(name, exhibit_id)')
+        .select('start_at, stage, band:bands!inner(id, name, exhibit_id, thumbnail_url)')
         .eq('day', day)
         .gte('start_at', from)
         .lte('start_at', to)
+      // band.id + start_at でメモリ内重複除去（DBに同一行が複数あっても1通のみ）
+      const seen = new Set<string>()
+      for (const b of (bands ?? []) as unknown as RawBandSchedule[]) {
+        const { band } = b
+        const key = `${band.id}:${b.start_at}`
+        if (seen.has(key)) continue
+        seen.add(key)
 
-      for (const b of (bands ?? []) as any[]) {
-        const band = b.band as { name: string; exhibit_id: string }
         const { data: subs } = await supabase
           .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', band.exhibit_id)
 
-        const start = (b.start_at as string).slice(0, 5)
+        const icon  = band.thumbnail_url ?? undefined
+        const start = b.start_at.slice(0, 5)
         const stage = b.stage ? `（${b.stage}）` : ''
-        const title = phase === '10min'
-          ? `🎸 10分後に開始 — ${band.name}`
-          : `🎸 始まりました — ${band.name}`
-        const msg   = phase === '10min'
-          ? `${start}〜 ${stage}に来てね！`.trim()
-          : `${stage}でスタート！`.trim()
+        const title = phase === '10min' ? `🎸 10分後に開始 — ${band.name}` : `🎸 始まりました — ${band.name}`
+        const msg   = phase === '10min' ? `${start}〜 ${stage}に来てね！`.trim() : `${stage}でスタート！`.trim()
 
         let sent = 0
-        for (const sub of (subs ?? []) as any[]) {
-          if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, msg) === 200) sent++
+        for (const sub of (subs ?? []) as Sub[]) {
+          if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, msg, icon) === 200) sent++
         }
         results.push({ phase, name: band.name, start, sent })
       }

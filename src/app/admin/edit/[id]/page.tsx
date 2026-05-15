@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -12,7 +12,8 @@ type BodySegment =
   | { type:'link'; label:string; href:string }
   | { type:'break' }
 
-interface Section          { id:string; heading:string; body:BodySegment[]; order:number }
+interface SectionMediaItem  { id:string; url:string; type:'image'|'video'; caption:string; order_index:number }
+interface Section          { id:string; heading:string; body:BodySegment[]; order:number; media:SectionMediaItem[] }
 interface MenuItem         { id:string; name:string; price:number; description:string; image_url:string; stock:number; is_selling:boolean }
 interface BandScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; stage:string }
 interface BandItem         { id:string; name:string; members:string[]; instagram:string; thumbnail_url:string; schedules:BandScheduleItem[] }
@@ -55,6 +56,7 @@ export default function ExhibitEditPage() {
   const [deletedBandIds, setDeletedBandIds]       = useState<string[]>([])
   const [specials, setSpecials]                   = useState<SpecialScheduleItem[]>([])
   const [deletedSpecialIds, setDeletedSpecialIds] = useState<string[]>([])
+  const [deletedSectionIds, setDeletedSectionIds] = useState<string[]>([])
 
   // ── データ読み込み ────────────────────────────────────────────
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function ExhibitEditPage() {
 
     supabase
       .from('exhibits')
-      .select('*, sections:exhibit_sections(id, heading, body, order_index)')
+      .select('*, sections:exhibit_sections(id, heading, body, order_index, media:exhibit_images(id, url, type, caption, order_index))')
       .eq('id', id)
       .single()
       .then(async ({ data }) => {
@@ -92,9 +94,14 @@ export default function ExhibitEditPage() {
             thumbnail_url: data.thumbnail_url ?? '',
             room_display:  data.room_display ?? '',
             floor:         data.floor ?? 1,
-            sections: ((data.sections as {id:string;heading:string;body:BodySegment[];order_index:number}[]) ?? [])
+            sections: ((data.sections as {id:string;heading:string;body:BodySegment[];order_index:number;media:{id:string;url:string;type:string;caption:string|null;order_index:number}[]}[]) ?? [])
               .sort((a,b) => a.order_index - b.order_index)
-              .map(s => ({ id:s.id, heading:s.heading, body:s.body ?? [], order:s.order_index })),
+              .map(s => ({
+                id:s.id, heading:s.heading, body:s.body ?? [], order:s.order_index,
+                media: ((s.media ?? []) as {id:string;url:string;type:string;caption:string|null;order_index:number}[])
+                  .sort((a,b) => a.order_index - b.order_index)
+                  .map(m => ({ id:m.id, url:m.url, type:m.type as 'image'|'video', caption:m.caption ?? '', order_index:m.order_index })),
+              })),
             has_wait_time:  data.has_wait_time ?? true,
             time_per_group: tpg,
             queue_count:    Math.round(waitMin / tpg),
@@ -135,7 +142,7 @@ export default function ExhibitEditPage() {
           }
 
           // 催しスケジュール（全type共通）
-          const { data: specialData, error: specialError } = await supabase
+          const { data: specialData } = await supabase
             .from('special_schedules')
             .select('*')
             .eq('exhibit_id', id)
@@ -176,16 +183,50 @@ export default function ExhibitEditPage() {
       wait_minutes:  waitMin,
     }).eq('id', id)
 
-    await supabase.from('exhibit_sections').delete().eq('exhibit_id', id)
-    if (form.sections.length > 0) {
-      await supabase.from('exhibit_sections').insert(
-        form.sections.map(s => ({
-          exhibit_id:  id,
-          heading:     s.heading,
-          body:        s.body,
-          order_index: s.order,
-        }))
+    // Delete removed sections (cascades to their exhibit_images)
+    if (deletedSectionIds.length > 0) {
+      await supabase.from('exhibit_sections').delete().in('id', deletedSectionIds)
+      setDeletedSectionIds([])
+    }
+
+    const existingSecs = form.sections.filter(s => !s.id.startsWith('new_'))
+    const newSecs      = form.sections.filter(s =>  s.id.startsWith('new_'))
+
+    if (existingSecs.length > 0) {
+      await supabase.from('exhibit_sections').upsert(
+        existingSecs.map(s => ({ id:s.id, exhibit_id:id, heading:s.heading, body:s.body, order_index:s.order }))
       )
+    }
+
+    const newSecIdMap: Record<string, string> = {}
+    for (const sec of newSecs) {
+      const { data: ins } = await supabase
+        .from('exhibit_sections')
+        .insert({ exhibit_id:id, heading:sec.heading, body:sec.body, order_index:sec.order })
+        .select('id').single()
+      if (ins) newSecIdMap[sec.id] = ins.id
+    }
+
+    // Save section media (delete old + reinsert current)
+    const allSecs = [
+      ...existingSecs,
+      ...newSecs.map(s => ({ ...s, id: newSecIdMap[s.id] ?? s.id })),
+    ]
+    for (const sec of allSecs) {
+      if (sec.id.startsWith('new_')) continue
+      await supabase.from('exhibit_images').delete().eq('section_id', sec.id)
+      if (sec.media.length > 0) {
+        await supabase.from('exhibit_images').insert(
+          sec.media.map((m, idx) => ({
+            exhibit_id:  id,
+            section_id:  sec.id,
+            url:         m.url,
+            type:        m.type,
+            caption:     m.caption || null,
+            order_index: idx,
+          }))
+        )
+      }
     }
 
     if (form.type === 'food' || form.type === 'cafeteria') {
@@ -254,6 +295,34 @@ export default function ExhibitEditPage() {
     }))
     if (newSpecials.length > 0)      await supabase.from('special_schedules').insert(newSpecials)
     if (existingSpecials.length > 0) await supabase.from('special_schedules').upsert(existingSpecials)
+
+    // 保存後に DB から再取得して new_ ID を実 ID に同期（2回目保存で重複しないよう）
+    if (form.type === 'band') {
+      const { data: bd } = await supabase.from('bands').select('*, band_schedules(*)').eq('exhibit_id', id).order('name')
+      if (bd) {
+        type RawB = { id:string; name:string; members:string[]; instagram:string|null; thumbnail_url:string|null; band_schedules:{id:string;day:'sat'|'sun';start_at:string;end_at:string;stage:string|null}[] }
+        setBands((bd as unknown as RawB[]).map(b => ({
+          id: b.id, name: b.name, members: b.members ?? [],
+          instagram: b.instagram ?? '', thumbnail_url: b.thumbnail_url ?? '',
+          schedules: (b.band_schedules ?? []).map(s => ({
+            id: s.id, day: s.day,
+            start_at: s.start_at.slice(0,5), end_at: s.end_at.slice(0,5), stage: s.stage ?? '',
+          })),
+        })))
+      }
+    }
+    if (form.type === 'food' || form.type === 'cafeteria') {
+      const { data: md } = await supabase.from('food_menus').select('id, name, price, description, image_url, stock, is_selling').eq('exhibit_id', id)
+      if (md) setMenus(md as MenuItem[])
+    }
+    const { data: spd } = await supabase.from('special_schedules').select('*').eq('exhibit_id', id)
+    if (spd) {
+      setSpecials((spd as any[]).map(s => ({
+        id: s.id, day: s.day as 'sat'|'sun',
+        start_at: (s.start_at as string).slice(0,5), end_at: (s.end_at as string).slice(0,5),
+        location: s.location ?? '', note: s.note ?? s.description ?? '',
+      })))
+    }
 
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -387,7 +456,14 @@ export default function ExhibitEditPage() {
               {/* 詳細タブ */}
               <div className="sec-content" style={{ marginTop:16, display: tab !== 'content' ? 'none' : undefined }}>
                 <Card title="本文セクション" icon="📖">
-                  <SectionsEditor sections={form.sections} onChange={v=>set('sections',v)} />
+                  <SectionsEditor
+                    sections={form.sections}
+                    exhibitId={id}
+                    onChange={v => set('sections', v)}
+                    onRemove={sId => {
+                      if (!sId.startsWith('new_')) setDeletedSectionIds(prev => [...prev, sId])
+                    }}
+                  />
                 </Card>
 
                 {(form.type === 'food' || form.type === 'cafeteria') && (
@@ -575,22 +651,28 @@ export default function ExhibitEditPage() {
 }
 
 // ─── セクション編集 ────────────────────────────────────────────
-function SectionsEditor({ sections, onChange }:{sections:Section[];onChange:(v:Section[])=>void}) {
-  const sorted = [...sections].sort((a,b)=>a.order-b.order)
+function SectionsEditor({ sections, exhibitId, onChange, onRemove }: {
+  sections: Section[]
+  exhibitId: string
+  onChange: (v: Section[]) => void
+  onRemove: (id: string) => void
+}) {
+  const sorted = [...sections].sort((a,b) => a.order - b.order)
 
   const addSection = () => {
-    const newSec:Section = { id:`new_${Date.now()}`, heading:'', body:[{type:'text',text:''}], order: sections.length+1 }
+    const newSec: Section = { id:`new_${Date.now()}`, heading:'', body:[{type:'text',text:''}], order:sections.length+1, media:[] }
     onChange([...sections, newSec])
   }
-  const removeSection = (id:string) => onChange(sections.filter(s=>s.id!==id))
-  const moveUp   = (i:number) => { if(i===0)return; const a=[...sorted]; [a[i-1],a[i]]=[a[i],a[i-1]]; onChange(a.map((s,idx)=>({...s,order:idx+1}))) }
-  const moveDown = (i:number) => { if(i===sorted.length-1)return; const a=[...sorted]; [a[i],a[i+1]]=[a[i+1],a[i]]; onChange(a.map((s,idx)=>({...s,order:idx+1}))) }
-  const updateHeading = (id:string, v:string) => onChange(sections.map(s=>s.id===id?{...s,heading:v}:s))
-  const updateText    = (id:string, v:string) => onChange(sections.map(s=>s.id===id?{...s,body:[{type:'text',text:v}]}:s))
+  const removeSection = (id: string) => { onRemove(id); onChange(sections.filter(s => s.id !== id)) }
+  const moveUp   = (i: number) => { if(i===0)return; const a=[...sorted]; [a[i-1],a[i]]=[a[i],a[i-1]]; onChange(a.map((s,idx)=>({...s,order:idx+1}))) }
+  const moveDown = (i: number) => { if(i===sorted.length-1)return; const a=[...sorted]; [a[i],a[i+1]]=[a[i+1],a[i]]; onChange(a.map((s,idx)=>({...s,order:idx+1}))) }
+  const updateHeading = (id: string, v: string) => onChange(sections.map(s => s.id===id ? {...s,heading:v} : s))
+  const updateText    = (id: string, v: string) => onChange(sections.map(s => s.id===id ? {...s,body:[{type:'text',text:v}]} : s))
+  const updateMedia   = (id: string, v: SectionMediaItem[]) => onChange(sections.map(s => s.id===id ? {...s,media:v} : s))
 
   return (
     <div>
-      {sorted.map((sec,i)=>(
+      {sorted.map((sec,i) => (
         <div key={sec.id} style={{ border:'1px solid #e2e8f0', borderRadius:12, padding:'14px', marginBottom:12 }}>
           <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
             <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>セクション {i+1}</div>
@@ -606,6 +688,12 @@ function SectionsEditor({ sections, onChange }:{sections:Section[];onChange:(v:S
           <FormField label="本文">
             <Textarea value={sec.body.find(b=>b.type==='text') ? (sec.body.find(b=>b.type==='text') as {type:'text';text:string}).text : ''} onChange={v=>updateText(sec.id,v)} rows={4} />
           </FormField>
+          <SectionMediaEditor
+            sectionId={sec.id}
+            exhibitId={exhibitId}
+            media={sec.media}
+            onChange={v => updateMedia(sec.id, v)}
+          />
         </div>
       ))}
       <button onClick={addSection} style={{
@@ -615,6 +703,134 @@ function SectionsEditor({ sections, onChange }:{sections:Section[];onChange:(v:S
       }}>
         ＋ セクションを追加
       </button>
+    </div>
+  )
+}
+
+// ─── セクションメディア編集 ────────────────────────────────────
+function convertToWebP(file: File, quality = 0.85): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const maxW = 1280, maxH = 960
+      const scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight)
+      const canvas = document.createElement('canvas')
+      canvas.width  = Math.round(img.naturalWidth  * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('canvas error')); return }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url)
+        blob ? resolve(blob) : reject(new Error('WebP変換失敗'))
+      }, 'image/webp', quality)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像読み込み失敗')) }
+    img.src = url
+  })
+}
+
+function SectionMediaEditor({ sectionId, exhibitId, media, onChange }: {
+  sectionId: string
+  exhibitId: string
+  media: SectionMediaItem[]
+  onChange: (v: SectionMediaItem[]) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const isImg = file.type.startsWith('image/')
+    const isVid = file.type.startsWith('video/')
+    if (!isImg && !isVid) { setError('画像または動画を選択してください'); return }
+
+    const MAX_VIDEO_BYTES = 100 * 1024 * 1024
+    if (isVid && file.size > MAX_VIDEO_BYTES) {
+      setError(`動画は100MB以下にしてください（現在: ${(file.size / 1024 / 1024).toFixed(1)}MB）`)
+      return
+    }
+
+    setError(''); setUploading(true)
+    try {
+      const supabase = createClient()
+      const key = `m${Date.now()}`
+      let uploadBlob: Blob
+      let fullPath: string
+      let contentType: string
+      if (isImg) {
+        uploadBlob  = await convertToWebP(file)
+        fullPath    = `exhibits/${exhibitId}/sections/${sectionId}/${key}.webp`
+        contentType = 'image/webp'
+      } else {
+        uploadBlob  = file
+        const ext   = file.name.split('.').pop()?.toLowerCase() ?? 'mp4'
+        fullPath    = `exhibits/${exhibitId}/sections/${sectionId}/${key}.${ext}`
+        contentType = file.type
+      }
+      const { error: uploadErr } = await supabase.storage.from('media').upload(fullPath, uploadBlob, { contentType, upsert: true })
+      if (uploadErr) throw uploadErr
+      const { data } = supabase.storage.from('media').getPublicUrl(fullPath)
+      onChange([...media, {
+        id:          `new_${Date.now()}`,
+        url:         `${data.publicUrl}?t=${Date.now()}`,
+        type:        isImg ? 'image' : 'video',
+        caption:     '',
+        order_index: media.length,
+      }])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'アップロード失敗')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const updateCaption = (id: string, caption: string) =>
+    onChange(media.map(m => m.id === id ? { ...m, caption } : m))
+  const remove = (id: string) =>
+    onChange(media.filter(m => m.id !== id))
+
+  return (
+    <div style={{ marginTop:10 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>
+        セクション内メディア
+      </div>
+      {media.map(m => (
+        <div key={m.id} style={{ display:'flex', gap:6, alignItems:'center', marginBottom:6, background:'#f8fafc', borderRadius:7, padding:'5px 8px' }}>
+          {m.type === 'video' ? (
+            <video src={m.url} style={{ width:56, height:42, objectFit:'cover', borderRadius:5, flexShrink:0 }} muted playsInline preload="metadata" />
+          ) : (
+            <img src={m.url} alt="" style={{ width:56, height:42, objectFit:'cover', borderRadius:5, flexShrink:0 }} />
+          )}
+          <input
+            value={m.caption}
+            onChange={e => updateCaption(m.id, e.target.value)}
+            placeholder="キャプション（省略可）"
+            className="field-input"
+            style={{ ...inputStyle, flex:1, fontSize:11 }}
+          />
+          <button onClick={() => remove(m.id)} style={{ flexShrink:0, background:'none', border:'none', cursor:'pointer', color:'#ef4444', fontSize:14, padding:'4px' }}>✕</button>
+        </div>
+      ))}
+      <button
+        onClick={() => !uploading && inputRef.current?.click()}
+        disabled={uploading}
+        style={{
+          display:'flex', alignItems:'center', gap:4, padding:'7px 12px',
+          borderRadius:8, border:'1px dashed #e2e8f0',
+          background: uploading ? '#f8fafc' : '#fff',
+          cursor: uploading ? 'not-allowed' : 'pointer',
+          fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif",
+        }}
+      >
+        {uploading ? 'アップロード中…' : '＋ 画像・動画を追加'}
+      </button>
+      {error && <div style={{ fontSize:11, color:'#ef4444', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>{error}</div>}
+      <input ref={inputRef} type="file" accept="image/*,video/*" style={{ display:'none' }} onChange={handleFile} />
     </div>
   )
 }

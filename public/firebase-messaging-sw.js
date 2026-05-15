@@ -10,16 +10,21 @@ firebase.initializeApp({
   appId:             '1:806379992694:web:3ed94ddce628b047e21157',
 })
 
+self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
+
 const messaging = firebase.messaging()
 
 messaging.onBackgroundMessage(payload => {
   // onBackgroundMessage を登録した場合、表示は常にここで行う（SDK は自動表示しない）
   // tag: 'nankosai-push' により同タグの通知は上書きされ重複表示を防ぐ
+  console.log('[SW] onBackgroundMessage payload.data:', JSON.stringify(payload.data))
   const title = payload.notification?.title ?? payload.data?.title ?? '南高祭'
   const body  = payload.notification?.body  ?? payload.data?.body  ?? ''
+  const icon  = payload.data?.icon || '/nanpen.png'
   self.registration.showNotification(title, {
     body,
-    icon:  '/nanpen.png',
+    icon,
     badge: '/nanpen.png',
     tag:   'nankosai-push',
   })

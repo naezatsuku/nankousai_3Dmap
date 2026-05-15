@@ -17,6 +17,11 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
+    // 展示の thumbnail を取得してアイコンに使用
+    const { data: exhibitData } = await supabase
+      .from('exhibits').select('thumbnail_url').eq('id', exhibitId).single()
+    const icon = (exhibitData as { thumbnail_url?: string } | null)?.thumbnail_url || undefined
+
     // その展示を購読しているユーザーのみに送信
     const { data: subs } = await supabase
       .from('exhibit_push_subs')
@@ -28,7 +33,7 @@ export async function POST(req: Request) {
     const invalid: string[] = []
 
     for (const token of tokens) {
-      const status = await sendFCM(accessToken, sa.project_id, token, notifTitle, notifBody)
+      const status = await sendFCM(accessToken, sa.project_id, token, notifTitle, notifBody, icon)
       if (status === 200) {
         sent++
       } else if (status === 400 || status === 404) {

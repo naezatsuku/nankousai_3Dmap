@@ -57,6 +57,7 @@ export async function sendFCM(
   fcmToken:    string,
   title:       string,
   body:        string,
+  icon?:       string,
 ): Promise<number> {
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -69,7 +70,7 @@ export async function sendFCM(
       body: JSON.stringify({
         message: {
           token: fcmToken,
-          data:  { title, body },
+          data:  { title, body, ...(icon ? { icon } : {}) },
         },
       }),
     },

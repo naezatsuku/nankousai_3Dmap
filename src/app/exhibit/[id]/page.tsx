@@ -66,38 +66,37 @@ export default function ExhibitDetailPage() {
         @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
       <div style={{ height:'100%', overflowY:'auto', background:'#fff' }}>
-        {/* ── ヒーロー ── */}
+        {/* ── ヒーロー（全幅） ── */}
         <Hero exhibit={exhibit} />
 
-        {/* ── 情報エリア ── */}
-        <InfoSection exhibit={exhibit} />
+        {/* ── ヒーロー以下：中央寄せコンテナ ── */}
+        <div style={{ maxWidth:640, margin:'0 auto' }}>
+          <InfoSection exhibit={exhibit} />
 
-        {/* ── type別コンテンツ ── */}
-        {exhibit.type === 'food' || exhibit.type === 'cafeteria'
-          ? <FoodContent exhibit={exhibit} menus={foodMenus} />
-          : exhibit.type === 'band'
-          ? <BandContent />
-          : <StandardContent exhibit={exhibit} />
-        }
+          {exhibit.type === 'food' || exhibit.type === 'cafeteria'
+            ? <FoodContent exhibit={exhibit} menus={foodMenus} />
+            : exhibit.type === 'band'
+            ? <BandContent exhibit={exhibit} />
+            : <StandardContent exhibit={exhibit} />
+          }
 
-        {/* ── ギャラリー ── */}
-        {exhibit.media.length > 0 && <Gallery media={exhibit.media} />}
+          {exhibit.media.length > 0 && <Gallery media={exhibit.media} />}
 
-        {/* ── マップボタン（固定） ── */}
-        <div style={{ padding:'16px 16px 32px' }}>
-          <Link href="/map" style={{
-            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-            padding:'14px 0', borderRadius:16,
-            background:'#f8f9fa', border:'1px solid #e0e0e0',
-            color:'#555', textDecoration:'none',
-            fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
-              <line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>
-            </svg>
-            マップで場所を確認する
-          </Link>
+          <div style={{ padding:'16px 16px 32px' }}>
+            <Link href="/map" style={{
+              display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+              padding:'14px 0', borderRadius:16,
+              background:'#f8f9fa', border:'1px solid #e0e0e0',
+              color:'#555', textDecoration:'none',
+              fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+                <line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>
+              </svg>
+              マップで場所を確認する
+            </Link>
+          </div>
         </div>
       </div>
     </>
@@ -322,10 +321,19 @@ function BodyRenderer({ segments }: { segments: BodySegment[] }) {
 function SectionMediaGrid({ media }: { media: SectionMedia[] }) {
   const [active, setActive] = useState(0)
   if (media.length === 1) {
-    return <MediaItem item={media[0]} large />
+    return (
+      <div style={{ maxWidth:480 }}>
+        <MediaItem item={media[0]} large />
+        {media[0].caption && (
+          <div style={{ fontSize:11, color:'#aaa', textAlign:'center', marginTop:6, fontFamily:"'Kiwi Maru',serif" }}>
+            {media[0].caption}
+          </div>
+        )}
+      </div>
+    )
   }
   return (
-    <div>
+    <div style={{ maxWidth:480 }}>
       <MediaItem item={media[active]} large />
       {media[active].caption && (
         <div style={{ fontSize:11, color:'#aaa', textAlign:'center', margin:'6px 0 8px', fontFamily:"'Kiwi Maru',serif" }}>
@@ -466,12 +474,13 @@ function FoodMenuCard({ menu }: { menu: FoodMenu }) {
 }
 
 // ─── 軽音コンテンツ ───────────────────────────────────────────
-function BandContent() {
+function BandContent({ exhibit }: { exhibit: ExhibitDetail }) {
   return (
     <div style={{ padding:'0 16px 20px' }}>
       <div style={{
         background:'linear-gradient(135deg,#1a1a2e,#16213e)',
         borderRadius:20, padding:'28px 20px', textAlign:'center',
+        marginBottom: exhibit.sections.length > 0 ? 24 : 0,
       }}>
         <div style={{ fontSize:48, marginBottom:12 }}>🎸</div>
         <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:18, fontWeight:700, color:'#fff', marginBottom:8 }}>
@@ -489,6 +498,14 @@ function BandContent() {
           🎵 スケジュールを見る →
         </Link>
       </div>
+
+      {exhibit.sections.length > 0 && (
+        <div>
+          {[...exhibit.sections].sort((a, b) => a.order - b.order).map((sec) => (
+            <SectionBlock key={sec.id} section={sec} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -504,7 +521,7 @@ function Gallery({ media }: { media: ExhibitMedia[] }) {
       </div>
       {/* メインビュー */}
       <div style={{
-        width:'100%', aspectRatio:'16/9', borderRadius:16, overflow:'hidden',
+        width:'100%', maxWidth:560, aspectRatio:'16/9', borderRadius:16, overflow:'hidden',
         background:'#111', marginBottom:10, position:'relative',
         boxShadow:'0 4px 20px rgba(0,0,0,0.12)',
       }}>
