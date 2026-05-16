@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Props {
   onResult: (text: string) => void
@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function QrScanner({ onResult, onCancel }: Props) {
-  const divId  = useRef(`qr-${Math.random().toString(36).slice(2, 9)}`)
+  const [divId, setDivId] = useState<string>('')
   const stopFn = useRef<() => void>(() => {})
 
   useEffect(() => {
@@ -16,8 +16,10 @@ export default function QrScanner({ onResult, onCancel }: Props) {
     let started = false
 
     async function start() {
+      const id = `qr-${Math.random().toString(36).slice(2, 9)}`
+      setDivId(id)
       const { Html5Qrcode } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode(divId.current)
+      const scanner = new Html5Qrcode(id)
 
       // start 完了後のみ stop できるようフラグで管理
       stopFn.current = () => { if (started) scanner.stop().catch(() => {}) }
@@ -71,7 +73,7 @@ export default function QrScanner({ onResult, onCancel }: Props) {
 
       {/* html5-qrcode はこの div を乗っ取ってカメラ映像を描画する */}
       <div
-        id={divId.current}
+        id={divId}
         style={{
           width:        '100%',
           maxWidth:     340,
