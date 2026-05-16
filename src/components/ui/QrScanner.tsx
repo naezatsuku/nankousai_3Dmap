@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useId } from 'react'
 
 interface Props {
   onResult: (text: string) => void
@@ -8,37 +8,29 @@ interface Props {
 }
 
 export default function QrScanner({ onResult, onCancel }: Props) {
-  const [divId, setDivId] = useState<string>('')
+  const divId  = useId()
   const stopFn = useRef<() => void>(() => {})
 
   useEffect(() => {
-    let done    = false
-    let started = false
+    let done = false
 
     async function start() {
-      const id = `qr-${Math.random().toString(36).slice(2, 9)}`
-      setDivId(id)
       const { Html5Qrcode } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode(id)
-
-      // start 完了後のみ stop できるようフラグで管理
-      stopFn.current = () => { if (started) scanner.stop().catch(() => {}) }
+      const scanner = new Html5Qrcode(divId)
+      stopFn.current = () => scanner.stop().catch(() => {})
 
       try {
         await scanner.start(
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 240, height: 240 } },
-          (text: string) => {
+          (text) => {
             if (done) return
             done = true
             scanner.stop().catch(() => {})
             onResult(text)
           },
-          () => {},
+          () => {}, // per-frame error は無視
         )
-        started = true
-        // start 待機中にアンマウントされていたら即 stop
-        if (done) scanner.stop().catch(() => {})
       } catch {
         if (!done) onCancel()
       }
