@@ -6,6 +6,7 @@ const TABS = [
   { id: 'map',           href: '/map',           label: 'マップ' },
   { id: 'notifications', href: '/notifications', label: '通知' },
   { id: 'news',          href: '/news',           label: 'お知らせ', badge: true },
+  { id: 'stamp',         href: '/stamp',          label: 'スタンプ' },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -21,8 +22,8 @@ export default function TabBar({ unreadCount = 0 }: TabBarProps) {
   const activeId: TabId =
     TABS.find((t) => pathname.startsWith(t.href))?.id ?? 'map'
 
-  // インジケーターの left 位置 (タブ幅 33.3% × 3)
-  const indicatorLeft = activeId === 'map' ? '4%' : activeId === 'notifications' ? '37%' : '70%'
+  // インジケーターの left 位置 (タブ幅 25% × 4)
+  const indicatorLeft = activeId === 'map' ? '3%' : activeId === 'notifications' ? '28%' : activeId === 'news' ? '53%' : '78%'
 
   return (
     <>
@@ -53,7 +54,7 @@ export default function TabBar({ unreadCount = 0 }: TabBarProps) {
             position: 'absolute',
             top: 0,
             height: 2.5,
-            width: '26%',
+            width: '19%',
             background: 'linear-gradient(90deg, #FF6B00, #FFB347)',
             borderRadius: '0 0 4px 4px',
             left: indicatorLeft,
@@ -166,15 +167,29 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
     )
   }
 
-  // news
+  if (id === 'news') {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="14" rx="2" stroke={c} strokeWidth="1.8" fill={fill} />
+        <path d="M3 9h18"        stroke={c} strokeWidth="1.8" />
+        <path d="M7 13h4M7 16h6" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // stamp
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <rect
-        x="3" y="5" width="18" height="14" rx="2"
-        stroke={c} strokeWidth="1.8" fill={fill}
-      />
-      <path d="M3 9h18"       stroke={c} strokeWidth="1.8" />
-      <path d="M7 13h4M7 16h6" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="9" stroke={c} strokeWidth="1.8" fill={fill} />
+      <circle cx="12" cy="12" r="4" stroke={c} strokeWidth="1.5" />
+      <line x1="12" y1="3"  x2="12" y2="1"  stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="12" y1="23" x2="12" y2="21" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="3"  y1="12" x2="1"  y2="12" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="23" y1="12" x2="21" y2="12" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="5.6" y1="5.6"   x2="4.2" y2="4.2"   stroke={c} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="18.4" y1="18.4" x2="19.8" y2="19.8" stroke={c} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="18.4" y1="5.6"  x2="19.8" y2="4.2"  stroke={c} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="5.6"  y1="18.4" x2="4.2"  y2="19.8" stroke={c} strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }

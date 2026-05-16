@@ -28,12 +28,14 @@ interface ExhibitFormState {
   time_per_group:number
   queue_count:number
   type:'class'|'food'|'band'|'special'|'cafeteria'
+  is_stamp_target:boolean
 }
 
 const INIT: ExhibitFormState = {
   name:'', catch_copy:'', description:'',
   cover_url:'', thumbnail_url:'', room_display:'', floor:1,
   sections:[], has_wait_time:true, time_per_group:5, queue_count:0, type:'class',
+  is_stamp_target:false,
 }
 
 const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
@@ -44,6 +46,7 @@ export default function ExhibitEditPage() {
   const router  = useRouter()
   const [form, setForm]         = useState<ExhibitFormState>(INIT)
   const [tab, setTab]           = useState<'basic'|'content'|'special'|'quick'>('basic')
+  const [quickTab, setQuickTab] = useState<'wait'|'qr'|'menu'>('wait')
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
@@ -102,10 +105,11 @@ export default function ExhibitEditPage() {
                   .sort((a,b) => a.order_index - b.order_index)
                   .map(m => ({ id:m.id, url:m.url, type:m.type as 'image'|'video', caption:m.caption ?? '', order_index:m.order_index })),
               })),
-            has_wait_time:  data.has_wait_time ?? true,
-            time_per_group: tpg,
-            queue_count:    Math.round(waitMin / tpg),
-            type:           data.type,
+            has_wait_time:   data.has_wait_time ?? true,
+            time_per_group:  tpg,
+            queue_count:     Math.round(waitMin / tpg),
+            type:            data.type,
+            is_stamp_target: data.is_stamp_target ?? false,
           })
 
           if (data.type === 'food' || data.type === 'cafeteria') {
@@ -179,8 +183,9 @@ export default function ExhibitEditPage() {
       thumbnail_url: form.thumbnail_url,
       room_display:  form.room_display,
       floor:         form.floor,
-      has_wait_time: form.has_wait_time,
-      wait_minutes:  waitMin,
+      has_wait_time:   form.has_wait_time,
+      wait_minutes:    waitMin,
+      is_stamp_target: form.is_stamp_target,
     }).eq('id', id)
 
     // Delete removed sections (cascades to their exhibit_images)
@@ -376,14 +381,24 @@ export default function ExhibitEditPage() {
               </span>
             </h2>
           </div>
-          <button onClick={handleSave} disabled={saving} style={{
-            marginLeft:'auto', padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer',
-            background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
-            color:'#fff', fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
-            transition:'background 0.3s',
-          }}>
-            {saving ? '保存中…' : saved ? '✓ 保存しました' : '保存する'}
-          </button>
+          <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
+            <Link href={`/admin/quick/${id}`} style={{
+              padding:'9px 16px', borderRadius:10, border:'1px solid #e2e8f0',
+              background:'#f8fafc', color:'#64748b',
+              fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+              textDecoration:'none', whiteSpace:'nowrap',
+            }}>
+              ⚡ かんたん表示
+            </Link>
+            <button onClick={handleSave} disabled={saving} style={{
+              padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer',
+              background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+              color:'#fff', fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+              transition:'background 0.3s',
+            }}>
+              {saving ? '保存中…' : saved ? '✓ 保存しました' : '保存する'}
+            </button>
+          </div>
         </div>
 
         {/* ── モバイル用タブ ── */}
@@ -517,100 +532,128 @@ export default function ExhibitEditPage() {
             <div>
               <div className="sec-quick" style={{ display: tab !== 'quick' ? 'none' : undefined }}>
 
-                <Card title="⚡ 待ち時間" icon="" accent style={{ marginBottom:16 }}>
-                  {/* 待ち時間機能 ON/OFF トグル */}
-                  <button
-                    onClick={() => set('has_wait_time', !form.has_wait_time)}
-                    style={{
-                      width:'100%', padding:'10px 14px', borderRadius:10, border:'none',
-                      cursor:'pointer', display:'flex', alignItems:'center', gap:10,
-                      background: form.has_wait_time ? '#f0fdf4' : '#f8fafc',
-                      boxShadow: form.has_wait_time ? 'inset 0 0 0 1.5px #86efac' : 'inset 0 0 0 1.5px #e2e8f0',
-                      marginBottom:16, transition:'all 0.15s',
-                    }}
-                  >
-                    <div style={{
-                      width:36, height:20, borderRadius:99, flexShrink:0, position:'relative',
-                      background: form.has_wait_time ? '#22c55e' : '#cbd5e1',
-                      transition:'background 0.2s',
-                    }}>
-                      <div style={{
-                        position:'absolute', top:2, borderRadius:'50%',
-                        width:16, height:16, background:'#fff',
-                        left: form.has_wait_time ? 18 : 2,
-                        transition:'left 0.2s',
-                        boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
-                      }} />
-                    </div>
-                    <span style={{
-                      fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
-                      color: form.has_wait_time ? '#16a34a' : '#94a3b8',
-                    }}>
-                      {form.has_wait_time ? '待ち時間機能 有効' : '待ち時間機能 無効'}
-                    </span>
-                  </button>
-
-                  {form.has_wait_time && (<>
-                    <div style={{
-                      background:'linear-gradient(135deg,#0f172a,#1e293b)',
-                      borderRadius:14, padding:'20px', textAlign:'center', marginBottom:18,
-                    }}>
-                      <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>現在の待ち時間</div>
-                      <div style={{
-                        fontFamily:"'Kaisei Decol',serif", fontSize:48, fontWeight:700,
-                        color: waitMin>=30?'#fca5a5':waitMin>=15?'#fcd34d':'#86efac', lineHeight:1,
-                      }}>{waitMin}</div>
-                      <div style={{ fontSize:14, color:'rgba(255,255,255,0.5)', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>分</div>
-                    </div>
-
-                    <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:12, padding:'14px', marginBottom:16 }}>
-                      {[
-                        { label:'1組あたり', val:form.time_per_group, key:'time_per_group' as const, unit:'分', min:1 },
-                        { label:'待ち組数',   val:form.queue_count,   key:'queue_count'   as const, unit:'組', min:0 },
-                      ].map((item, idx) => (
-                        <React.Fragment key={item.key}>
-                          {idx > 0 && <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>}
-                          <div style={{ flex:1, textAlign:'center' }}>
-                            <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>{item.label}</div>
-                            <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
-                              <button onClick={()=>set(item.key, Math.max(item.min, item.val-1))} style={calcBtnStyle}>−</button>
-                              <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>{item.val}</span>
-                              <button onClick={()=>set(item.key, item.val+1)} style={calcBtnStyle}>＋</button>
-                            </div>
-                            <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>{item.unit}</div>
-                          </div>
-                        </React.Fragment>
+                {/* ── サブタブバー ── */}
+                {(() => {
+                  const isFood = form.type === 'food' || form.type === 'cafeteria'
+                  const tabs = [
+                    { key:'wait' as const, label:'⏱ 待ち時間' },
+                    { key:'qr'   as const, label:'🎯 スタンプ QR' },
+                    ...(isFood ? [{ key:'menu' as const, label:'🍽 メニュー' }] : []),
+                  ]
+                  return (
+                    <div style={{ display:'flex', gap:0, marginBottom:16, background:'#f1f5f9', borderRadius:12, padding:4 }}>
+                      {tabs.map(({ key, label }) => (
+                        <button key={key} onClick={() => setQuickTab(key)} style={{
+                          flex:1, padding:'9px 4px', borderRadius:9, border:'none', cursor:'pointer',
+                          background: quickTab===key ? '#fff' : 'transparent',
+                          color: quickTab===key ? '#1e293b' : '#94a3b8',
+                          fontWeight: quickTab===key ? 700 : 400,
+                          fontSize: 11, fontFamily:"'Kiwi Maru',serif",
+                          boxShadow: quickTab===key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                          transition:'all 0.15s', whiteSpace:'nowrap',
+                        }}>{label}</button>
                       ))}
-                      <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>=</div>
-                      <div style={{ flex:1, textAlign:'center' }}>
-                        <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>待ち時間</div>
-                        <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#FF6B00' }}>{waitMin}分</div>
-                      </div>
                     </div>
+                  )
+                })()}
 
-                    <div style={{ marginBottom:14 }}>
-                      <label style={{ fontSize:11, color:'#94a3b8', display:'block', marginBottom:4, fontFamily:"'Kiwi Maru',serif" }}>または直接入力</label>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <input type="number" min={0} value={form.queue_count}
-                          onChange={e=>set('queue_count',Number(e.target.value))}
-                          className="field-input" style={{ ...inputStyle, flex:1 }} placeholder="待ち組数を入力" />
-                        <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>組</span>
+                {/* ── 待ち時間タブ ── */}
+                {quickTab === 'wait' && (
+                  <Card title="" icon="" accent>
+                    <button
+                      onClick={() => set('has_wait_time', !form.has_wait_time)}
+                      style={{
+                        width:'100%', padding:'10px 14px', borderRadius:10, border:'none',
+                        cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                        background: form.has_wait_time ? '#f0fdf4' : '#f8fafc',
+                        boxShadow: form.has_wait_time ? 'inset 0 0 0 1.5px #86efac' : 'inset 0 0 0 1.5px #e2e8f0',
+                        marginBottom:16, transition:'all 0.15s',
+                      }}
+                    >
+                      <div style={{
+                        width:36, height:20, borderRadius:99, flexShrink:0, position:'relative',
+                        background: form.has_wait_time ? '#22c55e' : '#cbd5e1', transition:'background 0.2s',
+                      }}>
+                        <div style={{
+                          position:'absolute', top:2, borderRadius:'50%', width:16, height:16, background:'#fff',
+                          left: form.has_wait_time ? 18 : 2, transition:'left 0.2s',
+                          boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
+                        }} />
                       </div>
-                    </div>
-
-                    <button onClick={handleSave} disabled={saving} style={{
-                      width:'100%', padding:'12px 0', borderRadius:10, border:'none', cursor:'pointer',
-                      background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
-                      color:'#fff', fontSize:14, fontWeight:700,
-                      fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s',
-                    }}>
-                      {saving ? '更新中…' : saved ? '✓ 更新しました' : '待ち時間を更新する'}
+                      <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", color: form.has_wait_time ? '#16a34a' : '#94a3b8' }}>
+                        {form.has_wait_time ? '待ち時間機能 有効' : '待ち時間機能 無効'}
+                      </span>
                     </button>
-                  </>)}
-                </Card>
 
-                {(form.type === 'food' || form.type === 'cafeteria') && menus.length > 0 && (
-                  <Card title="メニュー管理" icon="🍽" style={{ marginBottom:16 }}>
+                    {form.has_wait_time && (<>
+                      <div style={{ background:'linear-gradient(135deg,#0f172a,#1e293b)', borderRadius:14, padding:'20px', textAlign:'center', marginBottom:18 }}>
+                        <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>現在の待ち時間</div>
+                        <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:48, fontWeight:700, color: waitMin>=30?'#fca5a5':waitMin>=15?'#fcd34d':'#86efac', lineHeight:1 }}>{waitMin}</div>
+                        <div style={{ fontSize:14, color:'rgba(255,255,255,0.5)', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>分</div>
+                      </div>
+
+                      <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:12, padding:'14px', marginBottom:16 }}>
+                        {[
+                          { label:'1組あたり', val:form.time_per_group, key:'time_per_group' as const, unit:'分', min:1 },
+                          { label:'待ち組数',   val:form.queue_count,   key:'queue_count'   as const, unit:'組', min:0 },
+                        ].map((item, idx) => (
+                          <React.Fragment key={item.key}>
+                            {idx > 0 && <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>×</div>}
+                            <div style={{ flex:1, textAlign:'center' }}>
+                              <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>{item.label}</div>
+                              <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center' }}>
+                                <button onClick={()=>set(item.key, Math.max(item.min, item.val-1))} style={calcBtnStyle}>−</button>
+                                <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>{item.val}</span>
+                                <button onClick={()=>set(item.key, item.val+1)} style={calcBtnStyle}>＋</button>
+                              </div>
+                              <div style={{ fontSize:10, color:'#94a3b8', marginTop:4, fontFamily:"'Kiwi Maru',serif" }}>{item.unit}</div>
+                            </div>
+                          </React.Fragment>
+                        ))}
+                        <div style={{ fontSize:20, color:'#cbd5e1', fontWeight:700, flexShrink:0 }}>=</div>
+                        <div style={{ flex:1, textAlign:'center' }}>
+                          <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>待ち時間</div>
+                          <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#FF6B00' }}>{waitMin}分</div>
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom:14 }}>
+                        <label style={{ fontSize:11, color:'#94a3b8', display:'block', marginBottom:4, fontFamily:"'Kiwi Maru',serif" }}>または直接入力</label>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <input type="number" min={0} value={form.queue_count}
+                            onChange={e=>set('queue_count',Number(e.target.value))}
+                            className="field-input" style={{ ...inputStyle, flex:1 }} placeholder="待ち組数を入力" />
+                          <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>組</span>
+                        </div>
+                      </div>
+
+                      <button onClick={handleSave} disabled={saving} style={{
+                        width:'100%', padding:'12px 0', borderRadius:10, border:'none', cursor:'pointer',
+                        background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                        color:'#fff', fontSize:14, fontWeight:700,
+                        fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s',
+                      }}>
+                        {saving ? '更新中…' : saved ? '✓ 更新しました' : '待ち時間を更新する'}
+                      </button>
+                    </>)}
+                  </Card>
+                )}
+
+                {/* ── QR タブ ── */}
+                {quickTab === 'qr' && (
+                  <StampQrCard
+                    exhibitId={id}
+                    isTarget={form.is_stamp_target}
+                    onToggle={() => set('is_stamp_target', !form.is_stamp_target)}
+                    onSave={handleSave}
+                    saving={saving}
+                    saved={saved}
+                  />
+                )}
+
+                {/* ── メニュータブ ── */}
+                {quickTab === 'menu' && (form.type === 'food' || form.type === 'cafeteria') && (
+                  <Card title="" icon="">
                     <MenuQuickEditor menus={menus} onChange={setMenus} />
                     <button onClick={handleSave} disabled={saving} style={{
                       width:'100%', padding:'12px 0', borderRadius:10, border:'none', cursor:'pointer',
@@ -623,6 +666,7 @@ export default function ExhibitEditPage() {
                   </Card>
                 )}
 
+                <div style={{ marginTop:16 }}>
                 <Card title="お知らせを投稿" icon="📣">
                   <Textarea placeholder="内容を入力…" rows={3} value={noticeText} onChange={setNoticeText} />
                   <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10 }}>
@@ -640,6 +684,7 @@ export default function ExhibitEditPage() {
                     </button>
                   </div>
                 </Card>
+                </div>
 
               </div>
             </div>
@@ -1216,4 +1261,103 @@ const calcBtnStyle: React.CSSProperties = {
   background:'#fff', cursor:'pointer', fontSize:16, color:'#64748b',
   display:'flex', alignItems:'center', justifyContent:'center',
   flexShrink:0,
+}
+
+// ─── スタンプラリー QR カード ──────────────────────────────────
+function StampQrCard({ exhibitId, isTarget, onToggle, onSave, saving, saved }: {
+  exhibitId: string
+  isTarget:  boolean
+  onToggle:  () => void
+  onSave:    () => void
+  saving:    boolean
+  saved:     boolean
+}) {
+  const [qrUrl,    setQrUrl]    = React.useState<string | null>(null)
+  const [qrError,  setQrError]  = React.useState(false)
+  const [QrComp,   setQrComp]   = React.useState<React.ComponentType<{ value: string; size: number }> | null>(null)
+
+  // qrcode.react を動的インポート
+  React.useEffect(() => {
+    import('qrcode.react').then(m => setQrComp(() => m.QRCodeSVG as React.ComponentType<{ value: string; size: number }>))
+  }, [])
+
+  // QR URL を取得（5分ごとに更新）
+  React.useEffect(() => {
+    if (!isTarget) return
+    const fetch_ = async () => {
+      try {
+        const res  = await fetch(`/api/stamp-qr/${exhibitId}`)
+        const json = await res.json() as { url?: string; error?: string }
+        if (json.url) { setQrUrl(json.url); setQrError(false) }
+        else          { setQrError(true) }
+      } catch { setQrError(true) }
+    }
+    fetch_()
+    const timer = setInterval(fetch_, 5 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [exhibitId, isTarget])
+
+  return (
+    <Card title="🎯 スタンプラリー" icon="" style={{ marginBottom:16 }}>
+      {/* トグル */}
+      <button
+        onClick={onToggle}
+        style={{
+          width:'100%', padding:'10px 14px', borderRadius:10, border:'none',
+          cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+          background: isTarget ? '#fdf4ff' : '#f8fafc',
+          boxShadow:  isTarget ? 'inset 0 0 0 1.5px #a855f7' : 'inset 0 0 0 1.5px #e2e8f0',
+          marginBottom:16, transition:'all 0.15s',
+        }}
+      >
+        <div style={{
+          width:36, height:20, borderRadius:99, flexShrink:0, position:'relative',
+          background: isTarget ? '#a855f7' : '#cbd5e1', transition:'background 0.2s',
+        }}>
+          <div style={{
+            position:'absolute', top:2, borderRadius:'50%',
+            width:16, height:16, background:'#fff',
+            left: isTarget ? 18 : 2, transition:'left 0.2s',
+            boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
+          }} />
+        </div>
+        <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", color: isTarget ? '#7c3aed' : '#94a3b8' }}>
+          {isTarget ? 'スタンプラリー 参加中' : 'スタンプラリー 不参加'}
+        </span>
+      </button>
+
+      {/* 保存ボタン */}
+      <button onClick={onSave} disabled={saving} style={{
+        width:'100%', padding:'11px 0', borderRadius:10, border:'none', cursor:'pointer',
+        background: saved ? '#10b981' : 'linear-gradient(135deg,#a855f7,#7c3aed)',
+        color:'#fff', fontSize:13, fontWeight:700,
+        fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s', marginBottom:16,
+      }}>
+        {saving ? '保存中…' : saved ? '✓ 保存しました' : '設定を保存する'}
+      </button>
+
+      {/* QR 表示 */}
+      {isTarget && (
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:11, color:'#94a3b8', marginBottom:12, fontFamily:"'Kiwi Maru',serif" }}>
+            来場者にこの QR を読み取ってもらいます（5分ごとに更新）
+          </div>
+          {qrError ? (
+            <div style={{ color:'#f87171', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>
+              QR の取得に失敗しました（設定を保存してから再読み込みしてください）
+            </div>
+          ) : qrUrl && QrComp ? (
+            <div style={{
+              display:'inline-block', padding:16, background:'#fff',
+              borderRadius:12, boxShadow:'0 2px 12px rgba(0,0,0,0.10)',
+            }}>
+              <QrComp value={qrUrl} size={200} />
+            </div>
+          ) : (
+            <div style={{ color:'#94a3b8', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>読み込み中…</div>
+          )}
+        </div>
+      )}
+    </Card>
+  )
 }

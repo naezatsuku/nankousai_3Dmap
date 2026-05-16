@@ -47,7 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.refresh()
   }
 
-  if (pathname === '/admin/login') return <>{children}</>
+  if (pathname === '/admin/login' || pathname.startsWith('/admin/quick/')) return <>{children}</>
 
   const isAdmin     = profile?.role === 'admin'
   const displayName = profile?.name || '…'

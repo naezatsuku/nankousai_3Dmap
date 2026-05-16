@@ -7,9 +7,10 @@ const TABS = [
   { id: 'map'           as const, href: '/map',           label: 'マップ' },
   { id: 'notifications' as const, href: '/notifications', label: '通知' },
   { id: 'news'          as const, href: '/news',           label: 'お知らせ', badge: true },
+  { id: 'stamp'         as const, href: '/stamp',          label: 'スタンプ' },
 ]
 
-type TabId = typeof TABS[number]['id']
+type TabId = 'map' | 'notifications' | 'news' | 'stamp'
 
 interface Props { unreadCount?: number }
 
@@ -146,13 +147,25 @@ function NavIcon({ id, active }: { id: TabId; active: boolean }) {
     )
   }
 
-  // news
+  if (id === 'news') {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="14" rx="2" stroke={c} strokeWidth="1.8" fill={fill} />
+        <path d="M3 9h18"        stroke={c} strokeWidth="1.8" />
+        <path d="M7 13h4M7 16h6" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // stamp
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="5" width="18" height="14" rx="2"
-        stroke={c} strokeWidth="1.8" fill={fill} />
-      <path d="M3 9h18"        stroke={c} strokeWidth="1.8" />
-      <path d="M7 13h4M7 16h6" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="9"  stroke={c} strokeWidth="1.8" fill={fill} />
+      <circle cx="12" cy="12" r="4"  stroke={c} strokeWidth="1.5" />
+      <line x1="12" y1="3"  x2="12" y2="1"  stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="12" y1="23" x2="12" y2="21" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="3"  y1="12" x2="1"  y2="12" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      <line x1="23" y1="12" x2="21" y2="12" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   )
 }
