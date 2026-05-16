@@ -8,7 +8,8 @@
  * 各教室メッシュの中心にアンカーし、pan/zoom に自動追従させる。
  */
 
-import { useEffect, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
+import { Eye, Navigation } from 'lucide-react'
 import * as THREE from 'three'
 import { GLTFLoader }    from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -51,7 +52,6 @@ const waitToRingColor = (wait: number): string => {
 
 // ── マーカーDOM生成 ──────────────────────────────────────
 // ── アニメーション用CSSの注入 ────────────────────────────
-// 画像とテキストを交互に出すためのアニメーションを定義
 if (typeof document !== 'undefined') {
   const style = document.createElement('style')
   style.innerHTML = `
@@ -67,65 +67,95 @@ if (typeof document !== 'undefined') {
   document.head.appendChild(style)
 }
 
+// 複数展示ローテーション用キーフレームを n 種類だけ動的注入
+const _injectedCycleN = new Set<number>()
+function injectCycleKeyframe(n: number) {
+  if (typeof document === 'undefined' || _injectedCycleN.has(n)) return
+  _injectedCycleN.add(n)
+  const pct  = 100 / n               // 1スロットの割合 (%)
+  const fade = Math.min(4, pct * 0.15)
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes exhibit-cycle-${n} {
+      0%              { opacity: 0; }
+      ${fade}%        { opacity: 1; }
+      ${pct - fade}%  { opacity: 1; }
+      ${pct}%         { opacity: 0; }
+      100%            { opacity: 0; }
+    }
+  `
+  document.head.appendChild(style)
+}
+
 // ── マーカーDOM生成 ──────────────────────────────────────
-function createMarkerEl(exhibit: Exhibit): HTMLElement {
-  const waitPct   = Math.min((exhibit.wait_minutes / 60) * 100, 100)
-  const ringColor = waitToRingColor(exhibit.wait_minutes)
-  const bgTrack   = '#e2e8f0'
+function createMarkerEl(exhibits: Exhibit[]): HTMLElement {
+  const n        = exhibits.length
+  const maxWait  = Math.max(...exhibits.map(e => e.wait_minutes))
+  const waitPct  = Math.min((maxWait / 60) * 100, 100)
+  const ringColor = waitToRingColor(maxWait)
+  const bgTrack  = '#e2e8f0'
 
   const wrap = document.createElement('div')
   wrap.style.cssText = `
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    pointer-events: none;
-    user-select: none;
+    display: flex; flex-direction: column;
+    align-items: center; pointer-events: none; user-select: none;
   `
 
-  const RING = 48
-  const PAD  = 3
+  const RING = 48, PAD = 3
   const ring = document.createElement('div')
   ring.style.cssText = `
-    width: ${RING}px; height: ${RING}px;
-    border-radius: 50%;
-    padding: ${PAD}px;
+    width: ${RING}px; height: ${RING}px; border-radius: 50%; padding: ${PAD}px;
     background: conic-gradient(${ringColor} 0% ${waitPct}%, ${bgTrack} ${waitPct}% 100%);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.22);
-    position: relative;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.22); position: relative;
   `
 
   const inner = document.createElement('div')
   inner.style.cssText = `
-    width: 100%; height: 100%;
-    border-radius: 50%;
-    background: #fff;
-    overflow: hidden;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 100%; height: 100%; border-radius: 50%; background: #fff;
+    overflow: hidden; position: relative;
+    display: flex; align-items: center; justify-content: center;
   `
 
-  // 1. ラベル（展示名/クラス名）
-  const labelEl = makeLabelEl(exhibit)
-  
-  if (exhibit.thumbnail_url) {
-    // 画像がある場合：交互に表示
-    labelEl.style.position = 'absolute'
-    labelEl.style.animation = 'marker-fade-in 6s infinite ease-in-out'
-
-    const img = document.createElement('img')
-    img.src = exhibit.thumbnail_url
-    img.style.cssText = `
-      width:100%; height:100%; object-fit:cover; border-radius:50%;
-      position: absolute;
-      animation: marker-fade-out 6s infinite ease-in-out;
-    `
-    inner.appendChild(img)
-    inner.appendChild(labelEl)
+  if (n === 1) {
+    // 1件: 画像とラベルを交互表示（従来通り）
+    const exhibit = exhibits[0]
+    const labelEl = makeLabelEl(exhibit)
+    if (exhibit.thumbnail_url) {
+      labelEl.style.position = 'absolute'
+      labelEl.style.animation = 'marker-fade-in 6s infinite ease-in-out'
+      const img = document.createElement('img')
+      img.src = exhibit.thumbnail_url
+      img.style.cssText = `
+        width:100%; height:100%; object-fit:cover; border-radius:50%;
+        position: absolute; animation: marker-fade-out 6s infinite ease-in-out;
+      `
+      inner.appendChild(img)
+      inner.appendChild(labelEl)
+    } else {
+      inner.appendChild(labelEl)
+    }
   } else {
-    // 画像がない場合：ラベルのみ常時表示
-    inner.appendChild(labelEl)
+    // 複数件: n スロットを順番にローテーション
+    const D = 3 // 1件あたりの表示秒数
+    injectCycleKeyframe(n)
+    exhibits.forEach((exhibit, i) => {
+      const slide = document.createElement('div')
+      slide.style.cssText = `
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 50%; overflow: hidden;
+        animation: exhibit-cycle-${n} ${n * D}s ${i * D}s ease-in-out infinite backwards;
+      `
+      if (exhibit.thumbnail_url) {
+        const img = document.createElement('img')
+        img.src = exhibit.thumbnail_url
+        img.style.cssText = `width:100%; height:100%; object-fit:cover; border-radius:50%;`
+        slide.appendChild(img)
+      } else {
+        slide.appendChild(makeLabelEl(exhibit))
+      }
+      inner.appendChild(slide)
+    })
   }
 
   ring.appendChild(inner)
@@ -133,10 +163,8 @@ function createMarkerEl(exhibit: Exhibit): HTMLElement {
   const tip = document.createElement('div')
   tip.style.cssText = `
     width: 0; height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid ${ringColor};
-    margin-top: -1px;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid ${ringColor}; margin-top: -1px;
   `
 
   wrap.appendChild(ring)
@@ -227,25 +255,73 @@ export default function MapCanvas({
   const applyRoomColorsRef  = useRef<() => void>(() => {})
   const rebuildMarkersRef   = useRef<(scene: THREE.Scene) => void>(() => {})
 
+  const [isTopDown, setIsTopDown] = useState(false)
+  const [btnFaded,  setBtnFaded]  = useState(false)
+  const isTopDownRef  = useRef(false)
+  const idleTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const resetIdleRef  = useRef<() => void>(() => {})
+
   useEffect(() => {
     onRoomClickRef.current = onRoomClick
   }, [onRoomClick])
 
-  const exhibitMap = useMemo(
-    () => Object.fromEntries(exhibits.map((e) => [e.room_object ?? '', e])),
-    [exhibits]
-  )
+  const resetIdle = useCallback(() => {
+    setBtnFaded(false)
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    idleTimerRef.current = setTimeout(() => setBtnFaded(true), 3000)
+  }, [])
+  useEffect(() => { resetIdleRef.current = resetIdle }, [resetIdle])
+  useEffect(() => {
+    resetIdle()
+    return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current) }
+  }, [resetIdle])
+
+  const handleTopDownToggle = useCallback(() => {
+    const controls = controlsRef.current
+    const camera   = cameraRef.current
+    if (!controls || !camera) return
+
+    const next = !isTopDownRef.current
+    isTopDownRef.current = next
+    setIsTopDown(next)
+
+    const target = controls.target.clone()
+    focusAnimRef.current = {
+      active:      true,
+      startTarget: target.clone(),
+      endTarget:   target.clone(),
+      startCamPos: camera.position.clone(),
+      endCamPos:   next
+        ? new THREE.Vector3(target.x, 28, target.z + 0.001)
+        : target.clone().add(INIT_CAM_OFFSET),
+      startZoom:   camera.zoom,
+      endZoom:     camera.zoom,
+      t:           0,
+    }
+    resetIdleRef.current()
+  }, [])
+
+  const exhibitMap = useMemo(() => {
+    const map: Record<string, Exhibit[]> = {}
+    for (const e of exhibits) {
+      const key = e.room_object ?? ''
+      if (!key) continue
+      if (!map[key]) map[key] = []
+      map[key].push(e)
+    }
+    return map
+  }, [exhibits])
 
   // ── メッシュカラー適用 ──────────────────────────────────
   const applyRoomColors = useCallback(() => {
     roomMeshes.current.forEach((mesh, name) => {
-      const exhibit  = exhibitMap[name]
-      const assigned = !!exhibit
-      const wait     = exhibit?.wait_minutes ?? 0
-      const q    = searchQuery.toLowerCase()
-      const isHL = q.length > 0 && (
-        exhibit?.name.toLowerCase().includes(q) ||
-        exhibit?.class_label?.toLowerCase().includes(q)
+      const exs      = exhibitMap[name] ?? []
+      const assigned = exs.length > 0
+      const wait     = assigned ? Math.max(...exs.map(e => e.wait_minutes)) : 0
+      const q        = searchQuery.toLowerCase()
+      const isHL     = q.length > 0 && exs.some(e =>
+        e.name.toLowerCase().includes(q) ||
+        (e.class_label?.toLowerCase().includes(q) ?? false)
       )
       const hex = isHL ? COLOR.selected : waitToColor(wait, assigned)
       ;(mesh.material as THREE.MeshLambertMaterial).color.setHex(hex)
@@ -258,8 +334,8 @@ export default function MapCanvas({
     css2dObjects.current = []
 
     roomMeshes.current.forEach((mesh, name) => {
-      const exhibit = exhibitMap[name]
-      if (!exhibit) return
+      const exs = exhibitMap[name]
+      if (!exs?.length) return
 
       // ★ getWorldPosition でワールド座標を正確に取得
       //    （GLBごとのscale/translationを正しく反映）
@@ -270,7 +346,7 @@ export default function MapCanvas({
       const box    = new THREE.Box3().setFromObject(mesh)
       const topY   = box.max.y  // 教室天井のY座標
 
-      const el    = createMarkerEl(exhibit)
+      const el    = createMarkerEl(exs)
       const css2d = new CSS2DObject(el)
       // XZ は教室中心、Y は天井の少し上
       css2d.position.set(worldPos.x, topY + 0.05, worldPos.z)
@@ -456,6 +532,7 @@ export default function MapCanvas({
     // タップ判定（移動5px未満をタップと見なす）
     const onPointerDown = (e: PointerEvent) => {
       pointerStart.current = { x: e.clientX, y: e.clientY }
+      resetIdleRef.current()
     }
     const onPointerUp = (e: PointerEvent) => {
       const dx = e.clientX - pointerStart.current.x
@@ -572,10 +649,45 @@ export default function MapCanvas({
   }, [focusRoom, floor])
 
   return (
-    <div
-      ref={mountRef}
-      className="absolute inset-0 overflow-hidden"
-      style={{ touchAction: 'none' }}
-    />
+    <div className="absolute inset-0 overflow-hidden">
+      <div
+        ref={mountRef}
+        className="absolute inset-0"
+        style={{ touchAction: 'none' }}
+      />
+      <button
+        onClick={handleTopDownToggle}
+        title={isTopDown ? '通常視点に戻る' : '俯瞰ビューに切り替え'}
+        style={{
+          position:     'absolute',
+          top:          60,
+          right:        12,
+          zIndex:       10,
+          opacity:      btnFaded ? 0.25 : 1,
+          transition:   'opacity 0.5s ease',
+          background:   isTopDown ? 'rgba(234,88,12,0.92)' : 'rgba(255,255,255,0.88)',
+          border:       'none',
+          borderRadius: 12,
+          width:        44,
+          height:       44,
+          cursor:       'pointer',
+          boxShadow:    '0 2px 10px rgba(0,0,0,0.18)',
+          display:      'flex',
+          flexDirection:'column',
+          alignItems:   'center',
+          justifyContent:'center',
+          gap:          2,
+          color:        isTopDown ? '#fff' : '#374151',
+        }}
+      >
+        {isTopDown
+          ? <Navigation size={18} strokeWidth={2.2} />
+          : <Eye        size={18} strokeWidth={2.2} />
+        }
+        <span style={{ fontSize: 8, fontWeight: 700, lineHeight: 1, letterSpacing: '0.02em' }}>
+          {isTopDown ? '3D' : '俯瞰'}
+        </span>
+      </button>
+    </div>
   )
 }

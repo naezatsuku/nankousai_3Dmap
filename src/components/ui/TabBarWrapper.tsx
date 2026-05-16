@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getReadIds } from '@/lib/notices'
-import TabBar from './TabBar'
+import TabBar     from './TabBar'
+import DesktopNav from './DesktopNav'
 
 export default function TabBarWrapper() {
   const [unreadCount, setUnreadCount] = useState(0)
@@ -49,5 +50,12 @@ export default function TabBarWrapper() {
     }
   }, [])
 
-  return <TabBar unreadCount={unreadCount} />
+  return (
+    <>
+      <div className="sm:hidden">
+        <TabBar unreadCount={unreadCount} />
+      </div>
+      <DesktopNav unreadCount={unreadCount} />
+    </>
+  )
 }

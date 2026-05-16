@@ -182,7 +182,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
         {/* 振り子エリア */}
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center",
-          height: 310, position: "relative",
+          height: 350, position: "relative",
           justifyContent: isLanded ? "flex-end" : "flex-start",
         }}>
           {!isLanded && (
@@ -208,7 +208,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
                 src="/nanpen.png"
                 alt="なんぺん"
                 style={{
-                  width: 140, height: "auto", marginTop: -4,
+                  width: 175, height: "auto", marginTop: -4,
                   filter: "drop-shadow(0 8px 24px rgba(255,140,0,0.3))",
                 }}
               />
@@ -230,7 +230,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
                   src="/nanpen.png"
                   alt="なんぺん"
                   style={{
-                    width: 140, height: "auto",
+                    width: 175, height: "auto",
                     filter: "drop-shadow(0 10px 24px rgba(255,140,0,0.35))",
                   }}
                 />
@@ -443,7 +443,7 @@ function TopPage({ onNavigate }: TopPageProps) {
             fontSize: 11, color: "#FF6B00", letterSpacing: "0.12em",
             fontWeight: 500, fontFamily: "'Kiwi Maru', serif",
           }}>
-            2025年9月XX日（土）・XX日（日）
+            2025年9月12日（土）・13日（日）
           </span>
         </div>
 
