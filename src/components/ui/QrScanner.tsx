@@ -12,32 +12,51 @@ export default function QrScanner({ onResult, onCancel }: Props) {
   const stopFn = useRef<() => void>(() => {})
 
   useEffect(() => {
-    let done = false
+    let done    = false  // cleanup 済みフラグ
+    let running = false  // scanner.start() 完了フラグ
+
+    // stop() は同期 throw と非同期 reject の両方がありうる
+    let scannerRef: import('html5-qrcode').Html5Qrcode | null = null
+    const safeStop = () => {
+      if (!running || !scannerRef) return
+      running = false
+      try { scannerRef.stop().catch(() => {}) } catch { /* ignore */ }
+    }
 
     async function start() {
-      const { Html5Qrcode } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode(divId)
-      stopFn.current = () => scanner.stop().catch(() => {})
-
       try {
-        await scanner.start(
+        const { Html5Qrcode } = await import('html5-qrcode')
+        if (done) return  // cleanup が先に走った場合は何もしない
+
+        scannerRef = new Html5Qrcode(divId)
+        stopFn.current = safeStop
+
+        await scannerRef.start(
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 240, height: 240 } },
-          (text) => {
+          (text: string) => {
             if (done) return
             done = true
-            scanner.stop().catch(() => {})
+            safeStop()
             onResult(text)
           },
-          () => {}, // per-frame error は無視
+          () => {},
         )
+
+        // start() 完了後に cleanup が走っていたら即停止
+        if (done) { safeStop(); return }
+        running = true
+
       } catch {
         if (!done) onCancel()
       }
     }
 
     start()
-    return () => { done = true; stopFn.current() }
+    return () => {
+      done = true
+      stopFn.current()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -63,7 +82,6 @@ export default function QrScanner({ onResult, onCancel }: Props) {
         展示の QR コードに<br />カメラを向けてください
       </p>
 
-      {/* html5-qrcode はこの div を乗っ取ってカメラ映像を描画する */}
       <div
         id={divId}
         style={{
@@ -76,6 +94,7 @@ export default function QrScanner({ onResult, onCancel }: Props) {
       />
 
       <button
+        type="button"
         onClick={() => { stopFn.current(); onCancel() }}
         style={{
           marginTop:    28,
