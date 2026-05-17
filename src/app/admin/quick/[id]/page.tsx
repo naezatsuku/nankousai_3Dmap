@@ -387,7 +387,7 @@ function StampQrPanel({ exhibitId, isTarget, onToggle, onSave, saving, saved }: 
       } catch { setQrErr(true) }
     }
     load()
-    const t = setInterval(load, 5 * 60 * 1000)
+    const t = setInterval(load, 60 * 1000)
     return () => clearInterval(t)
   }, [exhibitId, isTarget])
 
@@ -432,7 +432,7 @@ function StampQrPanel({ exhibitId, isTarget, onToggle, onSave, saving, saved }: 
       {isTarget && (
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:12, color:'#94a3b8', marginBottom:16, fontFamily:"'Kiwi Maru',serif" }}>
-            来場者にこの QR を読み取ってもらいます（5分ごとに更新）
+            来場者にこの QR を読み取ってもらいます（60秒ごとに更新）
           </div>
           {qrErr ? (
             <div style={{ color:'#f87171', fontSize:13, fontFamily:"'Kiwi Maru',serif", padding:'20px' }}>

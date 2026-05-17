@@ -1,6 +1,6 @@
 import { createHmac } from 'crypto'
 
-export const WINDOW_SECS = 300 // 5分ウィンドウ
+export const WINDOW_SECS = 60 // 60秒ウィンドウ
 
 export function currentWindow(): number {
   return Math.floor(Date.now() / 1000 / WINDOW_SECS)
