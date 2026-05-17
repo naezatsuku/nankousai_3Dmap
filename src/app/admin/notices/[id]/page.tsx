@@ -99,7 +99,7 @@ export default function NoticeEditPage() {
       type NoticeRow = {
         id: string; exhibit_id: string; title: string; body: string
         sender_name: string; is_urgent: boolean
-        notice_media: { id: string; url: string | null; type: string | null; caption: string | null; order_index: number }[]
+        notice_media: { id: string; url: string | null; type: 'image' | 'video' | null; caption: string | null; order_index: number }[]
       }
       const { data } = await supabase
         .from('notices')
@@ -135,7 +135,7 @@ export default function NoticeEditPage() {
             id:          m.id,
             url:         m.url         ?? '',
             caption:     m.caption     ?? '',
-            type:        m.type        ?? 'image',
+            type:        m.type ?? 'image',
             order_index: i,
             key:         m.id,
           }))
