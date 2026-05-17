@@ -29,7 +29,8 @@ export default function DesktopNav({ unreadCount = 0 }: Props) {
   }, [])
 
   useEffect(() => {
-    wakeUp()
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setFaded(true), 3000)
     window.addEventListener('mousemove',  wakeUp, { passive: true })
     window.addEventListener('pointerdown', wakeUp, { passive: true })
     window.addEventListener('keydown',    wakeUp, { passive: true })

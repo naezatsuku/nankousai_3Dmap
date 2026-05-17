@@ -9,7 +9,10 @@ import DesktopNav from './DesktopNav'
 export default function TabBarWrapper() {
   const [unreadCount, setUnreadCount] = useState(0)
 
-  const recalc = async () => {
+
+
+  useEffect(() => {
+      const recalc = async () => {
     try {
       const supabase = createClient()
       const { data } = await supabase
@@ -24,8 +27,6 @@ export default function TabBarWrapper() {
       // DB未接続時は何もしない
     }
   }
-
-  useEffect(() => {
     recalc()
 
     // 既読変化イベント（同タブ）

@@ -272,9 +272,10 @@ export default function MapCanvas({
   }, [])
   useEffect(() => { resetIdleRef.current = resetIdle }, [resetIdle])
   useEffect(() => {
-    resetIdle()
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    idleTimerRef.current = setTimeout(() => setBtnFaded(true), 3000)
     return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current) }
-  }, [resetIdle])
+  }, [])
 
   const handleTopDownToggle = useCallback(() => {
     const controls = controlsRef.current

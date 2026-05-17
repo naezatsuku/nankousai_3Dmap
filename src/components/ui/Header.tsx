@@ -60,10 +60,11 @@ export default function Header() {
         .select('day, start_at, end_at, location, description, exhibit:exhibits(name)')
         .in('day', days)
 
-      for (const s of (specData ?? []) as any[]) {
+      type SpecRow = { start_at: string; end_at: string; location: string | null; description: string | null; exhibit: { name: string } | null }
+      for (const s of (specData ?? []) as unknown as SpecRow[]) {
         const start = timeToMin(s.start_at)
         const end   = timeToMin(s.end_at)
-        const name  = (s.exhibit as { name: string } | null)?.name ?? ''
+        const name  = s.exhibit?.name ?? ''
         const desc  = s.description ? `「${s.description}」` : ''
         const loc   = s.location    ? `（${s.location}）`    : ''
         if (start <= nowMin && nowMin <= end) {
@@ -79,10 +80,11 @@ export default function Header() {
         .select('day, start_at, end_at, stage, band:bands(name)')
         .in('day', days)
 
-      for (const b of (bandData ?? []) as any[]) {
+      type BandRow = { start_at: string; end_at: string; stage: string | null; band: { name: string } | null }
+      for (const b of (bandData ?? []) as unknown as BandRow[]) {
         const start = timeToMin(b.start_at)
         const end   = timeToMin(b.end_at)
-        const name  = (b.band as { name: string } | null)?.name ?? ''
+        const name  = b.band?.name ?? ''
         const stage = b.stage ? `（${b.stage}）` : ''
         if (start <= nowMin && nowMin <= end) {
           result.push({ text: `🎸 ${name} 演奏中！${stage}`, urgent: false })
@@ -114,6 +116,7 @@ export default function Header() {
 
   // 初回取得 + 60秒ポーリング
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchMsgs()
     const id = setInterval(fetchMsgs, 60_000)
     return () => clearInterval(id)

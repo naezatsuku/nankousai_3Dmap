@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -52,7 +52,7 @@ export default function NoticeEditPage() {
   const isNew   = id === 'new'
 
   // 新規作成時は UUID を事前生成（ストレージパスに使用）
-  const noticeId = useRef(isNew ? crypto.randomUUID() : id)
+  const [noticeId] = useState<string>(() => isNew ? crypto.randomUUID() : id)
 
   const [exhibits, setExhibits] = useState<ExhibitOption[]>([])
   const [form, setForm]         = useState<NoticeForm>(EMPTY_FORM)
@@ -96,6 +96,11 @@ export default function NoticeEditPage() {
         .from('profiles').select('role').eq('id', user.id).single()
       const isEditor = (profile as { role: string } | null)?.role === 'editor'
 
+      type NoticeRow = {
+        id: string; exhibit_id: string; title: string; body: string
+        sender_name: string; is_urgent: boolean
+        notice_media: { id: string; url: string | null; type: string | null; caption: string | null; order_index: number }[]
+      }
       const { data } = await supabase
         .from('notices')
         .select('id, exhibit_id, title, body, sender_name, is_urgent, notice_media(id, url, type, caption, order_index)')
@@ -103,25 +108,26 @@ export default function NoticeEditPage() {
         .single()
 
       if (!data) { setLoading(false); return }
+      const row = data as unknown as NoticeRow
 
       if (isEditor) {
         const { data: assignment } = await supabase
           .from('exhibit_editors')
           .select('exhibit_id')
           .eq('user_id', user.id)
-          .eq('exhibit_id', (data as any).exhibit_id)
+          .eq('exhibit_id', row.exhibit_id)
           .single()
         if (!assignment) { router.push('/admin/notices'); return }
       }
 
       setForm({
-        exhibit_id:  (data as any).exhibit_id  ?? '',
-        title:       (data as any).title        ?? '',
-        body:        (data as any).body         ?? '',
-        sender_name: (data as any).sender_name  ?? '',
-        is_urgent:   (data as any).is_urgent    ?? false,
+        exhibit_id:  row.exhibit_id  ?? '',
+        title:       row.title        ?? '',
+        body:        row.body         ?? '',
+        sender_name: row.sender_name  ?? '',
+        is_urgent:   row.is_urgent    ?? false,
       })
-      const raw: any[] = (data as any).notice_media ?? []
+      const raw = row.notice_media ?? []
       setMedia(
         raw
           .sort((a, b) => a.order_index - b.order_index)
@@ -182,7 +188,7 @@ export default function NoticeEditPage() {
     setSaving(true)
     setError('')
     const supabase = createClient()
-    const nid = noticeId.current
+    const nid = noticeId
 
     try {
       if (isNew) {
@@ -439,7 +445,7 @@ export default function NoticeEditPage() {
                 {/* アップロードエリア */}
                 <MediaUpload
                   value={item.url}
-                  storagePath={`notices/${noticeId.current}/${item.key}`}
+                  storagePath={`notices/${noticeId}/${item.key}`}
                   accept="any"
                   onChange={url => updateMedia(item.key, {
                     url,

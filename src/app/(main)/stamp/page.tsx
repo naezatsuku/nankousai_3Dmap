@@ -207,44 +207,59 @@ function StampSlot({ exhibit, collected, isNew, leftPct, topPct, sizePct }: {
 
 // ── メインページ ─────────────────────────────────────────────────
 export default function StampPage() {
-  const [userId,     setUserId]     = useState<string | null>(null)
+  const [userId] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    let id = localStorage.getItem('stamp_user_id')
+    if (!id) {
+      id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
+      localStorage.setItem('stamp_user_id', id)
+    }
+    return id
+  })
   const [exhibits,   setExhibits]   = useState<StampExhibit[]>([])
   const [stamps,     setStamps]     = useState<StampRecord[]>([])
   const [scanning,   setScanning]   = useState(false)
   const [newStampId, setNewStampId] = useState<string | null>(null)
   const [toast,      setToast]      = useState<Toast | null>(null)
+  const [debugLog,   setDebugLog]   = useState<string[]>([])
 
-  // userId を localStorage から取得（なければ生成）
-  useEffect(() => {
-    let id = localStorage.getItem('stamp_user_id')
-    if (!id) {
-      id = (crypto.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-        const r = Math.random() * 16 | 0
-        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
-      }))
-      localStorage.setItem('stamp_user_id', id)
-    }
-    setUserId(id)
-  }, [])
+  const dbg = (msg: string) => {
+    console.log('[stamp]', msg)
+    setDebugLog(prev => [...prev.slice(-9), `${new Date().toTimeString().slice(0,8)} ${msg}`])
+  }
 
   // スタンプ対象展示を取得
   useEffect(() => {
+    console.log('[stamp] 展示フェッチ開始')
     const sb = createClient()
     sb.from('exhibits')
       .select('id, name, thumbnail_url')
       .eq('is_stamp_target', true)
       .eq('is_active', true)
-      .then(({ data }) => { if (data) setExhibits(data as StampExhibit[]) })
-  }, [])
+      .then(({ data, error }) => {
+        if (error) { dbg(`展示エラー: ${error.message}`); return }
+        dbg(`展示 ${data?.length ?? 0}件`)
+        if (data) setExhibits(data as StampExhibit[])
+      })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 収集済みスタンプを取得
   const fetchStamps = useCallback(async (uid: string) => {
+    dbg('スタンプ取得中…')
     const res  = await fetch(`/api/stamp?userId=${uid}`)
     const json = await res.json() as { stamps: StampRecord[] }
+    dbg(`スタンプ ${json.stamps?.length ?? 0}件`)
     if (json.stamps) setStamps(json.stamps)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (userId) fetchStamps(userId) }, [userId, fetchStamps])
+  useEffect(() => {
+    if (!userId) return
+    let alive = true
+    fetch(`/api/stamp?userId=${userId}`)
+      .then(r => r.json())
+      .then((json: { stamps: StampRecord[] }) => { if (alive && json.stamps) setStamps(json.stamps) })
+    return () => { alive = false }
+  }, [userId])
 
   const showToast = useCallback((msg: string, type: Toast['type']) => {
     setToast({ msg, type })
@@ -432,6 +447,18 @@ export default function StampPage() {
           onResult={handleScanResult}
           onCancel={() => setScanning(false)}
         />
+      )}
+
+      {/* ── デバッグログ（開発時のみ表示） ── */}
+      {process.env.NODE_ENV === 'development' && debugLog.length > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 160, left: 8, right: 8, zIndex: 400,
+          background: 'rgba(0,0,0,0.85)', borderRadius: 8, padding: '8px 12px',
+          fontFamily: 'monospace', fontSize: 11, color: '#0f0',
+          pointerEvents: 'none',
+        }}>
+          {debugLog.map((l, i) => <div key={i}>{l}</div>)}
+        </div>
       )}
 
       {/* ── トースト通知 ── */}

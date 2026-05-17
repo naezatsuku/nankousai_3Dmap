@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import ErudaLoader from '@/components/ui/ErudaLoader'
 
 // ── 本番URLをここに設定（OGP・canonical に使用）──────────────────
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nankousai.example.com'
@@ -76,7 +77,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {process.env.NODE_ENV === 'development' && <ErudaLoader />}
+      </body>
     </html>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { isSubscribed, subscribeToExhibit, unsubscribeFromExhibit, getFCMToken } from '@/lib/push'
 
 interface Props {
@@ -9,10 +9,14 @@ interface Props {
 }
 
 export default function NotifyButton({ exhibitId, variant = 'icon' }: Props) {
-  const [on, setOn]           = useState(false)
+  const [on, setOn]           = useState(() => isSubscribed(exhibitId))
   const [loading, setLoading] = useState(false)
+  const [prevId, setPrevId]   = useState(exhibitId)
 
-  useEffect(() => { setOn(isSubscribed(exhibitId)) }, [exhibitId])
+  if (prevId !== exhibitId) {
+    setPrevId(exhibitId)
+    setOn(isSubscribed(exhibitId))
+  }
 
   const handleClick = async (e: React.MouseEvent) => {
     e.preventDefault()

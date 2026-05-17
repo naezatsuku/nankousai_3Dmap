@@ -55,6 +55,7 @@ export default function MapPage() {
   useEffect(() => {
     const supabase = createClient()
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchExhibits()
 
     // 待ち時間のリアルタイム更新

@@ -322,9 +322,10 @@ export default function ExhibitEditPage() {
     }
     const { data: spd } = await supabase.from('special_schedules').select('*').eq('exhibit_id', id)
     if (spd) {
-      setSpecials((spd as any[]).map(s => ({
-        id: s.id, day: s.day as 'sat'|'sun',
-        start_at: (s.start_at as string).slice(0,5), end_at: (s.end_at as string).slice(0,5),
+      type SpecialRow = { id: string; day: 'sat'|'sun'; start_at: string; end_at: string; location: string | null; note: string | null; description: string | null }
+      setSpecials((spd as unknown as SpecialRow[]).map(s => ({
+        id: s.id, day: s.day,
+        start_at: s.start_at.slice(0,5), end_at: s.end_at.slice(0,5),
         location: s.location ?? '', note: s.note ?? s.description ?? '',
       })))
     }

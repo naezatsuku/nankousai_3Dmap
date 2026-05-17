@@ -22,18 +22,24 @@ const TYPE_LABEL: Record<string, string> = {
 export default function NotificationsPage() {
   const [exhibits, setExhibits]     = useState<ExhibitItem[]>([])
   const [loading, setLoading]       = useState(true)
-  const [subs, setSubs]             = useState<Set<string>>(new Set())
-  const [perm, setPerm]             = useState<string>('default')
+  const [perm, setPerm]             = useState<string>(() => {
+    if (typeof window === 'undefined') return 'default'
+    return typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  })
+  const [subs, setSubs]             = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    return getLocalSubs()
+  })
+  const [globalOn, setGlobalOn]     = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    return isGlobalOn()
+  })
   const [toggling, setToggling]     = useState<string | null>(null)
-  const [globalOn, setGlobalOn]     = useState(true)
   const [globalBusy, setGlobalBusy] = useState(false)
   const [subError, setSubError]     = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    setPerm(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
-    setSubs(getLocalSubs())
-    setGlobalOn(isGlobalOn())
 
     const supabase = createClient()
     supabase
