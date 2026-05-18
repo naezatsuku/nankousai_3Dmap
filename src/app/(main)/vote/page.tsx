@@ -95,6 +95,54 @@ export default function VotePage() {
           </div>
         </div>
 
+        {/* ── ランキング ── */}
+        <div style={{ padding:'0 16px 20px' }}>
+          <div style={{
+            fontSize:11, fontWeight:700, color:'#aaa', letterSpacing:'0.08em',
+            fontFamily:"'Kiwi Maru',serif", marginBottom:12,
+          }}>
+            🏆 現在のランキング
+          </div>
+
+          {data.showRanking && data.ranking.length > 0 ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {data.ranking.map(r => (
+                <div key={r.exhibitId} style={{
+                  display:'flex', alignItems:'center', gap:12,
+                  padding:'12px 16px', borderRadius:14,
+                  background: r.rank === 1 ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : '#fff',
+                  boxShadow: r.rank === 1 ? '0 2px 12px rgba(245,158,11,0.15)' : '0 1px 3px rgba(0,0,0,0.06)',
+                  border: r.rank === 1 ? '1px solid #fde68a' : '1px solid #f1f5f9',
+                }}>
+                  <div style={{
+                    width:34, height:34, borderRadius:'50%', flexShrink:0,
+                    background: r.rank <= 3 ? (['#fef3c7','#f1f5f9','#fef3e2'] as const)[r.rank-1] : '#f8fafc',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize: r.rank <= 3 ? 18 : 12, fontWeight:700,
+                    color: r.rank <= 3 ? (['#f59e0b','#64748b','#f97316'] as const)[r.rank-1] : '#94a3b8',
+                  }}>
+                    {r.rank <= 3 ? MEDAL[r.rank-1] : r.rank}
+                  </div>
+                  <div style={{
+                    fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
+                    color: r.rank === 1 ? '#92400e' : '#1e293b',
+                  }}>
+                    {r.exhibitName}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              padding:'20px 16px', borderRadius:14, textAlign:'center',
+              background:'#f8fafc', border:'1px dashed #e2e8f0',
+              fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#94a3b8', lineHeight:1.7,
+            }}>
+              🔒 まだ公開されていません
+            </div>
+          )}
+        </div>
+
         {/* ── 現在の投票先 ── */}
         {hasVoted && (
           <div style={{ margin:'0 16px 16px', padding:'12px 16px', borderRadius:12,
@@ -204,45 +252,6 @@ export default function VotePage() {
             </>
           )}
         </div>
-
-        {/* ── ランキング ── */}
-        {data.showRanking && data.ranking.length > 0 && (
-          <div style={{ padding:'28px 16px 0' }}>
-            <div style={{
-              fontSize:11, fontWeight:700, color:'#aaa', letterSpacing:'0.08em',
-              fontFamily:"'Kiwi Maru',serif", marginBottom:14,
-            }}>
-              🏆 現在のランキング
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {data.ranking.map(r => (
-                <div key={r.exhibitId} style={{
-                  display:'flex', alignItems:'center', gap:12,
-                  padding:'12px 16px', borderRadius:14,
-                  background: r.rank === 1 ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : '#fff',
-                  boxShadow: r.rank === 1 ? '0 2px 12px rgba(245,158,11,0.15)' : '0 1px 3px rgba(0,0,0,0.06)',
-                  border: r.rank === 1 ? '1px solid #fde68a' : '1px solid #f1f5f9',
-                }}>
-                  <div style={{
-                    width:34, height:34, borderRadius:'50%', flexShrink:0,
-                    background: r.rank <= 3 ? ['#fef3c7','#f1f5f9','#fef3e2'][r.rank-1] : '#f8fafc',
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize: r.rank <= 3 ? 18 : 12, fontWeight:700,
-                    color: r.rank <= 3 ? ['#f59e0b','#64748b','#f97316'][r.rank-1] : '#94a3b8',
-                  }}>
-                    {r.rank <= 3 ? MEDAL[r.rank-1] : r.rank}
-                  </div>
-                  <div style={{
-                    fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
-                    color: r.rank === 1 ? '#92400e' : '#1e293b',
-                  }}>
-                    {r.exhibitName}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
     </div>

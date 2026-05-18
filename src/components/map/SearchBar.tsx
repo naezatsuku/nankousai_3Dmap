@@ -10,15 +10,31 @@ interface Props {
   exhibits?:  Exhibit[]
 }
 
+const IDLE_MS = 4000
+
 export default function SearchBar({ onSearch, onConfirm, onSelect, exhibits = [] }: Props) {
   const [value, setValue] = useState('')
-  const [open, setOpen]   = useState(false)
-  const wrapRef           = useRef<HTMLDivElement>(null)
+  const [open,  setOpen]  = useState(false)
+  const [faded, setFaded] = useState(false)
+  const wrapRef  = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const resetIdle = () => {
+    setFaded(false)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setFaded(true), IDLE_MS)
+  }
+
+  useEffect(() => {
+    timerRef.current = setTimeout(() => setFaded(true), IDLE_MS)
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
 
   const set = (v: string) => {
     setValue(v)
     onSearch(v)
     setOpen(v.trim().length > 0)
+    resetIdle()
   }
 
   const q = value.trim().toLowerCase()
@@ -48,7 +64,13 @@ export default function SearchBar({ onSearch, onConfirm, onSelect, exhibits = []
   }, [])
 
   return (
-    <div ref={wrapRef} className="absolute top-3 left-3 right-3 sm:left-56 sm:right-16 z-20">
+    <div
+      ref={wrapRef}
+      className="absolute top-3 left-3 right-3 sm:left-56 sm:right-16 z-20"
+      style={{ opacity: faded ? 0.38 : 1, transition: 'opacity 0.6s ease' }}
+      onMouseEnter={resetIdle}
+      onTouchStart={resetIdle}
+    >
       {/* 入力バー */}
       <div
         className="flex items-center rounded-xl px-3 gap-2"
@@ -67,7 +89,7 @@ export default function SearchBar({ onSearch, onConfirm, onSelect, exhibits = []
           type="text"
           value={value}
           onChange={e => set(e.target.value)}
-          onFocus={() => value.trim().length > 0 && setOpen(true)}
+          onFocus={() => { resetIdle(); value.trim().length > 0 && setOpen(true) }}
           onKeyDown={e => { if (e.key === 'Enter') { setOpen(false); onConfirm?.(value) } }}
           placeholder="展示を検索…"
           className="flex-1 bg-transparent outline-none text-[16px] text-gray-700 placeholder-gray-400 min-w-0"
