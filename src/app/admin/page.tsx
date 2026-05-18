@@ -229,6 +229,7 @@ export default function AdminDashboard() {
           { href:'/admin/edit',     label:'展示を編集', icon:'✏', color:'#6366f1' },
           { href:'/admin/users',    label:'権限を管理', icon:'👥', color:'#10b981' },
           { href:'/admin/exhibits', label:'団体を追加', icon:'＋', color:'#f59e0b' },
+          { href:'/admin/votes',    label:'人気投票',   icon:'🗳', color:'#FF6B00' },
           { href:'/map',            label:'マップを確認', icon:'🗺', color:'#0ea5e9' },
         ].map(a => (
           <Link key={a.href} href={a.href} style={{
