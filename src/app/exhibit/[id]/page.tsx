@@ -8,14 +8,27 @@ import { useState, useEffect } from 'react'
 import { FoodMenu, getFoodMenuStatus } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
+interface FeedbackComment { id: string; body: string; created_at: string }
+interface FeedbackData    { likeCount: number; showLikeCount: boolean; userHasStamp: boolean; comments: FeedbackComment[] }
+
 const TYPE_LABEL: Record<string, string> = {
   class:'展示', food:'フード', band:'軽音楽部', special:'スペシャル', cafeteria:'食堂',
 }
 
 export default function ExhibitDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const [exhibit, setExhibit] = useState<ExhibitDetail | null>(() => getExhibit(id))
+  const [exhibit,  setExhibit]  = useState<ExhibitDetail | null>(() => getExhibit(id))
   const [foodMenus, setFoodMenus] = useState<FoodMenu[]>([])
+  const [feedback,  setFeedback] = useState<FeedbackData | null>(null)
+  const [userId] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    let uid = localStorage.getItem('stamp_user_id')
+    if (!uid) {
+      uid = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
+      localStorage.setItem('stamp_user_id', uid)
+    }
+    return uid
+  })
 
   useEffect(() => {
     fetchExhibitDetail(id).then(data => { if (data) setExhibit(data) })
@@ -49,6 +62,15 @@ export default function ExhibitDetailPage() {
     return () => { supabase.removeChannel(channel) }
   }, [exhibitId, exhibitType])
 
+  useEffect(() => {
+    if (!id) return
+    let alive = true
+    fetch(`/api/exhibit-feedback/${id}`)
+      .then(r => r.json())
+      .then((d: FeedbackData) => { if (alive) setFeedback(d) })
+    return () => { alive = false }
+  }, [id])
+
   if (!exhibit) {
     return (
       <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, color:'#bbb' }}>
@@ -81,6 +103,8 @@ export default function ExhibitDetailPage() {
           }
 
           {exhibit.media.length > 0 && <Gallery media={exhibit.media} />}
+
+          {feedback && <FeedbackSection feedback={feedback} userId={userId} exhibitId={exhibit.id} />}
 
           <div style={{ padding:'16px 16px 32px' }}>
             <Link href="/map" style={{
@@ -612,6 +636,111 @@ function MediaThumb({ item }: { item: SectionMedia | ExhibitMedia }) {
   return (
     <div style={{ width:'100%', height:'100%', background:'#1a1a2e', display:'flex', alignItems:'center', justifyContent:'center', color:'rgba(255,255,255,0.3)', fontSize:20 }}>
       {item.type==='video'?'▶':'🖼'}
+    </div>
+  )
+}
+
+// ─── フィードバック ───────────────────────────────────────────────
+function FeedbackSection({ feedback, userId, exhibitId }: { feedback: FeedbackData; userId: string; exhibitId: string }) {
+  const [likeCount,    setLikeCount]    = useState(feedback.likeCount)
+  const [liked,        setLiked]        = useState(false)
+  const [userHasStamp, setUserHasStamp] = useState(feedback.userHasStamp)
+  const [comments,     setComments]     = useState(feedback.comments)
+
+  useEffect(() => {
+    if (!userId || !exhibitId) return
+    let alive = true
+    fetch(`/api/exhibit-feedback/${exhibitId}?userId=${userId}`)
+      .then(r => r.json())
+      .then((d: FeedbackData) => {
+        if (!alive) return
+        setLikeCount(d.likeCount)
+        setUserHasStamp(d.userHasStamp)
+        setComments(d.comments)
+      })
+    return () => { alive = false }
+  }, [exhibitId, userId])
+
+  const handleLike = async () => {
+    if (liked || !userId) return
+    const res  = await fetch('/api/exhibit-like', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exhibitId, userId }),
+    })
+    const json = await res.json() as { liked: boolean; likeCount: number }
+    setLiked(json.liked)
+    setLikeCount(json.likeCount)
+  }
+
+  if (!feedback.showLikeCount && comments.length === 0) return null
+
+  return (
+    <div style={{ padding:'0 16px 24px' }}>
+      <div style={{ fontSize:11, fontWeight:700, color:'#aaa', letterSpacing:'0.1em', marginBottom:14, fontFamily:"'Kiwi Maru',serif" }}>
+        💬 みんなの感想
+      </div>
+
+      {feedback.showLikeCount && (
+        userHasStamp ? (
+          <button
+            type="button"
+            onClick={handleLike}
+            disabled={liked}
+            style={{
+              display:'inline-flex', alignItems:'center', gap:8,
+              padding:'10px 20px', borderRadius:99, border:'none',
+              cursor: liked ? 'default' : 'pointer',
+              background: liked ? '#fef2f2' : '#f8f9fa',
+              boxShadow: liked ? 'inset 0 0 0 1.5px #fca5a5' : 'inset 0 0 0 1.5px #e0e0e0',
+              marginBottom:16, transition:'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize:18 }}>{liked ? '❤️' : '🤍'}</span>
+            <span style={{
+              fontFamily:"'Kaisei Decol',serif", fontSize:14, fontWeight:700,
+              color: liked ? '#dc2626' : '#555',
+            }}>
+              いいね {likeCount > 0 ? likeCount : ''}
+            </span>
+          </button>
+        ) : (
+          <div style={{ marginBottom:16 }}>
+            <div style={{
+              display:'inline-flex', alignItems:'center', gap:8,
+              padding:'10px 20px', borderRadius:99,
+              background:'#f8f9fa', boxShadow:'inset 0 0 0 1.5px #e0e0e0',
+              marginBottom:8,
+            }}>
+              <span style={{ fontSize:18, opacity:0.35 }}>🤍</span>
+              <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:14, fontWeight:700, color:'#ccc' }}>
+                いいね {likeCount > 0 ? likeCount : ''}
+              </span>
+            </div>
+            <div style={{ fontSize:12, color:'#aaa', fontFamily:"'Kiwi Maru',serif", lineHeight:1.6 }}>
+              この展示を訪れて QR コードを読み込むと<br />いいねができます
+            </div>
+          </div>
+        )
+      )}
+
+      {comments.length > 0 ? (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {comments.map(c => (
+            <div key={c.id} style={{
+              padding:'12px 16px', borderRadius:14,
+              background:'#f8f9fa', border:'1px solid #f0f0f0',
+              fontSize:13, color:'#374151', fontFamily:"'Kiwi Maru',serif",
+              lineHeight:1.7,
+            }}>
+              {c.body}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize:12, color:'#bbb', fontFamily:"'Kiwi Maru',serif" }}>
+          まだ感想はありません
+        </div>
+      )}
     </div>
   )
 }

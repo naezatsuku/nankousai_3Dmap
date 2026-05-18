@@ -18,6 +18,7 @@ interface MenuItem         { id:string; name:string; price:number; description:s
 interface BandScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; stage:string }
 interface BandItem         { id:string; name:string; members:string[]; instagram:string; thumbnail_url:string; schedules:BandScheduleItem[] }
 interface SpecialScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; location:string; note:string }
+interface Comment           { id:string; user_id:string; body:string; is_approved:boolean; created_at:string }
 
 interface ExhibitFormState {
   name:string; catch_copy:string; description:string
@@ -46,7 +47,7 @@ export default function ExhibitEditPage() {
   const router  = useRouter()
   const [form, setForm]         = useState<ExhibitFormState>(INIT)
   const [tab, setTab]           = useState<'basic'|'content'|'special'|'quick'>('basic')
-  const [quickTab, setQuickTab] = useState<'wait'|'qr'|'menu'>('wait')
+  const [quickTab, setQuickTab] = useState<'wait'|'qr'|'menu'|'comments'>('wait')
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
@@ -60,6 +61,9 @@ export default function ExhibitEditPage() {
   const [specials, setSpecials]                   = useState<SpecialScheduleItem[]>([])
   const [deletedSpecialIds, setDeletedSpecialIds] = useState<string[]>([])
   const [deletedSectionIds, setDeletedSectionIds] = useState<string[]>([])
+  const [showLikeCount,  setShowLikeCount]  = useState(true)
+  const [comments,       setComments]       = useState<Comment[]>([])
+  const [commentsLoaded, setCommentsLoaded] = useState(false)
 
   // ── データ読み込み ────────────────────────────────────────────
   useEffect(() => {
@@ -89,6 +93,7 @@ export default function ExhibitEditPage() {
         if (data) {
           const waitMin = data.wait_minutes ?? 0
           const tpg     = 5
+          setShowLikeCount(data.show_like_count ?? true)
           setForm({
             name:          data.name ?? '',
             catch_copy:    data.catch_copy ?? '',
@@ -169,6 +174,33 @@ export default function ExhibitEditPage() {
   const set = useCallback(<K extends keyof ExhibitFormState>(key:K, val:ExhibitFormState[K]) => {
     setForm(f => ({ ...f, [key]:val }))
   }, [])
+
+  // ── コメント読み込み ────────────────────────────────────────
+  useEffect(() => {
+    if (quickTab !== 'comments' || commentsLoaded || tab !== 'quick') return
+    createClient()
+      .from('exhibit_comments')
+      .select('id, user_id, body, is_approved, created_at')
+      .eq('exhibit_id', id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) { setComments(data as Comment[]); setCommentsLoaded(true) } })
+  }, [quickTab, tab, id, commentsLoaded])
+
+  const approveComment = async (commentId: string) => {
+    await createClient().from('exhibit_comments').update({ is_approved: true }).eq('id', commentId)
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, is_approved: true } : c))
+  }
+  const deleteComment = async (commentId: string) => {
+    await createClient().from('exhibit_comments').delete().eq('id', commentId)
+    setComments(prev => prev.filter(c => c.id !== commentId))
+  }
+  const saveLikeVisibility = async () => {
+    setSaving(true)
+    await createClient().from('exhibits').update({ show_like_count: showLikeCount }).eq('id', id)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
 
   // ── 保存 ────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -537,9 +569,10 @@ export default function ExhibitEditPage() {
                 {(() => {
                   const isFood = form.type === 'food' || form.type === 'cafeteria'
                   const tabs = [
-                    { key:'wait' as const, label:'⏱ 待ち時間' },
-                    { key:'qr'   as const, label:'🎯 スタンプ QR' },
+                    { key:'wait'     as const, label:'⏱ 待ち時間' },
+                    { key:'qr'       as const, label:'🎯 スタンプ QR' },
                     ...(isFood ? [{ key:'menu' as const, label:'🍽 メニュー' }] : []),
+                    { key:'comments' as const, label:'💬 コメント' },
                   ]
                   return (
                     <div style={{ display:'flex', gap:0, marginBottom:16, background:'#f1f5f9', borderRadius:12, padding:4 }}>
@@ -667,6 +700,101 @@ export default function ExhibitEditPage() {
                   </Card>
                 )}
 
+                {/* ── コメントタブ ── */}
+                {quickTab === 'comments' && (
+                  <Card title="" icon="">
+                    {/* いいね数表示トグル */}
+                    <div style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:11, color:'#94a3b8', marginBottom:10, fontFamily:"'Kiwi Maru',serif" }}>
+                        いいね数の表示設定
+                      </div>
+                      <button
+                        onClick={() => setShowLikeCount(v => !v)}
+                        style={{
+                          width:'100%', padding:'10px 14px', borderRadius:10, border:'none',
+                          cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                          background: showLikeCount ? '#f0fdf4' : '#f8fafc',
+                          boxShadow: showLikeCount ? 'inset 0 0 0 1.5px #86efac' : 'inset 0 0 0 1.5px #e2e8f0',
+                          marginBottom:10, transition:'all 0.15s',
+                        }}
+                      >
+                        <div style={{
+                          width:36, height:20, borderRadius:99, flexShrink:0, position:'relative',
+                          background: showLikeCount ? '#22c55e' : '#cbd5e1', transition:'background 0.2s',
+                        }}>
+                          <div style={{
+                            position:'absolute', top:2, borderRadius:'50%', width:16, height:16, background:'#fff',
+                            left: showLikeCount ? 18 : 2, transition:'left 0.2s',
+                            boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
+                          }} />
+                        </div>
+                        <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                          color: showLikeCount ? '#16a34a' : '#94a3b8' }}>
+                          {showLikeCount ? 'いいね数を表示中' : 'いいね数を非表示'}
+                        </span>
+                      </button>
+                      <button onClick={saveLikeVisibility} disabled={saving} style={{
+                        width:'100%', padding:'10px', borderRadius:10, border:'none', cursor:'pointer',
+                        background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                        color:'#fff', fontSize:13, fontWeight:700,
+                        fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s',
+                      }}>
+                        {saving ? '保存中…' : saved ? '✓ 保存しました' : '保存する'}
+                      </button>
+                    </div>
+
+                    {/* コメント一覧 */}
+                    <div style={{ fontSize:11, color:'#94a3b8', marginBottom:10, fontFamily:"'Kiwi Maru',serif" }}>
+                      コメント（{comments.filter(c => !c.is_approved).length} 件 承認待ち）
+                    </div>
+                    {comments.length === 0 ? (
+                      <div style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8',
+                        fontFamily:"'Kiwi Maru',serif", fontSize:12 }}>
+                        コメントはまだありません
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                        {comments.map(c => (
+                          <div key={c.id} style={{
+                            borderRadius:12, padding:'12px 14px',
+                            border: c.is_approved ? '1px solid #f1f5f9' : '1px solid #fde68a',
+                            background: c.is_approved ? '#fff' : '#fffbeb',
+                          }}>
+                            <div style={{ fontSize:12, color:'#374151', fontFamily:"'Kiwi Maru',serif",
+                              lineHeight:1.6, marginBottom:8 }}>
+                              {c.body}
+                            </div>
+                            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+                              <span style={{
+                                fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:99,
+                                fontFamily:"'Kiwi Maru',serif",
+                                background: c.is_approved ? '#f0fdf4' : '#fef9c3',
+                                color: c.is_approved ? '#16a34a' : '#92400e',
+                              }}>
+                                {c.is_approved ? '✓ 承認済み' : '⏳ 承認待ち'}
+                              </span>
+                              <div style={{ display:'flex', gap:4 }}>
+                                {!c.is_approved && (
+                                  <button onClick={() => approveComment(c.id)} style={{
+                                    padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer',
+                                    background:'#16a34a', color:'#fff',
+                                    fontSize:10, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                                  }}>承認</button>
+                                )}
+                                <button onClick={() => deleteComment(c.id)} style={{
+                                  padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer',
+                                  background:'#fee2e2', color:'#dc2626',
+                                  fontSize:10, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                                }}>削除</button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                )}
+
                 <div style={{ marginTop:16 }}>
                 <Card title="お知らせを投稿" icon="📣">
                   <Textarea placeholder="内容を入力…" rows={3} value={noticeText} onChange={setNoticeText} />
@@ -769,7 +897,7 @@ function convertToWebP(file: File, quality = 0.85): Promise<Blob> {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
       canvas.toBlob(blob => {
         URL.revokeObjectURL(url)
-        blob ? resolve(blob) : reject(new Error('WebP変換失敗'))
+        if (blob) resolve(blob); else reject(new Error('WebP変換失敗'))
       }, 'image/webp', quality)
     }
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像読み込み失敗')) }

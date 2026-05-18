@@ -71,9 +71,13 @@ export default function UsersPage() {
   // ── ロール切り替え ────────────────────────────────────────────
   const toggleRole = async (profile: ProfileRow) => {
     const next: Role = profile.role === 'admin' ? 'editor' : 'admin'
-    const supabase = createClient()
-    await supabase.from('profiles').update({ role: next }).eq('id', profile.id)
-    setProfiles(ps => ps.map(p => p.id === profile.id ? { ...p, role: next } : p))
+    const res = await fetch('/api/admin/users/role', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: profile.id, role: next }),
+    })
+    if (res.ok) {
+      setProfiles(ps => ps.map(p => p.id === profile.id ? { ...p, role: next } : p))
+    }
   }
 
   // ── 削除 ──────────────────────────────────────────────────────
@@ -380,7 +384,7 @@ export default function UsersPage() {
             </div>
 
             {/* ボタン */}
-            <div style={{ display:'flex', gap:10 }}>
+            <div style={{ display:'flex', gap:10, flexShrink:0 }}>
               <button onClick={() => setAssignTarget(null)} style={{
                 flex:1, padding:'11px 0', borderRadius:10,
                 border:'1px solid #e2e8f0', background:'#fff',

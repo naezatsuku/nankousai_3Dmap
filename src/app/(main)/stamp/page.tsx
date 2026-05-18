@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 
-const QrScanner = dynamic(() => import('@/components/ui/QrScanner'), { ssr: false })
+const QrScanner     = dynamic(() => import('@/components/ui/QrScanner'),    { ssr: false })
+const FeedbackSheet = dynamic(() => import('@/components/ui/FeedbackSheet'), { ssr: false })
 
 interface StampExhibit { id: string; name: string; thumbnail_url: string | null }
 interface StampRecord  { exhibit_id: string; stamped_at: string }
@@ -218,10 +219,11 @@ export default function StampPage() {
   })
   const [exhibits,   setExhibits]   = useState<StampExhibit[]>([])
   const [stamps,     setStamps]     = useState<StampRecord[]>([])
-  const [scanning,   setScanning]   = useState(false)
-  const [newStampId, setNewStampId] = useState<string | null>(null)
-  const [toast,      setToast]      = useState<Toast | null>(null)
-  const [debugLog,   setDebugLog]   = useState<string[]>([])
+  const [scanning,       setScanning]       = useState(false)
+  const [newStampId,     setNewStampId]     = useState<string | null>(null)
+  const [toast,          setToast]          = useState<Toast | null>(null)
+  const [debugLog,       setDebugLog]       = useState<string[]>([])
+  const [feedbackSheet,  setFeedbackSheet]  = useState<{ exhibitId: string; exhibitName: string } | null>(null)
 
   const dbg = (msg: string) => {
     console.log('[stamp]', msg)
@@ -241,7 +243,7 @@ export default function StampPage() {
         dbg(`展示 ${data?.length ?? 0}件`)
         if (data) setExhibits(data as StampExhibit[])
       })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // 収集済みスタンプを取得
   const fetchStamps = useCallback(async (uid: string) => {
@@ -250,7 +252,7 @@ export default function StampPage() {
     const json = await res.json() as { stamps: StampRecord[] }
     dbg(`スタンプ ${json.stamps?.length ?? 0}件`)
     if (json.stamps) setStamps(json.stamps)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -284,11 +286,13 @@ export default function StampPage() {
 
       if (json.already) {
         showToast(`${json.exhibitName} は既にスタンプ済みです`, 'already')
+        setFeedbackSheet({ exhibitId: e, exhibitName: json.exhibitName ?? '' })
       } else if (json.ok) {
         setNewStampId(e)
         setTimeout(() => setNewStampId(null), 2200)
         await fetchStamps(userId)
         showToast(`✓ ${json.exhibitName} のスタンプを押しました！`, 'ok')
+        setFeedbackSheet({ exhibitId: e, exhibitName: json.exhibitName ?? '' })
       } else {
         showToast(json.error ?? 'エラーが発生しました', 'err')
       }
@@ -446,6 +450,16 @@ export default function StampPage() {
         <QrScanner
           onResult={handleScanResult}
           onCancel={() => setScanning(false)}
+        />
+      )}
+
+      {/* ── フィードバックシート ── */}
+      {feedbackSheet && (
+        <FeedbackSheet
+          exhibitId={feedbackSheet.exhibitId}
+          exhibitName={feedbackSheet.exhibitName}
+          userId={userId}
+          onClose={() => setFeedbackSheet(null)}
         />
       )}
 
