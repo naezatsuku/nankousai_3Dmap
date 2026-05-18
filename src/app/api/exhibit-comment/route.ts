@@ -27,6 +27,9 @@ export async function POST(req: Request) {
     .from('exhibit_comments')
     .insert(row)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[exhibit-comment] insert error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

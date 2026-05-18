@@ -27,6 +27,7 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
   const [authorName,    setAuthorName]    = useState('')
   const [submitting,    setSubmitting]    = useState(false)
   const [submitted,     setSubmitted]     = useState(false)
+  const [submitError,   setSubmitError]   = useState('')
 
   useEffect(() => {
     let alive = true
@@ -57,13 +58,24 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
   const handleSubmit = async () => {
     if (!comment.trim() || submitting || submitted) return
     setSubmitting(true)
-    await fetch('/api/exhibit-comment', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exhibitId, userId, body: comment.trim(), authorName: authorName.trim() || undefined }),
-    })
+    setSubmitError('')
+    try {
+      const res  = await fetch('/api/exhibit-comment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exhibitId, userId, body: comment.trim(), authorName: authorName.trim() || undefined }),
+      })
+      const json = await res.json() as { ok?: boolean; error?: string }
+      if (!res.ok || !json.ok) {
+        setSubmitError(json.error ?? `エラー (${res.status})`)
+        setSubmitting(false)
+        return
+      }
+      setSubmitted(true)
+      setComment('')
+    } catch {
+      setSubmitError('送信に失敗しました。通信を確認してください。')
+    }
     setSubmitting(false)
-    setSubmitted(true)
-    setComment('')
   }
 
   return (
@@ -187,6 +199,11 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
                   background:'#fafbfc',
                 }}
               />
+              {submitError && (
+                <div style={{ fontSize:12, color:'#dc2626', fontFamily:"'Kiwi Maru',serif", marginTop:6, padding:'8px 12px', background:'#fef2f2', borderRadius:8 }}>
+                  ⚠ {submitError}
+                </div>
+              )}
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
                 <span style={{
                   fontSize:11, fontFamily:"'Kiwi Maru',serif",
