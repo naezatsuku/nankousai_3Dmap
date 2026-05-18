@@ -6,6 +6,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ui/ImageUpload'
 
+function fmtTime(iso: string) {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // ── 型 ────────────────────────────────────────────────────────
 type BodySegment =
   | { type:'text'; text:string }
@@ -18,7 +24,7 @@ interface MenuItem         { id:string; name:string; price:number; description:s
 interface BandScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; stage:string }
 interface BandItem         { id:string; name:string; members:string[]; instagram:string; thumbnail_url:string; schedules:BandScheduleItem[] }
 interface SpecialScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; location:string; note:string }
-interface Comment           { id:string; user_id:string; body:string; is_approved:boolean; created_at:string }
+interface Comment           { id:string; user_id:string; body:string; author_name?:string|null; is_approved:boolean; created_at:string }
 
 interface ExhibitFormState {
   name:string; catch_copy:string; description:string
@@ -180,7 +186,7 @@ export default function ExhibitEditPage() {
     if (quickTab !== 'comments' || commentsLoaded || tab !== 'quick') return
     createClient()
       .from('exhibit_comments')
-      .select('id, user_id, body, is_approved, created_at')
+      .select('id, user_id, body, author_name, is_approved, created_at')
       .eq('exhibit_id', id)
       .order('created_at', { ascending: false })
       .then(({ data }) => { if (data) { setComments(data as Comment[]); setCommentsLoaded(true) } })
@@ -760,19 +766,29 @@ export default function ExhibitEditPage() {
                             border: c.is_approved ? '1px solid #f1f5f9' : '1px solid #fde68a',
                             background: c.is_approved ? '#fff' : '#fffbeb',
                           }}>
+                            {c.author_name && (
+                              <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:3 }}>
+                                {c.author_name}
+                              </div>
+                            )}
                             <div style={{ fontSize:12, color:'#374151', fontFamily:"'Kiwi Maru',serif",
                               lineHeight:1.6, marginBottom:8 }}>
                               {c.body}
                             </div>
                             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
-                              <span style={{
-                                fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:99,
-                                fontFamily:"'Kiwi Maru',serif",
-                                background: c.is_approved ? '#f0fdf4' : '#fef9c3',
-                                color: c.is_approved ? '#16a34a' : '#92400e',
-                              }}>
-                                {c.is_approved ? '✓ 承認済み' : '⏳ 承認待ち'}
-                              </span>
+                              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                                <span style={{
+                                  fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:99,
+                                  fontFamily:"'Kiwi Maru',serif",
+                                  background: c.is_approved ? '#f0fdf4' : '#fef9c3',
+                                  color: c.is_approved ? '#16a34a' : '#92400e',
+                                }}>
+                                  {c.is_approved ? '✓ 承認済み' : '⏳ 承認待ち'}
+                                </span>
+                                <span style={{ fontSize:9, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>
+                                  {fmtTime(c.created_at)}
+                                </span>
+                              </div>
                               <div style={{ display:'flex', gap:4 }}>
                                 {!c.is_approved && (
                                   <button onClick={() => approveComment(c.id)} style={{

@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from 'react'
 
-interface Comment { id: string; body: string; created_at: string }
+interface Comment { id: string; body: string; author_name?: string | null; created_at: string }
+
+function fmtTime(iso: string) {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 interface Props {
   exhibitId:   string
@@ -18,6 +24,7 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
   const [userHasStamp,  setUserHasStamp]  = useState(false)
   const [comments,      setComments]      = useState<Comment[]>([])
   const [comment,       setComment]       = useState('')
+  const [authorName,    setAuthorName]    = useState('')
   const [submitting,    setSubmitting]    = useState(false)
   const [submitted,     setSubmitted]     = useState(false)
 
@@ -52,7 +59,7 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
     setSubmitting(true)
     await fetch('/api/exhibit-comment', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exhibitId, userId, body: comment.trim() }),
+      body: JSON.stringify({ exhibitId, userId, body: comment.trim(), authorName: authorName.trim() || undefined }),
     })
     setSubmitting(false)
     setSubmitted(true)
@@ -154,6 +161,19 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
               <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:8 }}>
                 コメント（承認後に公開されます）
               </div>
+              <input
+                type="text"
+                value={authorName}
+                onChange={e => setAuthorName(e.target.value.slice(0, 50))}
+                placeholder="名前（任意）"
+                style={{
+                  width:'100%', padding:'10px 12px', borderRadius:10,
+                  border:'1px solid #e2e8f0', marginBottom:8,
+                  fontSize:14, fontFamily:"'Kiwi Maru',serif",
+                  color:'#1a1a1a', outline:'none', boxSizing:'border-box',
+                  background:'#fafbfc',
+                }}
+              />
               <textarea
                 value={comment}
                 onChange={e => setComment(e.target.value.slice(0, 200))}
@@ -213,10 +233,16 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
                 <div key={c.id} style={{
                   padding:'10px 14px', borderRadius:10,
                   background:'#f8fafc', marginBottom:8,
-                  fontSize:13, color:'#374151', fontFamily:"'Kiwi Maru',serif",
-                  lineHeight:1.6,
+                  fontFamily:"'Kiwi Maru',serif",
                 }}>
-                  {c.body}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom: c.author_name ? 2 : 4 }}>
+                    {c.author_name
+                      ? <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8' }}>{c.author_name}</span>
+                      : <span />
+                    }
+                    <span style={{ fontSize:10, color:'#cbd5e1' }}>{fmtTime(c.created_at)}</span>
+                  </div>
+                  <div style={{ fontSize:13, color:'#374151', lineHeight:1.6 }}>{c.body}</div>
                 </div>
               ))}
             </div>

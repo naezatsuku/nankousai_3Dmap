@@ -9,16 +9,23 @@ function supabase() {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json() as { exhibitId: string; userId: string; body: string }
-  const { exhibitId, userId, body: text } = body
+  const body = await req.json() as { exhibitId: string; userId: string; body: string; authorName?: string }
+  const { exhibitId, userId, body: text, authorName } = body
 
   if (!exhibitId || !userId || !text?.trim()) {
     return NextResponse.json({ error: 'パラメータが不足しています' }, { status: 400 })
   }
 
+  const row: Record<string, string> = {
+    exhibit_id: exhibitId,
+    user_id:    userId,
+    body:       text.trim().slice(0, 200),
+  }
+  if (authorName?.trim()) row.author_name = authorName.trim().slice(0, 50)
+
   const { error } = await supabase()
     .from('exhibit_comments')
-    .insert({ exhibit_id: exhibitId, user_id: userId, body: text.trim().slice(0, 200) })
+    .insert(row)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

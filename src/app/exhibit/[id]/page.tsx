@@ -8,8 +8,14 @@ import { useState, useEffect } from 'react'
 import { FoodMenu, getFoodMenuStatus } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
-interface FeedbackComment { id: string; body: string; created_at: string }
+interface FeedbackComment { id: string; body: string; author_name?: string | null; created_at: string }
 interface FeedbackData    { likeCount: number; showLikeCount: boolean; userHasStamp: boolean; comments: FeedbackComment[] }
+
+function fmtCommentTime(iso: string) {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 const TYPE_LABEL: Record<string, string> = {
   class:'展示', food:'フード', band:'軽音楽部', special:'スペシャル', cafeteria:'食堂',
@@ -196,45 +202,65 @@ function FallbackHero({ type }: { type: string }) {
 // ─── 情報エリア ───────────────────────────────────────────────
 function InfoSection({ exhibit }: { exhibit: ExhibitDetail }) {
   return (
-    <div style={{ padding:'20px 16px 0', animation:'slideUp 0.35s ease' }}>
-      {/* typeバッジ */}
-      <span style={{
-        display:'inline-block', fontSize:12, fontWeight:700,
-        padding:'4px 14px', borderRadius:99,
-        background:'rgba(255,107,0,0.1)', color:'#FF6B00',
-        fontFamily:"'Kiwi Maru',serif", marginBottom:10,
-        border:'1px solid rgba(255,107,0,0.2)',
-      }}>
-        {TYPE_LABEL[exhibit.type] ?? '展示'}
-      </span>
+    <div style={{ padding:'24px 16px 0', animation:'slideUp 0.35s ease' }}>
 
-      {/* 展示名（大） */}
-      <div style={{
-        fontFamily:"'Kaisei Decol',serif", fontSize:26, fontWeight:700,
-        color:'#1a1a1a', lineHeight:1.3, marginBottom:14,
-      }}>
-        {exhibit.name}
+      {/* バッジ行 */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+        <span style={{
+          fontSize:11, fontWeight:700, padding:'4px 14px', borderRadius:99,
+          background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
+          color:'#fff', fontFamily:"'Kiwi Maru',serif",
+          boxShadow:'0 2px 8px rgba(255,107,0,0.35)',
+        }}>
+          {TYPE_LABEL[exhibit.type] ?? '展示'}
+        </span>
+        {exhibit.class_label && (
+          <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+            {exhibit.class_label}
+          </span>
+        )}
       </div>
 
-      {/* 場所 */}
-      {exhibit.room_display && (
-        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" strokeLinecap="round">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-          </svg>
-          <span style={{ fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#777' }}>
+      {/* 展示名 — 左アクセントライン */}
+      <div style={{
+        borderLeft:'4px solid #FF6B00',
+        paddingLeft:14,
+        marginBottom:18,
+      }}>
+        <div style={{
+          fontFamily:"'Kaisei Decol',serif", fontSize:26, fontWeight:700,
+          color:'#0f172a', lineHeight:1.3,
+        }}>
+          {exhibit.name}
+        </div>
+      </div>
+
+      {/* 場所・日程チップ */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:24 }}>
+        {exhibit.room_display && (
+          <span style={{
+            display:'inline-flex', alignItems:'center', gap:6,
+            padding:'6px 14px', borderRadius:99,
+            background:'#f1f5f9', border:'1px solid #e2e8f0',
+            fontSize:12, color:'#475569', fontFamily:"'Kiwi Maru',serif",
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.2" strokeLinecap="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
             {exhibit.room_display}{exhibit.floor ? ` · ${exhibit.floor}F` : ''}
           </span>
-        </div>
-      )}
-
-      {/* 開催日 */}
-      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:20 }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" strokeLinecap="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span style={{ fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#777' }}>
+        )}
+        <span style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'6px 14px', borderRadius:99,
+          background:'#f1f5f9', border:'1px solid #e2e8f0',
+          fontSize:12, color:'#475569', fontFamily:"'Kiwi Maru',serif",
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.2" strokeLinecap="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
           {{ both:'土・日 両日', sat:'土曜日のみ', sun:'日曜日のみ' }[exhibit.day]}
           &nbsp;· 9:00〜16:00
         </span>
@@ -249,15 +275,15 @@ function InfoSection({ exhibit }: { exhibit: ExhibitDetail }) {
 /** キャッチコピー帯 */
 function CatchCopy({ text }: { text: string }) {
   return (
-    <div style={{
-      margin:'0 -16px 0', padding:'22px 32px',
-      background:'linear-gradient(135deg,#FF6B00 0%,#FFAA28 60%,#FFD166 100%)',
-      borderRadius:24, marginBottom:24,
-    }}>
+    <div style={{ marginBottom:28, padding:'4px 0 24px' }}>
       <div style={{
-        fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700,
-        color:'#fff', textAlign:'center', lineHeight:1.5,
-        textShadow:'0 1px 4px rgba(0,0,0,0.15)',
+        width:32, height:3, borderRadius:99,
+        background:'linear-gradient(90deg,#FF6B00,#FFAA28)',
+        marginBottom:14,
+      }} />
+      <div style={{
+        fontFamily:"'Kaisei Decol',serif", fontSize:21, fontWeight:700,
+        color:'#0f172a', lineHeight:1.65,
       }}>
         {text}
       </div>
@@ -672,7 +698,8 @@ function FeedbackSection({ feedback, userId, exhibitId }: { feedback: FeedbackDa
     setLikeCount(json.likeCount)
   }
 
-  if (!feedback.showLikeCount && comments.length === 0) return null
+  // コメントがあれば showLikeCount に関わらず表示
+  if (comments.length === 0 && !feedback.showLikeCount) return null
 
   return (
     <div style={{ padding:'0 16px 24px' }}>
@@ -729,10 +756,17 @@ function FeedbackSection({ feedback, userId, exhibitId }: { feedback: FeedbackDa
             <div key={c.id} style={{
               padding:'12px 16px', borderRadius:14,
               background:'#f8f9fa', border:'1px solid #f0f0f0',
-              fontSize:13, color:'#374151', fontFamily:"'Kiwi Maru',serif",
-              lineHeight:1.7,
+              fontFamily:"'Kiwi Maru',serif",
             }}>
-              {c.body}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4 }}>
+                <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8' }}>
+                  {c.author_name ?? ''}
+                </span>
+                <span style={{ fontSize:10, color:'#cbd5e1' }}>
+                  {fmtCommentTime(c.created_at)}
+                </span>
+              </div>
+              <div style={{ fontSize:13, color:'#374151', lineHeight:1.7 }}>{c.body}</div>
             </div>
           ))}
         </div>

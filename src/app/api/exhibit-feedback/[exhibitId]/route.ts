@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ exhibitI
 
   const commentQuery = db
     .from('exhibit_comments')
-    .select('id, body, created_at')
+    .select('id, body, author_name, created_at')
     .eq('exhibit_id', exhibitId)
     .eq('is_approved', true)
     .order('created_at', { ascending: false })
