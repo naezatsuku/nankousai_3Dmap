@@ -41,7 +41,7 @@ export default function ExhibitsPage() {
     const supabase = createClient()
     const { data } = await supabase
       .from('exhibits')
-      .insert({ ...form })
+      .insert({ ...form, stamp_secret: crypto.randomUUID() })
       .select()
       .single()
     if (data) setExhibits(ex => [...ex, data as Exhibit])
