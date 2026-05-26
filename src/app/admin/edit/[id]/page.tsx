@@ -68,6 +68,7 @@ export default function ExhibitEditPage() {
   const [deletedSpecialIds, setDeletedSpecialIds] = useState<string[]>([])
   const [deletedSectionIds, setDeletedSectionIds] = useState<string[]>([])
   const [showLikeCount,  setShowLikeCount]  = useState(true)
+  const [stampSecret,    setStampSecret]    = useState<string | null>(null)
   const [comments,       setComments]       = useState<Comment[]>([])
   const [commentsLoaded, setCommentsLoaded] = useState(false)
 
@@ -100,6 +101,7 @@ export default function ExhibitEditPage() {
           const waitMin = data.wait_minutes ?? 0
           const tpg     = 5
           setShowLikeCount(data.show_like_count ?? true)
+          setStampSecret(data.stamp_secret ?? null)
           setForm({
             name:          data.name ?? '',
             catch_copy:    data.catch_copy ?? '',
@@ -213,6 +215,11 @@ export default function ExhibitEditPage() {
     setSaving(true)
     const supabase = createClient()
 
+    let currentSecret = stampSecret
+    if (form.is_stamp_target && !currentSecret) {
+      currentSecret = crypto.randomUUID()
+      setStampSecret(currentSecret)
+    }
     await supabase.from('exhibits').update({
       name:          form.name,
       catch_copy:    form.catch_copy,
@@ -224,6 +231,7 @@ export default function ExhibitEditPage() {
       has_wait_time:   form.has_wait_time,
       wait_minutes:    waitMin,
       is_stamp_target: form.is_stamp_target,
+      ...(currentSecret && !stampSecret ? { stamp_secret: currentSecret } : {}),
     }).eq('id', id)
 
     // Delete removed sections (cascades to their exhibit_images)
@@ -1473,7 +1481,7 @@ function StampQrCard({ exhibitId, isTarget, onToggle, onSave, saving, saved }: {
     import('qrcode.react').then(m => setQrComp(() => m.QRCodeSVG as React.ComponentType<{ value: string; size: number }>))
   }, [])
 
-  // QR URL を取得（5分ごとに更新）
+  // QR URL を取得（60秒ごとに更新）
   React.useEffect(() => {
     if (!isTarget) return
     const fetch_ = async () => {
@@ -1485,7 +1493,7 @@ function StampQrCard({ exhibitId, isTarget, onToggle, onSave, saving, saved }: {
       } catch { setQrError(true) }
     }
     fetch_()
-    const timer = setInterval(fetch_, 5 * 60 * 1000)
+    const timer = setInterval(fetch_, 60_000)
     return () => clearInterval(timer)
   }, [exhibitId, isTarget])
 
@@ -1532,7 +1540,7 @@ function StampQrCard({ exhibitId, isTarget, onToggle, onSave, saving, saved }: {
       {isTarget && (
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:11, color:'#94a3b8', marginBottom:12, fontFamily:"'Kiwi Maru',serif" }}>
-            来場者にこの QR を読み取ってもらいます（5分ごとに更新）
+            来場者にこの QR を読み取ってもらいます（60秒ごとに更新）
           </div>
           {qrError ? (
             <div style={{ color:'#f87171', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>

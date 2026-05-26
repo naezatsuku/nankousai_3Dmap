@@ -39,6 +39,7 @@ export default function QuickPage() {
   const [showLikeCount, setShowLikeCount] = useState(true)
   const [comments,      setComments]      = useState<Comment[]>([])
 
+  const [stampSecret,  setStampSecret]  = useState<string | null>(null)
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
   const [loading,      setLoading]      = useState(true)
@@ -55,7 +56,7 @@ export default function QuickPage() {
 
       const { data } = await supabase
         .from('exhibits')
-        .select('name, type, is_stamp_target, has_wait_time, wait_minutes, show_like_count')
+        .select('name, type, is_stamp_target, has_wait_time, wait_minutes, show_like_count, stamp_secret')
         .eq('id', id)
         .single()
 
@@ -65,6 +66,7 @@ export default function QuickPage() {
         setIsTarget(data.is_stamp_target ?? false)
         setHasWait(data.has_wait_time ?? true)
         setShowLikeCount(data.show_like_count ?? true)
+        setStampSecret(data.stamp_secret ?? null)
         setTpg(5)
         setQueueCount(Math.round((data.wait_minutes ?? 0) / 5))
       }
@@ -107,7 +109,13 @@ export default function QuickPage() {
   }
   const saveQr = async () => {
     setSaving(true)
-    await createClient().from('exhibits').update({ is_stamp_target: isTarget }).eq('id', id)
+    const updates: Record<string, unknown> = { is_stamp_target: isTarget }
+    if (isTarget && !stampSecret) {
+      const newSecret = crypto.randomUUID()
+      updates.stamp_secret = newSecret
+      setStampSecret(newSecret)
+    }
+    await createClient().from('exhibits').update(updates).eq('id', id)
     setSaving(false); flashSaved()
   }
   const saveMenu = async () => {
