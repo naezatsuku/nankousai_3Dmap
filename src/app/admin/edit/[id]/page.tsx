@@ -377,12 +377,23 @@ export default function ExhibitEditPage() {
     if (!noticeText.trim()) return
     setPosting(true)
     const supabase = createClient()
+    const title = noticeText.split('\n')[0].slice(0, 60) || 'お知らせ'
     await supabase.from('notices').insert({
       exhibit_id: id,
-      title:      noticeText.split('\n')[0].slice(0, 60) || 'お知らせ',
+      title,
       body:       noticeText,
       is_urgent:  noticeUrgent,
     })
+    // 通知送信（失敗しても投稿は成功扱い）
+    fetch('/api/notice-notify', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        title,
+        body:      noticeText,
+        exhibitId: id,
+      }),
+    }).catch(() => {})
     setNoticeText(''); setNoticeUrgent(false); setPosting(false)
   }
 

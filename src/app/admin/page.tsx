@@ -150,7 +150,8 @@ export default function AdminDashboard() {
       )}
 
       {/* ── 2カラム ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+      <style>{`@media(max-width:640px){.admin-2col{grid-template-columns:1fr!important;}}`}</style>
+      <div className="admin-2col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
 
         {/* 混雑TOP */}
         <div style={{ background:'#fff', borderRadius:16, padding:'20px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid #f1f5f9' }}>

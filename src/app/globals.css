@@ -12,10 +12,16 @@ body {
 }
 
 /* 画像保存・コピー禁止 */
-img, video {
+img {
   -webkit-user-drag: none;
   user-drag: none;
   pointer-events: none;
+}
+
+/* 動画は再生できるよう pointer-events は残す */
+video {
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 /* テキスト・全体選択禁止 */
