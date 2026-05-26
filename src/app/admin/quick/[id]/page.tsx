@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 // ── 型 ────────────────────────────────────────────────────────
-interface MenuItem { id:string; name:string; price:number; stock:number; is_selling:boolean }
+interface MenuItem { id:string; name:string; price:number; stock:number; is_selling:boolean; sold_count:number }
 interface Comment  { id:string; user_id:string; body:string; author_name?:string|null; is_approved:boolean; created_at:string }
 
 type ExhibitType = 'class'|'food'|'band'|'special'|'cafeteria'
@@ -39,9 +39,10 @@ export default function QuickPage() {
   const [showLikeCount, setShowLikeCount] = useState(true)
   const [comments,      setComments]      = useState<Comment[]>([])
 
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [saving,       setSaving]       = useState(false)
+  const [saved,        setSaved]        = useState(false)
+  const [loading,      setLoading]      = useState(true)
+  const [commentsOpen, setCommentsOpen] = useState(true)
 
   const isFood  = type === 'food' || type === 'cafeteria'
   const waitMin = Math.max(0, tpg * queueCount)
@@ -70,7 +71,7 @@ export default function QuickPage() {
 
       if (data?.type === 'food' || data?.type === 'cafeteria') {
         const { data: md } = await supabase
-          .from('food_menus').select('id, name, price, stock, is_selling').eq('exhibit_id', id)
+          .from('food_menus').select('id, name, price, stock, is_selling, sold_count').eq('exhibit_id', id)
         if (md) setMenus(md as MenuItem[])
       }
 
@@ -114,7 +115,7 @@ export default function QuickPage() {
     const existing = menus.filter(m => !m.id.startsWith('new_'))
     if (existing.length > 0) {
       await createClient().from('food_menus').upsert(
-        existing.map(m => ({ id: m.id, exhibit_id: id, name: m.name, price: m.price, stock: m.stock, is_selling: m.is_selling }))
+        existing.map(m => ({ id: m.id, exhibit_id: id, name: m.name, price: m.price, stock: m.stock, is_selling: m.is_selling, sold_count: m.sold_count }))
       )
     }
     setSaving(false); flashSaved()
@@ -157,9 +158,12 @@ export default function QuickPage() {
           .qp-wrap {
             display:grid; grid-template-columns:1fr 1fr 2fr;
             gap:20px; height:100%; max-width:none; align-items:stretch;
+            transition: grid-template-columns 0.25s ease;
           }
+          .qp-wrap.comments-closed { grid-template-columns:1fr 1fr auto; }
           .qp-col { display:flex; flex-direction:column; gap:16px; overflow-y:auto; padding-bottom:16px; min-width:0; }
           .qp-col-comments { overflow:hidden; padding-bottom:0; }
+          .qp-col-comments.closed { overflow:visible; }
         }
       `}</style>
 
@@ -188,7 +192,7 @@ export default function QuickPage() {
 
       {/* ── コンテンツ ── */}
       <div className="qp-body">
-        <div className="qp-wrap">
+        <div className={`qp-wrap${commentsOpen ? '' : ' comments-closed'}`}>
 
           {/* ── 列1：待ち時間 ── */}
           <div className="qp-col">
@@ -314,13 +318,21 @@ export default function QuickPage() {
                         >
                           {menu.is_selling ? '✓ 販売中' : '✗ 販売停止'}
                         </button>
-                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'#fff', borderRadius:10, padding:'8px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'#fff', borderRadius:10, padding:'8px 14px', marginBottom:6 }}>
                           <span style={{ flex:1, fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>在庫数</span>
                           <button onClick={() => setMenus(ms => ms.map(m => m.id===menu.id ? {...m,stock:Math.max(0,m.stock-1)} : m))} style={calcBtnStyle}>−</button>
                           <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:26, fontWeight:700, color:'#1e293b', minWidth:44, textAlign:'center' }}>
                             {menu.stock}
                           </span>
                           <button onClick={() => setMenus(ms => ms.map(m => m.id===menu.id ? {...m,stock:m.stock+1} : m))} style={calcBtnStyle}>＋</button>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'#fff8f0', borderRadius:10, padding:'8px 14px', border:'1px solid #fde68a' }}>
+                          <span style={{ flex:1, fontSize:11, color:'#92400e', fontFamily:"'Kiwi Maru',serif", fontWeight:700 }}>販売数</span>
+                          <button onClick={() => setMenus(ms => ms.map(m => m.id===menu.id ? {...m,sold_count:Math.max(0,m.sold_count-1)} : m))} style={calcBtnStyle}>−</button>
+                          <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:26, fontWeight:700, color:'#FF6B00', minWidth:44, textAlign:'center' }}>
+                            {menu.sold_count}
+                          </span>
+                          <button onClick={() => setMenus(ms => ms.map(m => m.id===menu.id ? {...m,sold_count:m.sold_count+1} : m))} style={calcBtnStyle}>＋</button>
                         </div>
                       </div>
                     ))}
@@ -351,8 +363,15 @@ export default function QuickPage() {
           </div>
 
           {/* ── 列3（2fr）：コメント承認 ── */}
-          <div className="qp-col qp-col-comments">
-            <Section label={`💬 コメント${pendingCount > 0 ? `（承認待ち ${pendingCount} 件）` : ''}`} accent={pendingCount > 0} fill>
+          <div className={`qp-col qp-col-comments${commentsOpen ? '' : ' closed'}`}>
+            <Section
+              label={`💬 コメント${pendingCount > 0 ? `（承認待ち ${pendingCount} 件）` : ''}`}
+              accent={pendingCount > 0}
+              fill
+              collapsible
+              open={commentsOpen}
+              onToggle={() => setCommentsOpen(v => !v)}
+            >
               <div style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:12 }}>
                 30秒ごとに自動更新
               </div>
@@ -419,25 +438,61 @@ export default function QuickPage() {
 }
 
 // ── 共通コンポーネント ─────────────────────────────────────────
-function Section({ label, children, accent, fill }: {
-  label: string; children: React.ReactNode; accent?: boolean; fill?: boolean
+function Section({ label, children, accent, fill, collapsible, open = true, onToggle }: {
+  label: string; children: React.ReactNode
+  accent?: boolean; fill?: boolean
+  collapsible?: boolean; open?: boolean; onToggle?: () => void
 }) {
   return (
     <div style={fill ? { display:'flex', flexDirection:'column', flex:1, overflow:'hidden' } : undefined}>
-      <div style={{
-        fontSize:11, fontWeight:700, color: accent ? '#d97706' : '#94a3b8',
-        fontFamily:"'Kiwi Maru',serif", letterSpacing:'0.05em', marginBottom:10, flexShrink:0,
-      }}>
-        {label}
-      </div>
-      <div style={{
-        background:'#fff', borderRadius:16, padding:'16px',
-        boxShadow:'0 1px 3px rgba(0,0,0,0.06)',
-        border: accent ? '1px solid #fde68a' : '1px solid #f1f5f9',
-        ...(fill ? { flex:1, overflowY:'auto' as const } : {}),
-      }}>
-        {children}
-      </div>
+      {collapsible && !open ? (
+        /* 折りたたみ中：縦向きスリムタブ */
+        <button
+          onClick={onToggle}
+          style={{
+            all: 'unset', cursor: 'pointer',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 8,
+            background: accent ? '#fffbeb' : '#fff',
+            border: accent ? '1px solid #fde68a' : '1px solid #f1f5f9',
+            borderRadius: 16, padding: '16px 10px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            fontSize: 11, fontWeight: 700,
+            color: accent ? '#d97706' : '#94a3b8',
+            fontFamily: "'Kiwi Maru',serif",
+            letterSpacing: '0.05em',
+            writingMode: 'vertical-rl',
+            width: '100%', height: '100%', boxSizing: 'border-box' as const,
+          }}
+        >
+          <span style={{ fontSize: 9 }}>▶</span>
+          {label}
+        </button>
+      ) : (
+        <>
+          <div
+            onClick={collapsible ? onToggle : undefined}
+            style={{
+              fontSize:11, fontWeight:700, color: accent ? '#d97706' : '#94a3b8',
+              fontFamily:"'Kiwi Maru',serif", letterSpacing:'0.05em', marginBottom:10,
+              flexShrink:0, display:'flex', alignItems:'center', gap:6,
+              cursor: collapsible ? 'pointer' : 'default',
+              userSelect: 'none' as const,
+            }}
+          >
+            <span style={{ flex:1 }}>{label}</span>
+            {collapsible && <span style={{ fontSize:10 }}>▼</span>}
+          </div>
+          <div style={{
+            background:'#fff', borderRadius:16, padding:'16px',
+            boxShadow:'0 1px 3px rgba(0,0,0,0.06)',
+            border: accent ? '1px solid #fde68a' : '1px solid #f1f5f9',
+            ...(fill ? { flex:1, overflowY:'auto' as const } : {}),
+          }}>
+            {children}
+          </div>
+        </>
+      )}
     </div>
   )
 }

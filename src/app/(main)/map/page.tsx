@@ -27,6 +27,7 @@ const MapCanvas = dynamic(() => import('@/components/map/MapCanvas'), {
 })
 
 export default function MapPage() {
+  const [mapEnabled, setMapEnabled]     = useState<boolean | null>(null)
   const [exhibits, setExhibits]         = useState<Exhibit[]>([])
   const [floor, setFloor]               = useState(2)
   const [searchQuery, setSearchQuery]   = useState('')
@@ -34,6 +35,12 @@ export default function MapPage() {
   const [sheetExhibits, setSheetExhibits] = useState<Exhibit[]>([])
   const [focusRoom, setFocusRoom]       = useState<string | null>(null)
   const floorRef                        = useRef(floor)
+
+  useEffect(() => {
+    fetch('/api/admin/settings')
+      .then(r => r.json())
+      .then((d: { map_enabled: boolean }) => setMapEnabled(d.map_enabled ?? true))
+  }, [])
 
   const fetchExhibits = useCallback(async () => {
     const supabase = createClient()
@@ -130,6 +137,25 @@ export default function MapPage() {
     if (exhibit.floor !== undefined && exhibit.floor !== floorRef.current) setFloor(exhibit.floor)
     setFocusRoom(exhibit.room_object ?? null)
   }, [])
+
+  if (mapEnabled === false) {
+    return (
+      <div style={{
+        height: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(160deg, #e0f0ff 0%, #f0f8ff 100%)',
+        gap: 16, padding: 24, textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 56 }}>🗺️</div>
+        <div style={{ fontFamily: "'Kaisei Decol',serif", fontSize: 22, fontWeight: 700, color: '#1e293b' }}>
+          マップは現在非公開です
+        </div>
+        <div style={{ fontFamily: "'Kiwi Maru',serif", fontSize: 13, color: '#64748b', lineHeight: 1.8 }}>
+          公開までしばらくお待ちください。
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="absolute inset-0 overflow-hidden">

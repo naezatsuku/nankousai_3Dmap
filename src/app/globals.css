@@ -10,3 +10,22 @@ body {
   font-family: 'Kiwi Maru', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* 画像保存・コピー禁止 */
+img, video {
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
+}
+
+/* テキスト・全体選択禁止 */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 入力欄は選択を許可 */
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}

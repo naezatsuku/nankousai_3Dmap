@@ -170,12 +170,16 @@ export default function VotePage() {
             </div>
           ) : (
             <>
-              <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:10 }}>
+              <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:12 }}>
                 投票したい展示を選んでください
               </div>
 
-              <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
-                {data.stampedExhibits.map(ex => {
+              {(() => {
+                const isFood = (type: string) => type === 'food' || type === 'cafeteria'
+                const foodExhibits  = data.stampedExhibits.filter(e => isFood(e.type))
+                const otherExhibits = data.stampedExhibits.filter(e => !isFood(e.type))
+
+                const renderList = (list: StampedExhibit[]) => list.map(ex => {
                   const isSel = selected === ex.id
                   return (
                     <button
@@ -189,7 +193,6 @@ export default function VotePage() {
                         transition:'all 0.15s',
                       }}
                     >
-                      {/* Radio circle */}
                       <div style={{
                         width:22, height:22, borderRadius:'50%', flexShrink:0,
                         border: `2px solid ${isSel ? '#FF6B00' : '#cbd5e1'}`,
@@ -199,7 +202,6 @@ export default function VotePage() {
                       }}>
                         {isSel && <div style={{ width:8, height:8, borderRadius:'50%', background:'#fff' }} />}
                       </div>
-
                       <div style={{ flex:1, minWidth:0 }}>
                         {ex.class_label && (
                           <div style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:2 }}>
@@ -215,8 +217,41 @@ export default function VotePage() {
                       </div>
                     </button>
                   )
-                })}
-              </div>
+                })
+
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:20, marginBottom:16 }}>
+                    {otherExhibits.length > 0 && (
+                      <div>
+                        <div style={{
+                          fontSize:11, fontWeight:700, color:'#64748b',
+                          fontFamily:"'Kiwi Maru',serif", marginBottom:8,
+                          display:'flex', alignItems:'center', gap:6,
+                        }}>
+                          🏫 展示・催し
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                          {renderList(otherExhibits)}
+                        </div>
+                      </div>
+                    )}
+                    {foodExhibits.length > 0 && (
+                      <div>
+                        <div style={{
+                          fontSize:11, fontWeight:700, color:'#64748b',
+                          fontFamily:"'Kiwi Maru',serif", marginBottom:8,
+                          display:'flex', alignItems:'center', gap:6,
+                        }}>
+                          🍱 フード
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                          {renderList(foodExhibits)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {error && (
                 <div style={{ padding:'10px 14px', borderRadius:10, background:'#fef2f2', marginBottom:12,

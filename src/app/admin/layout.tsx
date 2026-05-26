@@ -12,8 +12,10 @@ const NAV = [
   { href:'/admin/notices',       icon:'🔔', label:'お知らせ管理' },
   { href:'/admin/announcements', icon:'📢', label:'アナウンス管理' },
   { href:'/admin/notify-test',   icon:'🧪', label:'通知テスト' },
+  { href:'/admin/food',           icon:'🍱', label:'販売数管理' },
   { href:'/admin/users',         icon:'👥', label:'権限管理',       adminOnly:true },
   { href:'/admin/exhibits',      icon:'🏫', label:'団体管理',       adminOnly:true },
+  { href:'/admin/settings',      icon:'⚙',  label:'サイト設定',     adminOnly:true },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

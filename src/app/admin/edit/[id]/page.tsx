@@ -20,7 +20,7 @@ type BodySegment =
 
 interface SectionMediaItem  { id:string; url:string; type:'image'|'video'; caption:string; order_index:number }
 interface Section          { id:string; heading:string; body:BodySegment[]; order:number; media:SectionMediaItem[] }
-interface MenuItem         { id:string; name:string; price:number; description:string; image_url:string; stock:number; is_selling:boolean }
+interface MenuItem         { id:string; name:string; price:number; description:string; image_url:string; stock:number; is_selling:boolean; sold_count:number }
 interface BandScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; stage:string }
 interface BandItem         { id:string; name:string; members:string[]; instagram:string; thumbnail_url:string; schedules:BandScheduleItem[] }
 interface SpecialScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; location:string; note:string }
@@ -126,7 +126,7 @@ export default function ExhibitEditPage() {
           if (data.type === 'food' || data.type === 'cafeteria') {
             const { data: menuData } = await supabase
               .from('food_menus')
-              .select('id, name, price, description, image_url, stock, is_selling')
+              .select('id, name, price, description, image_url, stock, is_selling, sold_count')
               .eq('exhibit_id', id)
             if (menuData) setMenus(menuData as MenuItem[])
           }
@@ -355,7 +355,7 @@ export default function ExhibitEditPage() {
       }
     }
     if (form.type === 'food' || form.type === 'cafeteria') {
-      const { data: md } = await supabase.from('food_menus').select('id, name, price, description, image_url, stock, is_selling').eq('exhibit_id', id)
+      const { data: md } = await supabase.from('food_menus').select('id, name, price, description, image_url, stock, is_selling, sold_count').eq('exhibit_id', id)
       if (md) setMenus(md as MenuItem[])
     }
     const { data: spd } = await supabase.from('special_schedules').select('*').eq('exhibit_id', id)
@@ -1209,8 +1209,20 @@ function BandScheduleSubEditor({ schedules, onChange }: {
 
 // ─── メニュークイック更新 ──────────────────────────────────────
 function MenuQuickEditor({ menus, onChange }: { menus: MenuItem[]; onChange: (v: MenuItem[]) => void }) {
+  const [soldSaving, setSoldSaving] = React.useState<Record<string, boolean>>({})
+  const [soldSaved,  setSoldSaved]  = React.useState<Record<string, boolean>>({})
+
   const update = (id: string, patch: Partial<MenuItem>) =>
     onChange(menus.map(m => m.id === id ? { ...m, ...patch } : m))
+
+  const saveSoldCount = async (menu: MenuItem) => {
+    if (soldSaving[menu.id] || menu.id.startsWith('new_')) return
+    setSoldSaving(p => ({ ...p, [menu.id]: true }))
+    await createClient().from('food_menus').update({ sold_count: menu.sold_count }).eq('id', menu.id)
+    setSoldSaving(p => ({ ...p, [menu.id]: false }))
+    setSoldSaved(p => ({ ...p, [menu.id]: true }))
+    setTimeout(() => setSoldSaved(p => ({ ...p, [menu.id]: false })), 1800)
+  }
 
   return (
     <div>
@@ -1239,13 +1251,37 @@ function MenuQuickEditor({ menus, onChange }: { menus: MenuItem[]; onChange: (v:
             {menu.is_selling ? '✓ 販売中' : '✗ 販売停止'}
           </button>
 
-          <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:10, padding:'8px 12px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, background:'#f8fafc', borderRadius:10, padding:'8px 12px', marginBottom:6 }}>
             <span style={{ flex:1, fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>在庫数</span>
             <button onClick={() => update(menu.id, { stock: Math.max(0, menu.stock - 1) })} style={calcBtnStyle}>−</button>
             <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', minWidth:36, textAlign:'center' }}>
               {menu.stock}
             </span>
             <button onClick={() => update(menu.id, { stock: menu.stock + 1 })} style={calcBtnStyle}>＋</button>
+          </div>
+
+          {/* 販売数（即時保存） */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, background:'#fff8f0', borderRadius:10, padding:'8px 12px', border:'1px solid #fde68a' }}>
+            <span style={{ flex:1, fontSize:11, color:'#92400e', fontFamily:"'Kiwi Maru',serif", fontWeight:700 }}>販売数</span>
+            <button onClick={() => update(menu.id, { sold_count: Math.max(0, menu.sold_count - 1) })} style={calcBtnStyle}>−</button>
+            <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#FF6B00', minWidth:36, textAlign:'center' }}>
+              {menu.sold_count}
+            </span>
+            <button onClick={() => update(menu.id, { sold_count: menu.sold_count + 1 })} style={calcBtnStyle}>＋</button>
+            <button
+              onClick={() => saveSoldCount(menu)}
+              disabled={!!soldSaving[menu.id]}
+              style={{
+                padding:'0 10px', height:30, borderRadius:8, border:'none',
+                cursor: soldSaving[menu.id] ? 'default' : 'pointer',
+                background: soldSaved[menu.id] ? '#10b981' : '#FF6B00',
+                color:'#fff', fontSize:11, fontWeight:700,
+                fontFamily:"'Kiwi Maru',serif", flexShrink:0,
+                transition:'background 0.15s',
+              }}
+            >
+              {soldSaving[menu.id] ? '…' : soldSaved[menu.id] ? '✓' : '保存'}
+            </button>
           </div>
         </div>
       ))}
@@ -1261,7 +1297,7 @@ function MenuEditor({ exhibitId, menus, onChange, onRemove }: {
   onRemove: (id: string) => void
 }) {
   const addMenu = () => onChange([...menus, {
-    id: `new_${Date.now()}`, name: '', price: 0, description: '', image_url: '', stock: 0, is_selling: true,
+    id: `new_${Date.now()}`, name: '', price: 0, description: '', image_url: '', stock: 0, is_selling: true, sold_count: 0,
   }])
 
   const update = (id: string, patch: Partial<MenuItem>) =>

@@ -80,6 +80,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         {process.env.NODE_ENV === 'development' && <ErudaLoader />}
+        <script dangerouslySetInnerHTML={{ __html: `
+          document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+          document.addEventListener('dragstart', function(e) { if (e.target.tagName === 'IMG') e.preventDefault(); });
+        `}} />
       </body>
     </html>
   )
