@@ -138,7 +138,7 @@ export default function VotePage() {
               background:'#f8fafc', border:'1px dashed #e2e8f0',
               fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#94a3b8', lineHeight:1.7,
             }}>
-              🔒 まだ公開されていません
+              おたのしみに
             </div>
           )}
         </div>

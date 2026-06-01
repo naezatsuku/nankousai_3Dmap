@@ -685,17 +685,18 @@ function TopPage({ onNavigate }: TopPageProps) {
           textAlign: "center", marginTop: 56,
           paddingTop: 28, borderTop: "1px solid rgba(255,140,0,0.12)",
         }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/nanpen.png"
-            alt="なんぺん"
-            onClick={handleFooterNanpenTap}
-            style={{
-              width: 52, height: "auto", opacity: 0.65, marginBottom: 10,
-              filter: "drop-shadow(0 4px 8px rgba(255,140,0,0.2))",
-              cursor: "pointer",
-            }}
-          />
+          <div onClick={handleFooterNanpenTap} style={{ display: "inline-block", cursor: "pointer" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/nanpen.png"
+              alt="なんぺん"
+              style={{
+                width: 52, height: "auto", opacity: 0.65, marginBottom: 10,
+                filter: "drop-shadow(0 4px 8px rgba(255,140,0,0.2))",
+                display: "block",
+              }}
+            />
+          </div>
           <div style={{
             fontFamily: "'Kaisei Decol', serif",
             fontSize: 14, color: "#FF8C00", marginBottom: 4,

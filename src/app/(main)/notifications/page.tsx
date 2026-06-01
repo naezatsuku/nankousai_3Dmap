@@ -18,6 +18,10 @@ interface ExhibitItem {
 const TYPE_LABEL: Record<string, string> = {
   class: '展示', food: 'フード', band: '軽音楽部', special: 'スペシャル', cafeteria: '食堂',
 }
+const TYPE_ICON: Record<string, string> = {
+  class: '🎭', food: '🍱', band: '🎸', special: '⭐', cafeteria: '🍽',
+}
+const TYPE_ORDER = ['class', 'food', 'band', 'special', 'cafeteria']
 
 export default function NotificationsPage() {
   const [exhibits, setExhibits]     = useState<ExhibitItem[]>([])
@@ -37,6 +41,7 @@ export default function NotificationsPage() {
   const [toggling, setToggling]     = useState<string | null>(null)
   const [globalBusy, setGlobalBusy] = useState(false)
   const [subError, setSubError]     = useState<string | null>(null)
+  const [filterType, setFilterType] = useState<string>('all')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -226,9 +231,53 @@ export default function NotificationsPage() {
         <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginBottom: 10, letterSpacing: '0.05em' }}>
           団体ごとの通知
         </div>
-        <p style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif", marginBottom: 12 }}>
+        <p style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif", marginBottom: 14 }}>
           催しが始まる30分前に通知が届きます
         </p>
+
+        {/* ── タイプフィルタータブ ── */}
+        {!loading && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+            {[
+              { key: 'all', label: 'すべて', icon: '📋' },
+              ...TYPE_ORDER
+                .filter(t => exhibits.some(e => e.type === t))
+                .map(t => ({ key: t, label: TYPE_LABEL[t] ?? t, icon: TYPE_ICON[t] ?? '•' })),
+            ].map(tab => {
+              const count = tab.key === 'all'
+                ? exhibits.length
+                : exhibits.filter(e => e.type === tab.key).length
+              const subCount = tab.key === 'all'
+                ? exhibits.filter(e => subs.has(e.id)).length
+                : exhibits.filter(e => e.type === tab.key && subs.has(e.id)).length
+              const isActive = filterType === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setFilterType(tab.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '6px 12px', borderRadius: 99, border: 'none', cursor: 'pointer',
+                    background: isActive ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f1f5f9',
+                    color: isActive ? '#fff' : '#64748b',
+                    fontSize: 11, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                  <span style={{
+                    fontSize: 10, padding: '1px 6px', borderRadius: 99,
+                    background: isActive ? 'rgba(255,255,255,0.3)' : '#e2e8f0',
+                    color: isActive ? '#fff' : '#94a3b8',
+                  }}>
+                    {subCount > 0 ? `${subCount}/${count}` : count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -239,68 +288,115 @@ export default function NotificationsPage() {
               }} />
             ))}
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {exhibits.map(ex => {
-              const on = subs.has(ex.id)
-              return (
-                <div key={ex.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 14px', borderRadius: 14, background: '#fff',
-                  border: on ? '1px solid rgba(255,140,0,0.3)' : '1px solid #f0f0f0',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-                  transition: 'border-color 0.2s',
-                }}>
+        ) : (() => {
+          const filtered = filterType === 'all' ? exhibits : exhibits.filter(e => e.type === filterType)
+
+          if (filterType !== 'all') {
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {filtered.map(ex => <ExhibitRow key={ex.id} ex={ex} on={subs.has(ex.id)} toggling={toggling} perm={perm} onToggle={handleToggle} />)}
+              </div>
+            )
+          }
+
+          // すべて表示：typeごとにグループ化
+          const groups = TYPE_ORDER
+            .map(type => ({ type, items: filtered.filter(e => e.type === type) }))
+            .filter(g => g.items.length > 0)
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {groups.map(g => (
+                <div key={g.type}>
                   <div style={{
-                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                    overflow: 'hidden', background: 'linear-gradient(135deg,#FFD166,#FF8C00)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    marginBottom: 10,
                   }}>
-                    {ex.thumbnail_url
-                      ? <img src={ex.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : '🎨'}
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 14, fontWeight: 700, color: '#1a1a1a',
-                      fontFamily: "'Kaisei Decol',serif",
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      marginBottom: 2,
+                    <span style={{ fontSize: 14 }}>{TYPE_ICON[g.type]}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: '#64748b',
+                      fontFamily: "'Kiwi Maru',serif", letterSpacing: '0.05em',
                     }}>
-                      {ex.class_label && (
-                        <span style={{ fontSize: 11, color: '#aaa', marginRight: 6 }}>{ex.class_label}</span>
-                      )}
-                      {ex.name}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif" }}>
-                      {TYPE_LABEL[ex.type] ?? ex.type}
-                    </div>
+                      {TYPE_LABEL[g.type] ?? g.type}
+                    </span>
+                    <span style={{
+                      fontSize: 10, padding: '1px 7px', borderRadius: 99,
+                      background: '#f1f5f9', color: '#94a3b8',
+                      fontFamily: "'Kiwi Maru',serif",
+                    }}>
+                      {g.items.length}
+                    </span>
+                    <div style={{ flex: 1, height: 1, background: '#f1f5f9', marginLeft: 4 }} />
                   </div>
-
-                  <button
-                    onClick={() => handleToggle(ex.id)}
-                    disabled={toggling === ex.id || perm === 'denied' || perm === 'unsupported'}
-                    style={{
-                      flexShrink: 0, padding: '6px 14px', borderRadius: 99, border: 'none',
-                      cursor: (perm === 'denied' || perm === 'unsupported') ? 'default' : 'pointer',
-                      background: on ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f0f0f0',
-                      color: on ? '#fff' : '#999',
-                      fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
-                      transition: 'background 0.2s',
-                      minWidth: 72, textAlign: 'center',
-                    }}
-                  >
-                    {toggling === ex.id ? '…' : on ? '🔔 ON' : '🔕 OFF'}
-                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {g.items.map(ex => <ExhibitRow key={ex.id} ex={ex} on={subs.has(ex.id)} toggling={toggling} perm={perm} onToggle={handleToggle} />)}
+                  </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+    </div>
+  )
+}
+
+function ExhibitRow({ ex, on, toggling, perm, onToggle }: {
+  ex: ExhibitItem; on: boolean; toggling: string | null
+  perm: string; onToggle: (id: string) => void
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '12px 14px', borderRadius: 14, background: '#fff',
+      border: on ? '1px solid rgba(255,140,0,0.3)' : '1px solid #f0f0f0',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+      transition: 'border-color 0.2s',
+    }}>
+      <div style={{
+        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+        overflow: 'hidden', background: 'linear-gradient(135deg,#FFD166,#FF8C00)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+      }}>
+        {ex.thumbnail_url
+          ? <img src={ex.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : (TYPE_ICON[ex.type] ?? '🎨')}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+          fontFamily: "'Kaisei Decol',serif",
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          marginBottom: 2,
+        }}>
+          {ex.class_label && (
+            <span style={{ fontSize: 11, color: '#aaa', marginRight: 6 }}>{ex.class_label}</span>
+          )}
+          {ex.name}
+        </div>
+        <div style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif" }}>
+          {TYPE_LABEL[ex.type] ?? ex.type}
+        </div>
+      </div>
+
+      <button
+        onClick={() => onToggle(ex.id)}
+        disabled={toggling === ex.id || perm === 'denied' || perm === 'unsupported'}
+        style={{
+          flexShrink: 0, padding: '6px 14px', borderRadius: 99, border: 'none',
+          cursor: (perm === 'denied' || perm === 'unsupported') ? 'default' : 'pointer',
+          background: on ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f0f0f0',
+          color: on ? '#fff' : '#999',
+          fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+          transition: 'background 0.2s',
+          minWidth: 72, textAlign: 'center' as const,
+        }}
+      >
+        {toggling === ex.id ? '…' : on ? '🔔 ON' : '🔕 OFF'}
+      </button>
     </div>
   )
 }
