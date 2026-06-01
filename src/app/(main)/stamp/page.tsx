@@ -1,212 +1,21 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
+import InstallBanner from '@/components/ui/InstallBanner'
 
 const QrScanner     = dynamic(() => import('@/components/ui/QrScanner'),    { ssr: false })
 const FeedbackSheet = dynamic(() => import('@/components/ui/FeedbackSheet'), { ssr: false })
 
-interface StampExhibit { id: string; name: string; thumbnail_url: string | null }
+interface StampExhibit { id: string; name: string; class_label: string | null; thumbnail_url: string | null }
 interface StampRecord  { exhibit_id: string; stamped_at: string }
 interface Toast        { msg: string; type: 'ok' | 'err' | 'already' }
 
-// ── スタンプサイズ（展示数に応じて縮小）──────────────────────────
-function stampSizePct(n: number): number {
-  return Math.max(7, Math.min(13, 100 / n))
-}
+const COLS = 5
+const GAP  = 8   // セル間の隙間 px
+const PAD  = 16  // 外側の余白 px
 
-// ── 魔法陣 SVG ────────────────────────────────────────────────────
-function MagicCircle({ n, stampedIds, exhibits, newStampId }: {
-  n: number
-  exhibits: StampExhibit[]
-  stampedIds: Set<string>
-  newStampId: string | null
-}) {
-  const sizePct = stampSizePct(n)
-  const ringR   = 36 // 配置リングの半径（%）
-
-  return (
-    <div style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
-      {/* ── SVG 魔法陣 ─────────────────────────── */}
-      <svg
-        viewBox="0 0 100 100"
-        width="100%"
-        height="100%"
-        style={{ position: 'absolute', inset: 0 }}
-      >
-        <defs>
-          <radialGradient id="mc-bg" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"   stopColor="#1e0b38" />
-            <stop offset="100%" stopColor="#06091a" />
-          </radialGradient>
-          <radialGradient id="mc-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"   stopColor="#FF6B0022" />
-            <stop offset="100%" stopColor="transparent" />
-          </radialGradient>
-        </defs>
-
-        {/* 背景 */}
-        <circle cx="50" cy="50" r="49" fill="url(#mc-bg)" />
-        <circle cx="50" cy="50" r="49" fill="url(#mc-glow)" />
-
-        {/* 外リング */}
-        <circle cx="50" cy="50" r="47" fill="none" stroke="#C8922A" strokeWidth="0.4" opacity="0.6" />
-        <circle cx="50" cy="50" r="45" fill="none" stroke="#C8922A" strokeWidth="0.8" opacity="0.9" />
-
-        {/* スタンプ配置リング（破線） */}
-        <circle cx="50" cy="50" r={ringR} fill="none" stroke="#C8922A" strokeWidth="0.3" opacity="0.35" strokeDasharray="2 3" />
-
-        {/* 中間リング */}
-        <circle cx="50" cy="50" r="26" fill="none" stroke="#C8922A" strokeWidth="0.6" opacity="0.7" />
-
-        {/* 内リング */}
-        <circle cx="50" cy="50" r="13" fill="none" stroke="#C8922A" strokeWidth="0.7" opacity="0.9" />
-
-        {/* 六芒星（内側装飾） */}
-        <polygon points="50,37 60.4,56 39.6,56" fill="none" stroke="#C8922A" strokeWidth="0.4" opacity="0.55" />
-        <polygon points="50,63 60.4,44 39.6,44" fill="none" stroke="#C8922A" strokeWidth="0.4" opacity="0.55" />
-
-        {/* スタンプ位置への放射線 */}
-        {exhibits.map((_, i) => {
-          const a  = (2 * Math.PI * i / n) - Math.PI / 2
-          const x1 = 50 + 13 * Math.cos(a)
-          const y1 = 50 + 13 * Math.sin(a)
-          const x2 = 50 + 44 * Math.cos(a)
-          const y2 = 50 + 44 * Math.sin(a)
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#C8922A" strokeWidth="0.25" opacity="0.25" />
-        })}
-
-        {/* 外リング上の小マーク（スタンプ位置） */}
-        {exhibits.map((_, i) => {
-          const a = (2 * Math.PI * i / n) - Math.PI / 2
-          const x = 50 + 45 * Math.cos(a)
-          const y = 50 + 45 * Math.sin(a)
-          return <circle key={i} cx={x} cy={y} r="1.2" fill="#C8922A" opacity="0.85" />
-        })}
-      </svg>
-
-      {/* ── スタンプスロット ────────────────────── */}
-      {exhibits.map((exhibit, i) => {
-        const a         = (2 * Math.PI * i / n) - Math.PI / 2
-        const leftPct   = 50 + ringR * Math.cos(a)
-        const topPct    = 50 + ringR * Math.sin(a)
-        const collected = stampedIds.has(exhibit.id)
-        const isNew     = newStampId === exhibit.id
-
-        return (
-          <StampSlot
-            key={exhibit.id}
-            exhibit={exhibit}
-            collected={collected}
-            isNew={isNew}
-            leftPct={leftPct}
-            topPct={topPct}
-            sizePct={sizePct}
-          />
-        )
-      })}
-
-      {/* ── 中央テキスト ─────────────────────────── */}
-      <div style={{
-        position:       'absolute',
-        inset:          0,
-        display:        'flex',
-        flexDirection:  'column',
-        alignItems:     'center',
-        justifyContent: 'center',
-        pointerEvents:  'none',
-      }}>
-        <div style={{ fontSize: 'clamp(9px, 2vw, 13px)', color: '#C8922A', fontFamily: "'Kaisei Decol',serif", letterSpacing: '0.15em', opacity: 0.85 }}>
-          南高祭
-        </div>
-        <div style={{ fontSize: 'clamp(7px, 1.5vw, 10px)', color: '#C8922A80', fontFamily: "'Kiwi Maru',serif", marginTop: 2 }}>
-          STAMP RALLY
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── スタンプスロット ──────────────────────────────────────────────
-function StampSlot({ exhibit, collected, isNew, leftPct, topPct, sizePct }: {
-  exhibit:   StampExhibit
-  collected: boolean
-  isNew:     boolean
-  leftPct:   number
-  topPct:    number
-  sizePct:   number
-}) {
-  const imgSrc = exhibit.thumbnail_url ?? '/nanpen.png'
-
-  return (
-    <div style={{
-      position: 'absolute',
-      left:     `${leftPct}%`,
-      top:      `${topPct}%`,
-    }}>
-      {/* インク広がりエフェクト */}
-      {isNew && (
-        <div style={{
-          position:     'absolute',
-          width:        `${sizePct * 2}vmin`,
-          height:       `${sizePct * 2}vmin`,
-          borderRadius: '50%',
-          border:       '3px solid #FF6B00',
-          transform:    'translate(-50%, -50%)',
-          animation:    'ink-ring 0.9s ease-out forwards',
-          pointerEvents: 'none',
-        }} />
-      )}
-
-      {/* スタンプ本体 */}
-      <div style={{
-        position:        'absolute',
-        width:           `${sizePct}vmin`,
-        height:          `${sizePct}vmin`,
-        borderRadius:    '50%',
-        transform:       'translate(-50%, -50%)',
-        animation:       isNew ? 'stamp-down 0.75s cubic-bezier(.22,.68,0,1.2) forwards' : undefined,
-        overflow:        'hidden',
-        border:          collected ? '2px solid #FF6B00' : '1.5px solid #444',
-        background:      collected ? '#1a0533' : '#0c101a',
-        boxShadow:       collected ? '0 0 10px #FF6B0055' : 'none',
-        opacity:         collected ? 1 : 0.35,
-        transition:      'opacity 0.4s, box-shadow 0.4s, border-color 0.4s',
-      }}>
-        {collected && (
-          <img
-            src={imgSrc}
-            alt={exhibit.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-            onError={e => { (e.target as HTMLImageElement).src = '/nanpen.png' }}
-          />
-        )}
-      </div>
-
-      {/* 展示名ラベル（収集済みのみ） */}
-      {collected && (
-        <div style={{
-          position:   'absolute',
-          top:        `calc(${sizePct / 2}vmin + 4px)`,
-          left:       '50%',
-          transform:  'translateX(-50%)',
-          whiteSpace: 'nowrap',
-          fontSize:   'clamp(7px, 1.4vmin, 9px)',
-          color:      '#C8922A',
-          fontFamily: "'Kiwi Maru',serif",
-          fontWeight: 700,
-          textShadow: '0 1px 4px #000a',
-          pointerEvents: 'none',
-        }}>
-          {exhibit.name.length > 6 ? exhibit.name.slice(0, 5) + '…' : exhibit.name}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── メインページ ─────────────────────────────────────────────────
 export default function StampPage() {
   const [userId] = useState<string>(() => {
     if (typeof window === 'undefined') return ''
@@ -217,52 +26,71 @@ export default function StampPage() {
     }
     return id
   })
-  const [exhibits,   setExhibits]   = useState<StampExhibit[]>([])
-  const [stamps,     setStamps]     = useState<StampRecord[]>([])
-  const [scanning,       setScanning]       = useState(false)
-  const [newStampId,     setNewStampId]     = useState<string | null>(null)
-  const [toast,          setToast]          = useState<Toast | null>(null)
-  const [debugLog,       setDebugLog]       = useState<string[]>([])
-  const [feedbackSheet,  setFeedbackSheet]  = useState<{ exhibitId: string; exhibitName: string } | null>(null)
 
-  const dbg = (msg: string) => {
-    console.log('[stamp]', msg)
-    setDebugLog(prev => [...prev.slice(-9), `${new Date().toTimeString().slice(0,8)} ${msg}`])
-  }
+  const [exhibits,      setExhibits]      = useState<StampExhibit[]>([])
+  const [stamps,        setStamps]        = useState<StampRecord[]>([])
+  const [scanning,      setScanning]      = useState(false)
+  const [newStampId,    setNewStampId]    = useState<string | null>(null)
+  const [toast,         setToast]         = useState<Toast | null>(null)
+  const [feedbackSheet, setFeedbackSheet] = useState<{ exhibitId: string; exhibitName: string } | null>(null)
+  const [page,          setPage]          = useState(0)
+  const [rowsPerPage,   setRowsPerPage]   = useState(3)
+  const [cellSize,      setCellSize]      = useState(56)
 
-  // スタンプ対象展示を取得
+  const bodyRef  = useRef<HTMLDivElement>(null)
+  const touchX   = useRef(0)
+
+  // ── セルサイズ・1ページの行数を計測 ───────────────────────────────
   useEffect(() => {
-    console.log('[stamp] 展示フェッチ開始')
-    const sb = createClient()
-    sb.from('exhibits')
-      .select('id, name, thumbnail_url')
-      .eq('is_stamp_target', true)
-      .eq('is_active', true)
-      .then(({ data, error }) => {
-        if (error) { dbg(`展示エラー: ${error.message}`); return }
-        dbg(`展示 ${data?.length ?? 0}件`)
-        if (data) setExhibits(data as StampExhibit[])
-      })
+    const measure = () => {
+      if (!bodyRef.current) return
+      const W = bodyRef.current.clientWidth
+      const H = bodyRef.current.clientHeight
+
+      // セル幅 = (エリア幅 - 左右余白×2 - セル間gap×(COLS-1)) / 列数
+      const cs  = Math.floor((W - PAD * 2 - GAP * (COLS - 1)) / COLS)
+      // 名前エリアを含むセル全高
+      const cellH = cs + 20   // 画像 + 名前ラベル分
+      // 収まる行数
+      const rows = Math.max(1, Math.floor((H - GAP * 10) / (cellH + GAP)))
+
+      setCellSize(cs)
+      setRowsPerPage(rows)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (bodyRef.current) ro.observe(bodyRef.current)
+    return () => ro.disconnect()
   }, [])
 
-  // 収集済みスタンプを取得
-  const fetchStamps = useCallback(async (uid: string) => {
-    dbg('スタンプ取得中…')
-    const res  = await fetch(`/api/stamp?userId=${uid}`)
-    const json = await res.json() as { stamps: StampRecord[] }
-    dbg(`スタンプ ${json.stamps?.length ?? 0}件`)
-    if (json.stamps) setStamps(json.stamps)
+  const itemsPerPage = rowsPerPage * COLS
+  const pageCount    = Math.max(1, Math.ceil(exhibits.length / itemsPerPage))
+  const pageExhibits = exhibits.slice(page * itemsPerPage, (page + 1) * itemsPerPage)
+
+  // ── データ取得 ────────────────────────────────────────────────────
+  useEffect(() => {
+    createClient()
+      .from('exhibits')
+      .select('id, name, class_label, thumbnail_url')
+      .eq('is_stamp_target', true)
+      .eq('is_active', true)
+      .then(({ data }) => { if (data) setExhibits(data as StampExhibit[]) })
   }, [])
 
   useEffect(() => {
     if (!userId) return
-    let alive = true
     fetch(`/api/stamp?userId=${userId}`)
       .then(r => r.json())
-      .then((json: { stamps: StampRecord[] }) => { if (alive && json.stamps) setStamps(json.stamps) })
-    return () => { alive = false }
+      .then((json: { stamps: StampRecord[] }) => { if (json.stamps) setStamps(json.stamps) })
   }, [userId])
 
+  const fetchStamps = useCallback(async (uid: string) => {
+    const res  = await fetch(`/api/stamp?userId=${uid}`)
+    const json = await res.json() as { stamps: StampRecord[] }
+    if (json.stamps) setStamps(json.stamps)
+  }, [])
+
+  // ── スキャン処理 ──────────────────────────────────────────────────
   const showToast = useCallback((msg: string, type: Toast['type']) => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
@@ -278,9 +106,8 @@ export default function StampPage() {
       if (!e || !w || !h || !userId) { showToast('QRコードを認識できませんでした', 'err'); return }
 
       const res  = await fetch('/api/stamp', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ exhibitId: e, w, h, userId }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exhibitId: e, w, h, userId }),
       })
       const json = await res.json() as { ok?: boolean; already?: boolean; exhibitName?: string; error?: string }
 
@@ -289,171 +116,238 @@ export default function StampPage() {
         setFeedbackSheet({ exhibitId: e, exhibitName: json.exhibitName ?? '' })
       } else if (json.ok) {
         setNewStampId(e)
-        setTimeout(() => setNewStampId(null), 2200)
+        setTimeout(() => setNewStampId(null), 1500)
         await fetchStamps(userId)
         showToast(`✓ ${json.exhibitName} のスタンプを押しました！`, 'ok')
         setFeedbackSheet({ exhibitId: e, exhibitName: json.exhibitName ?? '' })
+        const idx = exhibits.findIndex(ex => ex.id === e)
+        if (idx >= 0) setPage(Math.floor(idx / itemsPerPage))
       } else {
         showToast(json.error ?? 'エラーが発生しました', 'err')
       }
     } catch {
       showToast('このQRコードは対応していません', 'err')
     }
-  }, [userId, fetchStamps, showToast])
+  }, [userId, fetchStamps, showToast, exhibits, itemsPerPage])
 
-  const stampedIds  = new Set(stamps.map(s => s.exhibit_id))
-  const collected   = stamps.length
-  const total       = exhibits.length
+  const stampedIds = new Set(stamps.map(s => s.exhibit_id))
+  const collected  = stamps.length
+  const total      = exhibits.length
 
   return (
     <>
       <style>{`
-        @keyframes stamp-down {
-          0%   { transform: translate(-50%,-50%) scale(3) rotate(-10deg); opacity: 0; }
-          35%  { opacity: 1; }
-          65%  { transform: translate(-50%,-50%) scale(1.08) rotate(1.5deg); }
-          80%  { transform: translate(-50%,-50%) scale(0.96); }
-          100% { transform: translate(-50%,-50%) scale(1) rotate(0deg); }
-        }
-        @keyframes ink-ring {
-          0%   { transform: translate(-50%,-50%) scale(0.6); opacity: 0.75; }
-          100% { transform: translate(-50%,-50%) scale(2.8); opacity: 0; }
+        @keyframes stamp-pop {
+          0%   { transform: scale(1.8) rotate(-6deg); opacity: 0; }
+          55%  { transform: scale(0.93) rotate(1deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); }
         }
         @keyframes toast-in {
-          from { opacity: 0; transform: translateY(12px) scale(0.96); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
       <div style={{
-        minHeight:     '100%',
-        display:       'flex',
-        flexDirection: 'column',
-        alignItems:    'center',
-        padding:       '20px 16px 40px',
-        background:    'linear-gradient(170deg, #0f0520 0%, #10081e 60%, #070d20 100%)',
+        height: '100%', display: 'flex', flexDirection: 'column',
+        background: '#f8fafc', overflow: 'hidden',
       }}>
 
         {/* ── ヘッダー ── */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <h1 style={{
-            fontFamily: "'Kaisei Decol',serif",
-            fontSize:   22,
-            fontWeight: 900,
-            color:      '#fff',
-            letterSpacing: '0.08em',
-            marginBottom: 8,
+        <div style={{
+          padding: '14px 16px 12px', flexShrink: 0,
+          background: '#fff', borderBottom: '1px solid #e2e8f0',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div>
+            <div style={{ fontFamily: "'Kaisei Decol',serif", fontSize: 17, fontWeight: 700, color: '#1e293b' }}>
+              🎯 スタンプラリー
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginTop: 1 }}>
+              各展示でQRを読み取ろう
+            </div>
+          </div>
+          <div style={{
+            padding: '6px 14px', borderRadius: 99,
+            background: collected === total && total > 0 ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f1f5f9',
+            fontFamily: "'Kaisei Decol',serif", fontSize: 14, fontWeight: 700,
+            color: collected === total && total > 0 ? '#fff' : '#64748b',
           }}>
-            ✦ スタンプラリー ✦
-          </h1>
-          {total > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <div style={{
-                background: 'rgba(255,107,0,0.15)',
-                border:     '1px solid rgba(255,107,0,0.4)',
-                borderRadius: 99,
-                padding:    '4px 16px',
-                color:      '#FFAA28',
-                fontSize:   13,
-                fontWeight: 700,
-                fontFamily: "'Kiwi Maru',serif",
-              }}>
-                {collected} / {total} 収集
-              </div>
-              {collected === total && total > 0 && (
-                <div style={{ color: '#fbbf24', fontSize: 13, fontFamily: "'Kiwi Maru',serif" }}>
-                  🎉 コンプリート！
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ color: '#ffffff44', fontSize: 12, fontFamily: "'Kiwi Maru',serif" }}>
-              準備中です
-            </div>
-          )}
+            {collected} / {total}
+            {collected === total && total > 0 && ' 🎉'}
+          </div>
         </div>
 
-        {/* ── 魔法陣 ── */}
-        <div style={{ width: '100%', maxWidth: 440 }}>
-          {total > 0 ? (
-            <MagicCircle
-              n={total}
-              exhibits={exhibits}
-              stampedIds={stampedIds}
-              newStampId={newStampId}
-            />
-          ) : (
+        {/* ── インストール誘導 ── */}
+        <InstallBanner />
+
+        {/* ── グリッド本体 ── */}
+        <div
+          ref={bodyRef}
+          style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center' }}
+          onTouchStart={e => { touchX.current = e.touches[0].clientX }}
+          onTouchEnd={e => {
+            const diff = touchX.current - e.changedTouches[0].clientX
+            if (diff >  50 && page < pageCount - 1) setPage(p => p + 1)
+            if (diff < -50 && page > 0)             setPage(p => p - 1)
+          }}
+        >
+          {total === 0 ? (
             <div style={{
-              aspectRatio:  '1',
-              borderRadius: '50%',
-              background:   '#06091a',
-              display:      'flex',
-              alignItems:   'center',
-              justifyContent: 'center',
-              color:        '#ffffff22',
-              fontSize:     14,
-              fontFamily:   "'Kiwi Maru',serif",
+              width: '100%', textAlign: 'center',
+              color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", fontSize: 13,
             }}>
               スタンプ展示が設定されていません
             </div>
+          ) : (
+            <div style={{
+              padding: `0 ${PAD}px`,
+              display: 'flex', flexDirection: 'column', gap: GAP,
+              width: '100%',
+            }}>
+              {Array.from({ length: rowsPerPage }, (_, r) => (
+                <div key={r} style={{ display: 'flex', gap: GAP }}>
+                  {Array.from({ length: COLS }, (_, c) => {
+                    const ex      = pageExhibits[r * COLS + c]
+                    const stamped = ex ? stampedIds.has(ex.id) : false
+                    const isNew   = ex ? newStampId === ex.id : false
+
+                    return (
+                      <div key={c} style={{ width: cellSize, flexShrink: 0 }}>
+                        {/* 画像ボックス */}
+                        <div style={{
+                          width: cellSize, height: cellSize,
+                          borderRadius: 10,
+                          overflow: 'hidden',
+                          background: !ex ? '#f1f5f9' : stamped ? '#fff0e0' : '#e9f0f8',
+                          border: stamped ? '2px solid #FF8C0080' : '1.5px solid #e2e8f0',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          position: 'relative',
+                          boxShadow: stamped ? '0 2px 8px rgba(255,107,0,0.15)' : '0 1px 3px rgba(0,0,0,0.06)',
+                          transition: 'border-color 0.3s, box-shadow 0.3s',
+                        }}>
+                          {ex && stamped && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={ex.thumbnail_url ?? '/nanpen.png'}
+                              alt={ex.name}
+                              onError={e => { (e.target as HTMLImageElement).src = '/nanpen.png' }}
+                              style={{
+                                width: '100%', height: '100%', objectFit: 'cover',
+                                animation: isNew ? 'stamp-pop 0.45s cubic-bezier(.22,.68,0,1.2)' : undefined,
+                              }}
+                            />
+                          )}
+                          {ex && !stamped && (
+                            <span style={{ fontSize: cellSize * 0.3, opacity: 0.18 }}>⬜</span>
+                          )}
+                          {/* スタンプ済みチェック */}
+                          {stamped && (
+                            <div style={{
+                              position: 'absolute', bottom: 3, right: 3,
+                              width: 14, height: 14, borderRadius: '50%',
+                              background: '#FF6B00', color: '#fff',
+                              fontSize: 8, fontWeight: 700,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                            }}>✓</div>
+                          )}
+                        </div>
+
+                        {/* クラス名 */}
+                        <div style={{
+                          marginTop: 4,
+                          fontSize: Math.max(8, Math.floor(cellSize * 0.13)),
+                          color: ex ? (stamped ? '#92400e' : '#64748b') : 'transparent',
+                          fontFamily: "'Kiwi Maru',serif",
+                          fontWeight: stamped ? 700 : 400,
+                          textAlign: 'center',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis',
+                          width: cellSize,
+                        }}>
+                          {ex ? (ex.class_label ?? ex.name) : '　'}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
+        {/* ── ページネーション ── */}
+        {pageCount > 1 && (
+          <div style={{
+            flexShrink: 0, padding: '6px 16px 4px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            background: '#f8fafc',
+          }}>
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              style={{
+                padding: '5px 14px', borderRadius: 8, border: '1px solid #e2e8f0',
+                background: '#fff', cursor: page === 0 ? 'default' : 'pointer',
+                color: page === 0 ? '#cbd5e1' : '#475569',
+                fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+              }}
+            >← 前</button>
+
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+              {Array.from({ length: pageCount }, (_, i) => (
+                <button key={i} onClick={() => setPage(i)} style={{
+                  width: i === page ? 20 : 7, height: 7,
+                  borderRadius: 99, border: 'none', cursor: 'pointer', padding: 0,
+                  background: i === page ? '#FF6B00' : '#cbd5e1',
+                  transition: 'all 0.2s',
+                }} />
+              ))}
+            </div>
+
+            <button
+              onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+              disabled={page === pageCount - 1}
+              style={{
+                padding: '5px 14px', borderRadius: 8, border: '1px solid #e2e8f0',
+                background: '#fff', cursor: page === pageCount - 1 ? 'default' : 'pointer',
+                color: page === pageCount - 1 ? '#cbd5e1' : '#475569',
+                fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+              }}
+            >次 →</button>
+          </div>
+        )}
+
         {/* ── スキャンボタン ── */}
-        {total > 0 && (
+        <div style={{
+          padding: '8px 16px 16px', flexShrink: 0,
+          background: '#fff', borderTop: '1px solid #e2e8f0',
+        }}>
           <button
             onClick={() => setScanning(true)}
+            disabled={total === 0}
             style={{
-              marginTop:    32,
-              padding:      '14px 40px',
-              borderRadius: 99,
-              border:       'none',
-              cursor:       'pointer',
-              background:   'linear-gradient(135deg, #FF6B00, #FFAA28)',
-              color:        '#fff',
-              fontSize:     16,
-              fontWeight:   700,
-              fontFamily:   "'Kaisei Decol',serif",
-              boxShadow:    '0 4px 20px rgba(255,107,0,0.5)',
-              letterSpacing: '0.05em',
-              display:      'flex',
-              alignItems:   'center',
-              gap:          8,
+              width: '100%', padding: '13px', borderRadius: 12, border: 'none',
+              cursor: total === 0 ? 'default' : 'pointer',
+              background: total === 0 ? '#e2e8f0' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+              color: total === 0 ? '#94a3b8' : '#fff',
+              fontSize: 15, fontWeight: 700, fontFamily: "'Kaisei Decol',serif",
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              boxShadow: total === 0 ? 'none' : '0 4px 14px rgba(255,107,0,0.3)',
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
               <rect x="7" y="7" width="10" height="10" rx="1" />
             </svg>
             QR をスキャン
           </button>
-        )}
-
-        {/* ── 説明テキスト ── */}
-        {total > 0 && (
-          <p style={{
-            marginTop:  16,
-            color:      '#ffffff44',
-            fontSize:   11,
-            fontFamily: "'Kiwi Maru',serif",
-            textAlign:  'center',
-            lineHeight: 1.7,
-          }}>
-            各展示に訪れて QR コードを読み取ってください<br />
-            スタンプが集まると魔法陣が完成します
-          </p>
-        )}
+        </div>
       </div>
 
-      {/* ── QR スキャナー ── */}
-      {scanning && (
-        <QrScanner
-          onResult={handleScanResult}
-          onCancel={() => setScanning(false)}
-        />
-      )}
-
-      {/* ── フィードバックシート ── */}
+      {scanning && <QrScanner onResult={handleScanResult} onCancel={() => setScanning(false)} />}
       {feedbackSheet && (
         <FeedbackSheet
           exhibitId={feedbackSheet.exhibitId}
@@ -463,38 +357,15 @@ export default function StampPage() {
         />
       )}
 
-      {/* ── デバッグログ（開発時のみ表示） ── */}
-      {process.env.NODE_ENV === 'development' && debugLog.length > 0 && (
-        <div style={{
-          position: 'fixed', bottom: 160, left: 8, right: 8, zIndex: 400,
-          background: 'rgba(0,0,0,0.85)', borderRadius: 8, padding: '8px 12px',
-          fontFamily: 'monospace', fontSize: 11, color: '#0f0',
-          pointerEvents: 'none',
-        }}>
-          {debugLog.map((l, i) => <div key={i}>{l}</div>)}
-        </div>
-      )}
-
-      {/* ── トースト通知 ── */}
       {toast && (
         <div style={{
-          position:       'fixed',
-          bottom:         100,
-          left:           '50%',
-          transform:      'translateX(-50%)',
-          zIndex:         300,
-          background:     toast.type === 'ok' ? '#16a34a' : toast.type === 'already' ? '#d97706' : '#dc2626',
-          color:          '#fff',
-          padding:        '12px 24px',
-          borderRadius:   12,
-          fontSize:       13,
-          fontWeight:     700,
-          fontFamily:     "'Kiwi Maru',serif",
-          boxShadow:      '0 4px 20px rgba(0,0,0,0.35)',
-          maxWidth:       320,
-          textAlign:      'center',
-          animation:      'toast-in 0.25s ease-out',
-          whiteSpace:     'pre-wrap',
+          position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 300,
+          background: toast.type === 'ok' ? '#16a34a' : toast.type === 'already' ? '#d97706' : '#dc2626',
+          color: '#fff', padding: '12px 24px', borderRadius: 12,
+          fontSize: 13, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', maxWidth: 300,
+          textAlign: 'center', animation: 'toast-in 0.2s ease-out', whiteSpace: 'pre-wrap',
         }}>
           {toast.msg}
         </div>

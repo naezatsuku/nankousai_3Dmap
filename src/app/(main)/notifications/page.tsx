@@ -6,6 +6,8 @@ import {
   getFCMToken, subscribeToExhibit, unsubscribeFromExhibit, getLocalSubs,
   isGlobalOn, subscribeToGlobal, unsubscribeFromGlobal,
 } from '@/lib/push'
+import InstallBanner    from '@/components/ui/InstallBanner'
+import NotificationHelp from '@/components/ui/NotificationHelp'
 
 interface ExhibitItem {
   id:            string
@@ -118,15 +120,17 @@ export default function NotificationsPage() {
 
   return (
     <div style={{ padding: '16px 16px 32px' }}>
+      <InstallBanner />
       <h1 style={{
         fontFamily: "'Kaisei Decol',serif", fontSize: 20, fontWeight: 700,
-        color: '#1a1a1a', marginBottom: 4,
+        color: '#1a1a1a', marginBottom: 4, marginTop: 16,
       }}>
         通知設定
       </h1>
-      <p style={{ fontSize: 11, color: '#999', fontFamily: "'Kiwi Maru',serif", marginBottom: subError ? 12 : 24 }}>
+      <p style={{ fontSize: 11, color: '#999', fontFamily: "'Kiwi Maru',serif", marginBottom: 16 }}>
         お知らせや催しの開始前に通知が届きます
       </p>
+      <NotificationHelp />
 
       {/* エラー表示 */}
       {subError && (
