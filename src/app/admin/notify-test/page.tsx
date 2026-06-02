@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 interface TestResult {
   referenceTime: string
@@ -12,6 +14,16 @@ interface TestResult {
 }
 
 export default function NotifyTestPage() {
+  const router = useRouter()
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { router.push('/admin/login'); return }
+      const { data: p } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if ((p as { role: string } | null)?.role !== 'admin') router.push('/admin')
+    })
+  }, [router])
+
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   const defaultTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface AnnouncementRow {
@@ -12,6 +13,7 @@ interface AnnouncementRow {
 }
 
 export default function AnnouncementsPage() {
+  const router = useRouter()
   const [rows, setRows]         = useState<AnnouncementRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [adding, setAdding]     = useState(false)
@@ -22,6 +24,11 @@ export default function AnnouncementsPage() {
 
   useEffect(() => {
     const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { router.push('/admin/login'); return }
+      const { data: p } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if ((p as { role: string } | null)?.role !== 'admin') { router.push('/admin'); return }
+    })
     supabase
       .from('announcements')
       .select('*')

@@ -15,6 +15,7 @@ interface ExhibitItem {
   class_label:   string | null
   type:          string
   thumbnail_url: string | null
+  cover_url:     string | null
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -51,7 +52,7 @@ export default function NotificationsPage() {
     const supabase = createClient()
     supabase
       .from('exhibits')
-      .select('id, name, class_label, type, thumbnail_url')
+      .select('id, name, class_label, type, thumbnail_url, cover_url')
       .eq('is_active', true)
       .order('class_label', { nullsFirst: false })
       .then(({ data }) => {
@@ -364,8 +365,9 @@ function ExhibitRow({ ex, on, toggling, perm, onToggle }: {
         overflow: 'hidden', background: 'linear-gradient(135deg,#FFD166,#FF8C00)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
       }}>
-        {ex.thumbnail_url
-          ? <img src={ex.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {(ex.thumbnail_url ?? ex.cover_url)
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={(ex.thumbnail_url ?? ex.cover_url)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : (TYPE_ICON[ex.type] ?? '🎨')}
       </div>
 

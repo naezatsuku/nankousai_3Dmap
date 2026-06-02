@@ -43,7 +43,7 @@ interface RawNotice {
   id: string; exhibit_id: string; title: string; body: string
   sender_name: string|null; is_urgent: boolean; created_at: string
   notice_media: RawNoticeMedia[]
-  exhibit: { id: string; name: string; thumbnail_url: string|null } | null
+  exhibit: { id: string; name: string; thumbnail_url: string|null; cover_url: string|null } | null
 }
 
 // ─── Supabase データ取得 ──────────────────────────────────────
@@ -53,7 +53,7 @@ function rawToNoticeItem(raw: RawNotice): NoticeItem {
     id:         raw.id,
     exhibit_id: raw.exhibit_id,
     sender:     raw.sender_name ?? raw.exhibit?.name ?? '不明',
-    sender_thumbnail: raw.exhibit?.thumbnail_url ?? undefined,
+    sender_thumbnail: raw.exhibit?.thumbnail_url ?? raw.exhibit?.cover_url ?? undefined,
     title:      raw.title,
     body:       raw.body ? [{ type: 'text' as const, text: raw.body }] : [],
     media:      (raw.notice_media ?? [])
@@ -77,7 +77,7 @@ export async function fetchNotices(): Promise<NoticeItem[]> {
     .select(`
       id, exhibit_id, title, body, sender_name, is_urgent, created_at,
       notice_media(id, url, type, caption, order_index),
-      exhibit:exhibits(id, name, thumbnail_url)
+      exhibit:exhibits(id, name, thumbnail_url, cover_url)
     `)
     .order('created_at', { ascending: false })
 
@@ -94,7 +94,7 @@ export async function fetchNotice(id: string): Promise<NoticeItem | null> {
     .select(`
       id, exhibit_id, title, body, sender_name, is_urgent, created_at,
       notice_media(id, url, type, caption, order_index),
-      exhibit:exhibits(id, name, thumbnail_url)
+      exhibit:exhibits(id, name, thumbnail_url, cover_url)
     `)
     .eq('id', id)
     .single()

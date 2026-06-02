@@ -101,8 +101,13 @@ export default function NoticeDetailPage() {
                     ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
                     : 'linear-gradient(135deg,#e2e8f0,#cbd5e1)',
                   display:'flex', alignItems:'center', justifyContent:'center', fontSize:20,
+                  overflow:'hidden',
                 }}>
-                  <SenderIcon sender={notice.sender} />
+                  {notice.sender_thumbnail
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={notice.sender_thumbnail} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : <SenderIcon sender={notice.sender} />
+                  }
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:17, fontWeight:700, color:'#1a1a1a', marginBottom:3 }}>

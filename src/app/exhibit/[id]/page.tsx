@@ -670,6 +670,8 @@ function MediaThumb({ item }: { item: SectionMedia | ExhibitMedia }) {
 function FeedbackSection({ feedback, userId, exhibitId }: { feedback: FeedbackData; userId: string; exhibitId: string }) {
   const [likeCount,    setLikeCount]    = useState(feedback.likeCount)
   const [liked,        setLiked]        = useState(false)
+  const [popping,      setPopping]      = useState(false)
+  const [floatKey,     setFloatKey]     = useState(0)
   const [userHasStamp, setUserHasStamp] = useState(feedback.userHasStamp)
   const [comments,     setComments]     = useState(feedback.comments)
 
@@ -688,7 +690,8 @@ function FeedbackSection({ feedback, userId, exhibitId }: { feedback: FeedbackDa
   }, [exhibitId, userId])
 
   const handleLike = async () => {
-    if (liked || !userId) return
+    if (!userId || !userHasStamp) return
+    if (!liked) { setPopping(true); setFloatKey(k => k + 1); setTimeout(() => setPopping(false), 700) }
     const res  = await fetch('/api/exhibit-like', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exhibitId, userId }),
@@ -703,52 +706,104 @@ function FeedbackSection({ feedback, userId, exhibitId }: { feedback: FeedbackDa
 
   return (
     <div style={{ padding:'0 16px 24px' }}>
+      <style>{`
+        @keyframes heart-pop {
+          0%   { transform: scale(1); }
+          20%  { transform: scale(1.5); }
+          40%  { transform: scale(0.88); }
+          60%  { transform: scale(1.18); }
+          80%  { transform: scale(0.96); }
+          100% { transform: scale(1); }
+        }
+        @keyframes heart-float {
+          0%   { opacity: 1; transform: translateY(0) scale(1); }
+          60%  { opacity: 0.8; }
+          100% { opacity: 0; transform: translateY(-28px) scale(0.7); }
+        }
+        @keyframes count-bump {
+          0%   { transform: translateY(0); }
+          35%  { transform: translateY(-5px); }
+          65%  { transform: translateY(1px); }
+          100% { transform: translateY(0); }
+        }
+      `}</style>
+
       <div style={{ fontSize:11, fontWeight:700, color:'#aaa', letterSpacing:'0.1em', marginBottom:14, fontFamily:"'Kiwi Maru',serif" }}>
         💬 みんなの感想
       </div>
 
-      {feedback.showLikeCount && (
-        userHasStamp ? (
-          <button
-            type="button"
-            onClick={handleLike}
-            disabled={liked}
-            style={{
-              display:'inline-flex', alignItems:'center', gap:8,
-              padding:'10px 20px', borderRadius:99, border:'none',
-              cursor: liked ? 'default' : 'pointer',
-              background: liked ? '#fef2f2' : '#f8f9fa',
-              boxShadow: liked ? 'inset 0 0 0 1.5px #fca5a5' : 'inset 0 0 0 1.5px #e0e0e0',
-              marginBottom:16, transition:'all 0.2s',
-            }}
-          >
-            <span style={{ fontSize:18 }}>{liked ? '❤️' : '🤍'}</span>
-            <span style={{
-              fontFamily:"'Kaisei Decol',serif", fontSize:14, fontWeight:700,
-              color: liked ? '#dc2626' : '#555',
-            }}>
-              いいね {likeCount > 0 ? likeCount : ''}
-            </span>
-          </button>
-        ) : (
-          <div style={{ marginBottom:16 }}>
-            <div style={{
-              display:'inline-flex', alignItems:'center', gap:8,
-              padding:'10px 20px', borderRadius:99,
-              background:'#f8f9fa', boxShadow:'inset 0 0 0 1.5px #e0e0e0',
-              marginBottom:8,
-            }}>
-              <span style={{ fontSize:18, opacity:0.35 }}>🤍</span>
-              <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:14, fontWeight:700, color:'#ccc' }}>
-                いいね {likeCount > 0 ? likeCount : ''}
+      <div style={{ marginBottom:16 }}>
+        {/* ── いいねボタン（常に表示） ── */}
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <div style={{ position:'relative', display:'inline-flex', alignItems:'center' }}>
+            <button
+              type="button"
+              onClick={userHasStamp ? handleLike : undefined}
+              disabled={!userHasStamp}
+              style={{
+                background: liked ? '#fff0f3' : '#f8f9fa',
+                border: `1.5px solid ${liked ? '#ff2d55' : '#e0e0e0'}`,
+                borderRadius: 99,
+                padding: '7px 16px 7px 10px',
+                cursor: !userHasStamp ? 'default' : 'pointer',
+                display:'flex', alignItems:'center', gap: 6,
+                animation: popping ? 'heart-pop 0.65s cubic-bezier(.36,.07,.19,.97)' : undefined,
+                opacity: !userHasStamp ? 0.4 : 1,
+                transition: 'background 0.2s, border-color 0.2s',
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24"
+                fill={liked ? '#ff2d55' : 'none'}
+                stroke={liked ? '#ff2d55' : '#aaa'}
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transition:'fill 0.15s, stroke 0.15s', flexShrink: 0 }}
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+              <span style={{
+                fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+                color: liked ? '#ff2d55' : '#aaa',
+                transition: 'color 0.2s',
+              }}>
+                {liked ? 'いいねを取り消す' : 'いいねする'}
               </span>
-            </div>
-            <div style={{ fontSize:12, color:'#aaa', fontFamily:"'Kiwi Maru',serif", lineHeight:1.6 }}>
-              この展示を訪れて QR コードを読み込むと<br />いいねができます
-            </div>
+            </button>
+
+            {/* 浮き上がりハート */}
+            {popping && (
+              <div key={floatKey} style={{
+                position:'absolute', top:0, left:'50%',
+                transform:'translateX(-50%)',
+                pointerEvents:'none',
+                animation:'heart-float 0.65s ease-out forwards',
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#ff2d55">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+              </div>
+            )}
           </div>
-        )
-      )}
+
+          {/* カウント（サイト設定の like_count_visible が true の場合のみ） */}
+          {feedback.showLikeCount && (
+            <span style={{
+              fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
+              color: liked ? '#ff2d55' : '#aaa',
+              transition:'color 0.2s',
+              animation: popping ? 'count-bump 0.5s ease' : undefined,
+              minWidth:16,
+            }}>
+              {likeCount > 0 ? likeCount : ''}
+            </span>
+          )}
+        </div>
+
+        {!userHasStamp && (
+          <div style={{ fontSize:11, color:'#bbb', fontFamily:"'Kiwi Maru',serif", lineHeight:1.65, marginTop:4 }}>
+            この展示を訪れて QR を読み込むといいねができます
+          </div>
+        )}
+      </div>
 
       {comments.length > 0 ? (
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>

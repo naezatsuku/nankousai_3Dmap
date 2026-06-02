@@ -69,8 +69,9 @@ function MenuCard({ menu }: { menu: FoodMenuEx }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 24, overflow: 'hidden',
       }}>
-        {menu.image_url
-          ? <img src={menu.image_url} alt={menu.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {(menu.image_url ?? menu.stall.thumbnail_url)
+          ? <img src={(menu.image_url ?? menu.stall.thumbnail_url)!} alt={menu.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : '🍱'}
       </div>
 
@@ -122,14 +123,18 @@ function StallSection({ stall, menus, onlyAvailable }: {
         borderBottom: '1px solid #f0f0f0',
       }}>
         <div style={{
-          width: 32, height: 32, borderRadius: 10,
+          width: 36, height: 36, borderRadius: 10,
           background: stall.is_high3
             ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
             : 'linear-gradient(135deg,#64748b,#94a3b8)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 16,
+          fontSize: 16, overflow: 'hidden', flexShrink: 0,
         }}>
-          {stall.is_high3 ? '🍳' : '🍜'}
+          {stall.thumbnail_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={stall.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : (stall.is_high3 ? '🍳' : '🍜')
+          }
         </div>
         <div>
           <div style={{ fontFamily: "'Kaisei Decol', serif", fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
@@ -297,8 +302,9 @@ function Ranking({ menus }: { menus: FoodMenuEx[] }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 22, overflow: 'hidden',
             }}>
-              {menu.image_url
-                ? <img src={menu.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {(menu.image_url ?? menu.stall.thumbnail_url)
+                ? <img src={(menu.image_url ?? menu.stall.thumbnail_url)!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : '🍱'}
             </div>
 

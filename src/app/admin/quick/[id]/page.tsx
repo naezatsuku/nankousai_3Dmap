@@ -36,7 +36,6 @@ export default function QuickPage() {
   const [tpg,           setTpg]           = useState(5)
   const [queueCount,    setQueueCount]    = useState(0)
   const [menus,         setMenus]         = useState<MenuItem[]>([])
-  const [showLikeCount, setShowLikeCount] = useState(true)
   const [comments,      setComments]      = useState<Comment[]>([])
 
   const [stampSecret,  setStampSecret]  = useState<string | null>(null)
@@ -56,7 +55,7 @@ export default function QuickPage() {
 
       const { data } = await supabase
         .from('exhibits')
-        .select('name, type, is_stamp_target, has_wait_time, wait_minutes, show_like_count, stamp_secret')
+        .select('name, type, is_stamp_target, has_wait_time, wait_minutes, stamp_secret')
         .eq('id', id)
         .single()
 
@@ -65,7 +64,7 @@ export default function QuickPage() {
         setType(data.type as ExhibitType)
         setIsTarget(data.is_stamp_target ?? false)
         setHasWait(data.has_wait_time ?? true)
-        setShowLikeCount(data.show_like_count ?? true)
+
         setStampSecret(data.stamp_secret ?? null)
         setTpg(5)
         setQueueCount(Math.round((data.wait_minutes ?? 0) / 5))
@@ -128,11 +127,6 @@ export default function QuickPage() {
     }
     setSaving(false); flashSaved()
   }
-  const saveLikeVisibility = async () => {
-    setSaving(true)
-    await createClient().from('exhibits').update({ show_like_count: showLikeCount }).eq('id', id)
-    setSaving(false); flashSaved()
-  }
 
   // ── コメント操作 ─────────────────────────────────────────────
   const approveComment = async (commentId: string) => {
@@ -164,7 +158,7 @@ export default function QuickPage() {
         @media (min-width:900px) {
           .qp-body { overflow:hidden; padding:20px 24px; }
           .qp-wrap {
-            display:grid; grid-template-columns:1fr 1fr 2fr;
+            display:grid; grid-template-columns:2fr 2fr 1fr;
             gap:20px; height:100%; max-width:none; align-items:stretch;
             transition: grid-template-columns 0.25s ease;
           }
@@ -350,27 +344,10 @@ export default function QuickPage() {
               </Section>
             )}
 
-            {/* いいね数設定 */}
-            <Section label="❤️ いいね数">
-              <button onClick={() => setShowLikeCount(v => !v)} style={{
-                width:'100%', padding:'13px 16px', borderRadius:12, border:'none', cursor:'pointer',
-                display:'flex', alignItems:'center', gap:12,
-                background: showLikeCount ? '#f0fdf4' : '#f8fafc',
-                boxShadow: showLikeCount ? 'inset 0 0 0 1.5px #86efac' : 'inset 0 0 0 1.5px #e2e8f0',
-                marginBottom:12, transition:'all 0.15s',
-              }}>
-                <Toggle on={showLikeCount} />
-                <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
-                  color: showLikeCount ? '#16a34a' : '#94a3b8' }}>
-                  {showLikeCount ? 'いいね数を表示中' : 'いいね数を非表示'}
-                </span>
-              </button>
-              <SaveBtn onClick={saveLikeVisibility} saving={saving} saved={saved} label="保存する" />
-            </Section>
 
           </div>
 
-          {/* ── 列3（2fr）：コメント承認 ── */}
+          {/* ── 列3（1fr）：コメント承認 ── */}
           <div className={`qp-col qp-col-comments${commentsOpen ? '' : ' closed'}`}>
             <Section
               label={`💬 コメント${pendingCount > 0 ? `（承認待ち ${pendingCount} 件）` : ''}`}

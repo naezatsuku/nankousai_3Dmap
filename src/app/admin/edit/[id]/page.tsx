@@ -57,9 +57,6 @@ export default function ExhibitEditPage() {
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
-  const [noticeText, setNoticeText]               = useState('')
-  const [noticeUrgent, setNoticeUrgent]           = useState(false)
-  const [posting, setPosting]                     = useState(false)
   const [menus, setMenus]                         = useState<MenuItem[]>([])
   const [deletedMenuIds, setDeletedMenuIds]       = useState<string[]>([])
   const [bands, setBands]                         = useState<BandItem[]>([])
@@ -67,7 +64,6 @@ export default function ExhibitEditPage() {
   const [specials, setSpecials]                   = useState<SpecialScheduleItem[]>([])
   const [deletedSpecialIds, setDeletedSpecialIds] = useState<string[]>([])
   const [deletedSectionIds, setDeletedSectionIds] = useState<string[]>([])
-  const [showLikeCount,  setShowLikeCount]  = useState(true)
   const [stampSecret,    setStampSecret]    = useState<string | null>(null)
   const [comments,       setComments]       = useState<Comment[]>([])
   const [commentsLoaded, setCommentsLoaded] = useState(false)
@@ -100,7 +96,6 @@ export default function ExhibitEditPage() {
         if (data) {
           const waitMin = data.wait_minutes ?? 0
           const tpg     = 5
-          setShowLikeCount(data.show_like_count ?? true)
           setStampSecret(data.stamp_secret ?? null)
           setForm({
             name:          data.name ?? '',
@@ -202,13 +197,7 @@ export default function ExhibitEditPage() {
     await createClient().from('exhibit_comments').delete().eq('id', commentId)
     setComments(prev => prev.filter(c => c.id !== commentId))
   }
-  const saveLikeVisibility = async () => {
-    setSaving(true)
-    await createClient().from('exhibits').update({ show_like_count: showLikeCount }).eq('id', id)
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
+
 
   // ── 保存 ────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -288,12 +277,12 @@ export default function ExhibitEditPage() {
       const newMenus = menus.filter(m => m.id.startsWith('new_')).map(m => ({
         exhibit_id: id, name: m.name, price: m.price,
         description: m.description || null, image_url: m.image_url || null,
-        stock: m.stock, is_selling: m.is_selling,
+        stock: m.stock, is_selling: m.is_selling, sold_count: m.sold_count,
       }))
       const existingMenus = menus.filter(m => !m.id.startsWith('new_')).map(m => ({
         id: m.id, exhibit_id: id, name: m.name, price: m.price,
         description: m.description || null, image_url: m.image_url || null,
-        stock: m.stock, is_selling: m.is_selling,
+        stock: m.stock, is_selling: m.is_selling, sold_count: m.sold_count,
       }))
       if (newMenus.length > 0)      await supabase.from('food_menus').insert(newMenus)
       if (existingMenus.length > 0) await supabase.from('food_menus').upsert(existingMenus)
@@ -380,30 +369,6 @@ export default function ExhibitEditPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  // ── お知らせ投稿 ──────────────────────────────────────────────
-  const handlePostNotice = async () => {
-    if (!noticeText.trim()) return
-    setPosting(true)
-    const supabase = createClient()
-    const title = noticeText.split('\n')[0].slice(0, 60) || 'お知らせ'
-    await supabase.from('notices').insert({
-      exhibit_id: id,
-      title,
-      body:       noticeText,
-      is_urgent:  noticeUrgent,
-    })
-    // 通知送信（失敗しても投稿は成功扱い）
-    fetch('/api/notice-notify', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        title,
-        body:      noticeText,
-        exhibitId: id,
-      }),
-    }).catch(() => {})
-    setNoticeText(''); setNoticeUrgent(false); setPosting(false)
-  }
 
   const waitMin = calcWait(form.time_per_group, form.queue_count)
 
@@ -728,45 +693,6 @@ export default function ExhibitEditPage() {
                 {/* ── コメントタブ ── */}
                 {quickTab === 'comments' && (
                   <Card title="" icon="">
-                    {/* いいね数表示トグル */}
-                    <div style={{ marginBottom:16 }}>
-                      <div style={{ fontSize:11, color:'#94a3b8', marginBottom:10, fontFamily:"'Kiwi Maru',serif" }}>
-                        いいね数の表示設定
-                      </div>
-                      <button
-                        onClick={() => setShowLikeCount(v => !v)}
-                        style={{
-                          width:'100%', padding:'10px 14px', borderRadius:10, border:'none',
-                          cursor:'pointer', display:'flex', alignItems:'center', gap:10,
-                          background: showLikeCount ? '#f0fdf4' : '#f8fafc',
-                          boxShadow: showLikeCount ? 'inset 0 0 0 1.5px #86efac' : 'inset 0 0 0 1.5px #e2e8f0',
-                          marginBottom:10, transition:'all 0.15s',
-                        }}
-                      >
-                        <div style={{
-                          width:36, height:20, borderRadius:99, flexShrink:0, position:'relative',
-                          background: showLikeCount ? '#22c55e' : '#cbd5e1', transition:'background 0.2s',
-                        }}>
-                          <div style={{
-                            position:'absolute', top:2, borderRadius:'50%', width:16, height:16, background:'#fff',
-                            left: showLikeCount ? 18 : 2, transition:'left 0.2s',
-                            boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
-                          }} />
-                        </div>
-                        <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
-                          color: showLikeCount ? '#16a34a' : '#94a3b8' }}>
-                          {showLikeCount ? 'いいね数を表示中' : 'いいね数を非表示'}
-                        </span>
-                      </button>
-                      <button onClick={saveLikeVisibility} disabled={saving} style={{
-                        width:'100%', padding:'10px', borderRadius:10, border:'none', cursor:'pointer',
-                        background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
-                        color:'#fff', fontSize:13, fontWeight:700,
-                        fontFamily:"'Kaisei Decol',serif", transition:'background 0.3s',
-                      }}>
-                        {saving ? '保存中…' : saved ? '✓ 保存しました' : '保存する'}
-                      </button>
-                    </div>
 
                     {/* コメント一覧 */}
                     <div style={{ fontSize:11, color:'#94a3b8', marginBottom:10, fontFamily:"'Kiwi Maru',serif" }}>
@@ -830,25 +756,6 @@ export default function ExhibitEditPage() {
                   </Card>
                 )}
 
-                <div style={{ marginTop:16 }}>
-                <Card title="お知らせを投稿" icon="📣">
-                  <Textarea placeholder="内容を入力…" rows={3} value={noticeText} onChange={setNoticeText} />
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10 }}>
-                    <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#64748b', cursor:'pointer', fontFamily:"'Kiwi Maru',serif" }}>
-                      <input type="checkbox" checked={noticeUrgent} onChange={e=>setNoticeUrgent(e.target.checked)} style={{ accentColor:'#FF6B00' }} />
-                      重要マークをつける
-                    </label>
-                    <button onClick={handlePostNotice} disabled={posting || !noticeText.trim()} style={{
-                      marginLeft:'auto', padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer',
-                      background: noticeText.trim() ? '#1e293b' : '#e2e8f0',
-                      color: noticeText.trim() ? '#fff' : '#94a3b8',
-                      fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
-                    }}>
-                      {posting ? '投稿中…' : '投稿する'}
-                    </button>
-                  </div>
-                </Card>
-                </div>
 
               </div>
             </div>
@@ -1228,20 +1135,8 @@ function BandScheduleSubEditor({ schedules, onChange }: {
 
 // ─── メニュークイック更新 ──────────────────────────────────────
 function MenuQuickEditor({ menus, onChange }: { menus: MenuItem[]; onChange: (v: MenuItem[]) => void }) {
-  const [soldSaving, setSoldSaving] = React.useState<Record<string, boolean>>({})
-  const [soldSaved,  setSoldSaved]  = React.useState<Record<string, boolean>>({})
-
   const update = (id: string, patch: Partial<MenuItem>) =>
     onChange(menus.map(m => m.id === id ? { ...m, ...patch } : m))
-
-  const saveSoldCount = async (menu: MenuItem) => {
-    if (soldSaving[menu.id] || menu.id.startsWith('new_')) return
-    setSoldSaving(p => ({ ...p, [menu.id]: true }))
-    await createClient().from('food_menus').update({ sold_count: menu.sold_count }).eq('id', menu.id)
-    setSoldSaving(p => ({ ...p, [menu.id]: false }))
-    setSoldSaved(p => ({ ...p, [menu.id]: true }))
-    setTimeout(() => setSoldSaved(p => ({ ...p, [menu.id]: false })), 1800)
-  }
 
   return (
     <div>
@@ -1279,7 +1174,7 @@ function MenuQuickEditor({ menus, onChange }: { menus: MenuItem[]; onChange: (v:
             <button onClick={() => update(menu.id, { stock: menu.stock + 1 })} style={calcBtnStyle}>＋</button>
           </div>
 
-          {/* 販売数（即時保存） */}
+          {/* 販売数 */}
           <div style={{ display:'flex', alignItems:'center', gap:8, background:'#fff8f0', borderRadius:10, padding:'8px 12px', border:'1px solid #fde68a' }}>
             <span style={{ flex:1, fontSize:11, color:'#92400e', fontFamily:"'Kiwi Maru',serif", fontWeight:700 }}>販売数</span>
             <button onClick={() => update(menu.id, { sold_count: Math.max(0, menu.sold_count - 1) })} style={calcBtnStyle}>−</button>
@@ -1287,20 +1182,6 @@ function MenuQuickEditor({ menus, onChange }: { menus: MenuItem[]; onChange: (v:
               {menu.sold_count}
             </span>
             <button onClick={() => update(menu.id, { sold_count: menu.sold_count + 1 })} style={calcBtnStyle}>＋</button>
-            <button
-              onClick={() => saveSoldCount(menu)}
-              disabled={!!soldSaving[menu.id]}
-              style={{
-                padding:'0 10px', height:30, borderRadius:8, border:'none',
-                cursor: soldSaving[menu.id] ? 'default' : 'pointer',
-                background: soldSaved[menu.id] ? '#10b981' : '#FF6B00',
-                color:'#fff', fontSize:11, fontWeight:700,
-                fontFamily:"'Kiwi Maru',serif", flexShrink:0,
-                transition:'background 0.15s',
-              }}
-            >
-              {soldSaving[menu.id] ? '…' : soldSaved[menu.id] ? '✓' : '保存'}
-            </button>
           </div>
         </div>
       ))}

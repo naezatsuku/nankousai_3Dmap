@@ -28,6 +28,7 @@ export default function AdminDashboard() {
   const [topWait, setTopWait] = useState<Exhibit[]>([])
   const [recent, setRecent]   = useState<Exhibit[]>([])
   const [loading, setLoading] = useState(true)
+  const [isEditor, setIsEditor] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -43,6 +44,7 @@ export default function AdminDashboard() {
         .single()
 
       const isEditor = (profile as { role: string } | null)?.role === 'editor'
+      setIsEditor(isEditor)
 
       // editor の場合は担当展示のみ
       let exhibitsQuery = supabase.from('exhibits').select('*')
@@ -227,14 +229,14 @@ export default function AdminDashboard() {
       {/* ── クイックアクセス ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12, marginTop:20 }}>
         {[
-          { href:'/admin/edit',     label:'展示を編集', icon:'✏', color:'#6366f1' },
-          { href:'/admin/users',    label:'権限を管理', icon:'👥', color:'#10b981' },
-          { href:'/admin/exhibits', label:'団体を追加', icon:'＋', color:'#f59e0b' },
-          { href:'/admin/food',     label:'販売数管理', icon:'🍱', color:'#f97316' },
-          { href:'/admin/votes',    label:'人気投票',   icon:'🗳', color:'#FF6B00' },
-          { href:'/admin/settings', label:'サイト設定', icon:'⚙', color:'#64748b' },
-          { href:'/map',            label:'マップを確認', icon:'🗺', color:'#0ea5e9' },
-        ].map(a => (
+          { href:'/admin/edit',     label:'展示を編集',  icon:'✏', color:'#6366f1', editorOk: true },
+          { href:'/admin/users',    label:'権限を管理',  icon:'👥', color:'#10b981' },
+          { href:'/admin/exhibits', label:'団体を追加',  icon:'＋', color:'#f59e0b' },
+          { href:'/admin/food',     label:'販売数管理',  icon:'🍱', color:'#f97316' },
+          { href:'/admin/votes',    label:'人気投票',    icon:'🗳', color:'#FF6B00' },
+          { href:'/admin/settings', label:'サイト設定',  icon:'⚙', color:'#64748b' },
+          { href:'/map',            label:'マップを確認', icon:'🗺', color:'#0ea5e9', editorOk: true },
+        ].filter(a => !isEditor || a.editorOk).map(a => (
           <Link key={a.href} href={a.href} style={{
             display:'flex', alignItems:'center', gap:10, padding:'14px 16px',
             background:'#fff', borderRadius:12, textDecoration:'none',

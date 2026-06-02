@@ -32,6 +32,8 @@ export default function AdminFoodPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/admin/login'); return }
+    const { data: p } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if ((p as { role: string } | null)?.role !== 'admin') { router.push('/admin'); return }
 
     const { data } = await supabase
       .from('food_menus')

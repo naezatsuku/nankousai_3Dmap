@@ -47,6 +47,22 @@ export default function Header() {
         result.push({ text: a.body, urgent: a.is_urgent })
       }
 
+      // ── 団体からのお知らせ（直近3時間） ──────────────────────
+      const since = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
+      const { data: noticeData } = await supabase
+        .from('notices')
+        .select('title, is_urgent, exhibit:exhibits(name)')
+        .gte('created_at', since)
+        .order('is_urgent', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      type NoticeRow = { title: string; is_urgent: boolean; exhibit: { name: string } | null }
+      for (const n of (noticeData ?? []) as unknown as NoticeRow[]) {
+        const prefix = n.exhibit?.name ? `📢 ${n.exhibit.name}：` : '📢 '
+        result.push({ text: `${prefix}${n.title}`, urgent: n.is_urgent })
+      }
+
       // ── 現在時刻・曜日 ──────────────────────────────────────
       const now    = new Date()
       const nowMin = now.getHours() * 60 + now.getMinutes()
@@ -129,12 +145,13 @@ export default function Header() {
     return () => window.removeEventListener('app-refresh', fetchMsgs)
   }, [fetchMsgs])
 
-  // announcements リアルタイム更新
+  // announcements・notices リアルタイム更新
   useEffect(() => {
     const supabase = createClient()
     const ch = supabase
-      .channel('ann-rt')
+      .channel('header-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, fetchMsgs)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notices' }, fetchMsgs)
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [fetchMsgs])

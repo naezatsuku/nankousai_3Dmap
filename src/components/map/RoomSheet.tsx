@@ -1,43 +1,16 @@
 'use client'
 
-/**
- * RoomSheet
- * ─────────────────────────────────────────────────────
- * ・useRouter → Link に変更（App Router対応）
- * ・TabBar と重ならないよう、シートは map の absolute 内ではなく
- *   layout の main 内の固定位置に置くこと。
- *   → このコンポーネント自体は position:fixed を使わず、
- *     親（layout）が <RoomSheet> を TabBar の上かつ
- *     main の中に配置する構造にする。
- *   → z-index は TabBar(z-50) より高い z-[60] に設定。
- *     ただし、このシートは main 内の absolute なので
- *     TabBar（main の外）とは重ならない。
- *
- * ▶ 使い方
- *   page.tsx の return は以下の構造にする:
- *
- *   // (main)/layout.tsx
- *   <div style={{ display:'flex', flexDirection:'column', height:'100dvh' }}>
- *     <Header />
- *     <main style={{ flex:1, position:'relative', overflow:'hidden' }}>
- *       {children}          ← MapPage がここに入る
- *     </main>
- *     <TabBar />            ← main の外
- *   </div>
- *
- *   // map/page.tsx
- *   <div className="absolute inset-0">
- *     <MapCanvas ... />
- *     <FloorSelector ... />
- *     <SearchBar ... />
- *     <SideButtons />
- *     <RoomSheet ... />     ← absolute inset-0 の中 → TabBar と重ならない
- *   </div>
- */
-
+import { useState, useEffect, useRef } from 'react'
 import Link         from 'next/link'
 import { Exhibit }  from '@/types'
 import NotifyButton from '@/components/ui/NotifyButton'
+
+interface FeedbackState {
+  likeCount:    number
+  userLiked:    boolean
+  userHasStamp: boolean
+  showLikeCount: boolean
+}
 
 interface RoomSheetProps {
   exhibits:    Exhibit[]
@@ -73,6 +46,40 @@ export default function RoomSheet({
 }: RoomSheetProps) {
   const open = exhibits.length > 0
 
+  const [userId] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    return localStorage.getItem('stamp_user_id') ?? ''
+  })
+  const [feedbacks, setFeedbacks] = useState<Record<string, FeedbackState>>({})
+
+  useEffect(() => {
+    if (exhibits.length === 0) return
+    exhibits.forEach(ex => {
+      fetch(`/api/exhibit-feedback/${ex.id}?userId=${encodeURIComponent(userId)}&limit=0`)
+        .then(r => r.json())
+        .then((d: FeedbackState) => setFeedbacks(prev => ({ ...prev, [ex.id]: d })))
+        .catch(() => {})
+    })
+  }, [exhibits, userId])
+
+  const handleLike = async (exhibitId: string) => {
+    const fb = feedbacks[exhibitId]
+    if (!fb) return
+    const nowLiked = !fb.userLiked
+    setFeedbacks(prev => ({
+      ...prev,
+      [exhibitId]: {
+        ...prev[exhibitId],
+        userLiked:  nowLiked,
+        likeCount:  prev[exhibitId].likeCount + (nowLiked ? 1 : -1),
+      },
+    }))
+    await fetch('/api/exhibit-like', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exhibitId, userId }),
+    }).catch(() => {})
+  }
+
   return (
     <>
       {/* ── オーバーレイ（背景暗幕） ── */}
@@ -95,13 +102,13 @@ export default function RoomSheet({
         style={{
           position:      'absolute',
           bottom:        0,
-          left:          0,
-          right:         0,
+          left:          '50%',
+          width:         'min(100%, 520px)',
           zIndex:        70,
           background:    '#fff',
           borderRadius:  '24px 24px 0 0',
-          boxShadow:     '0 -10px 40px rgba(0,0,0,0.12)',
-          transform:     open ? 'translateY(0)' : 'translateY(100%)',
+          boxShadow:     '0 -10px 40px rgba(0,0,0,0.18)',
+          transform:     open ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(100%)',
           transition:    'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)',
           willChange:    'transform',
           paddingBottom: 'env(safe-area-inset-bottom)',
@@ -135,8 +142,16 @@ export default function RoomSheet({
             </p>
 
             {exhibits.length === 1
-              ? <SingleExhibitView exhibit={exhibits[0]} />
-              : <MultiExhibitView exhibits={exhibits} />
+              ? <SingleExhibitView
+                  exhibit={exhibits[0]}
+                  feedback={feedbacks[exhibits[0].id] ?? null}
+                  onLike={() => handleLike(exhibits[0].id)}
+                />
+              : <MultiExhibitView
+                  exhibits={exhibits}
+                  feedbacks={feedbacks}
+                  onLike={handleLike}
+                />
             }
           </div>
         )}
@@ -146,9 +161,45 @@ export default function RoomSheet({
 }
 
 // ─── 1件表示 ──────────────────────────────────────────────────
-function SingleExhibitView({ exhibit }: { exhibit: Exhibit }) {
+function SingleExhibitView({ exhibit, feedback, onLike }: {
+  exhibit:  Exhibit
+  feedback: FeedbackState | null
+  onLike:   () => void
+}) {
+  const [popping,  setPopping]  = useState(false)
+  const [showHint, setShowHint] = useState(false)
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleHeartClick = () => {
+    if (!feedback) return
+    if (feedback.userLiked) return
+    if (!feedback.userHasStamp) {
+      setShowHint(true)
+      if (hintTimer.current) clearTimeout(hintTimer.current)
+      hintTimer.current = setTimeout(() => setShowHint(false), 3500)
+      return
+    }
+    setPopping(true)
+    setTimeout(() => setPopping(false), 700)
+    onLike()
+  }
+
   return (
     <>
+      <style>{`
+        @keyframes rs-heart-pop {
+          0%  { transform:scale(1); }
+          20% { transform:scale(1.5); }
+          40% { transform:scale(0.88); }
+          60% { transform:scale(1.18); }
+          80% { transform:scale(0.96); }
+          100%{ transform:scale(1); }
+        }
+        @keyframes rs-hint-in {
+          from{ opacity:0; transform:translateY(-4px); }
+          to  { opacity:1; transform:translateY(0); }
+        }
+      `}</style>
       <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
         <div style={{
           width:72, height:72, borderRadius:16, flexShrink:0,
@@ -196,7 +247,62 @@ function SingleExhibitView({ exhibit }: { exhibit: Exhibit }) {
         </div>
       )}
 
-      <div style={{ display:'flex', gap:8, marginTop:20 }}>
+      {/* ── いいね ── */}
+      {feedback && (
+        <div style={{ marginTop:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <button
+              onClick={handleHeartClick}
+              style={{
+                background: feedback.userLiked ? '#fff0f3' : '#f8f9fa',
+                border: `1.5px solid ${feedback.userLiked ? '#ff2d55' : '#e0e0e0'}`,
+                borderRadius: 99,
+                padding: '7px 14px 7px 10px',
+                cursor: 'pointer',
+                display:'flex', alignItems:'center', gap: 6,
+                animation: popping ? 'rs-heart-pop 0.65s cubic-bezier(.36,.07,.19,.97)' : undefined,
+                opacity: !feedback.userHasStamp ? 0.7 : 1,
+                transition: 'background 0.2s, border-color 0.2s',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24"
+                fill={feedback.userLiked ? '#ff2d55' : 'none'}
+                stroke={feedback.userLiked ? '#ff2d55' : '#aaa'}
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transition:'fill 0.15s, stroke 0.15s', flexShrink:0 }}
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+              <span style={{
+                fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                color: feedback.userLiked ? '#ff2d55' : '#aaa',
+                transition:'color 0.2s',
+              }}>
+                {feedback.userLiked ? 'いいねを取り消す' : 'いいねする'}
+              </span>
+            </button>
+            {feedback.showLikeCount && feedback.likeCount > 0 && (
+              <span style={{
+                fontFamily:"'Kaisei Decol',serif", fontSize:14, fontWeight:700,
+                color: feedback.userLiked ? '#ff2d55' : '#aaa',
+              }}>
+                {feedback.likeCount}
+              </span>
+            )}
+          </div>
+          {showHint && (
+            <div style={{
+              fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif",
+              lineHeight:1.6, marginTop:6,
+              animation:'rs-hint-in 0.2s ease',
+            }}>
+              この展示を訪れて QR コードを読み込むと<br />いいねができます
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display:'flex', gap:8, marginTop:16 }}>
         <Link href={`/exhibit/${exhibit.id}`} style={{
           flex:1, display:'block', padding:'14px 0', borderRadius:16,
           background:'linear-gradient(100deg,#F07818,#FFAA28)',
@@ -213,7 +319,11 @@ function SingleExhibitView({ exhibit }: { exhibit: Exhibit }) {
 }
 
 // ─── 複数件リスト表示 ─────────────────────────────────────────
-function MultiExhibitView({ exhibits }: { exhibits: Exhibit[] }) {
+function MultiExhibitView({ exhibits, feedbacks, onLike }: {
+  exhibits:  Exhibit[]
+  feedbacks: Record<string, FeedbackState>
+  onLike:    (id: string) => void
+}) {
   return (
     <div>
       <p style={{ fontSize:12, color:'#aaa', marginBottom:14, fontFamily:"'Kiwi Maru',sans-serif" }}>
@@ -271,6 +381,32 @@ function MultiExhibitView({ exhibits }: { exhibits: Exhibit[] }) {
                 )}
               </div>
             </div>
+
+            {/* いいね */}
+            {(() => {
+              const fb = feedbacks[exhibit.id]
+              if (!fb) return null
+              return (
+                <button
+                  onClick={e => { e.preventDefault(); if (!fb.userLiked && fb.userHasStamp) onLike(exhibit.id) }}
+                  style={{ background:'none', border:'none', padding:'4px 2px', cursor: fb.userLiked ? 'default' : 'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:4 }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24"
+                    fill={fb.userLiked ? '#ff2d55' : 'none'}
+                    stroke={fb.userLiked ? '#ff2d55' : '#ccc'}
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transition:'fill 0.15s' }}
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
+                  {fb.showLikeCount && fb.likeCount > 0 && (
+                    <span style={{ fontSize:11, fontWeight:700, color: fb.userLiked ? '#ff2d55' : '#ccc', fontFamily:"'Kaisei Decol',serif" }}>
+                      {fb.likeCount}
+                    </span>
+                  )}
+                </button>
+              )
+            })()}
 
             {/* 矢印 */}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2.5">

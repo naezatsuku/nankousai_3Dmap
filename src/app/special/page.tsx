@@ -145,8 +145,13 @@ export default function SpecialPage() {
                   width: 60, height: 60, borderRadius: 14, flexShrink: 0,
                   background: 'linear-gradient(135deg,#FFD166,#FF8C00)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+                  overflow: 'hidden',
                 }}>
-                  {CATEGORY_EMOJI[liveItem.group.category] ?? '⭐'}
+                  {liveItem.group.thumbnail_url
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={liveItem.group.thumbnail_url} alt={liveItem.group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : (CATEGORY_EMOJI[liveItem.group.category] ?? '⭐')
+                  }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: "'Kaisei Decol', serif", fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>
@@ -200,8 +205,13 @@ export default function SpecialPage() {
                         ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
                         : 'linear-gradient(135deg,#f0f0f0,#e0e0e0)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+                      overflow: 'hidden',
                     }}>
-                      {CATEGORY_EMOJI[group.category] ?? '⭐'}
+                      {group.thumbnail_url
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={group.thumbnail_url} alt={group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : (CATEGORY_EMOJI[group.category] ?? '⭐')
+                      }
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -379,13 +389,18 @@ function Timeline({
                 opacity: isDone ? 0.55 : 1,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* 絵文字アイコン */}
+                  {/* アイコン */}
                   <div style={{
                     width: 36, height: 36, borderRadius: 10, flexShrink: 0,
                     background: isLive ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f5f5f5',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                    overflow: 'hidden',
                   }}>
-                    {emoji}
+                    {group.thumbnail_url
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={group.thumbnail_url} alt={group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : emoji
+                    }
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{

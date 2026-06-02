@@ -23,8 +23,14 @@ async function requireAdmin(): Promise<boolean> {
 }
 
 export async function GET() {
-  const { data } = await serviceDb().from('site_settings').select('map_enabled').single()
-  return NextResponse.json({ map_enabled: data?.map_enabled ?? true })
+  const { data } = await serviceDb()
+    .from('site_settings')
+    .select('map_enabled, like_count_visible')
+    .single()
+  return NextResponse.json({
+    map_enabled:        data?.map_enabled        ?? true,
+    like_count_visible: data?.like_count_visible ?? true,
+  })
 }
 
 export async function POST(req: Request) {
@@ -32,14 +38,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const body = await req.json() as { map_enabled?: boolean }
-  if (typeof body.map_enabled !== 'boolean') {
+  const body = await req.json() as { map_enabled?: boolean; like_count_visible?: boolean }
+  const patch: Record<string, boolean> = {}
+
+  if (typeof body.map_enabled        === 'boolean') patch.map_enabled        = body.map_enabled
+  if (typeof body.like_count_visible === 'boolean') patch.like_count_visible = body.like_count_visible
+
+  if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 })
   }
 
   const { error } = await serviceDb()
     .from('site_settings')
-    .update({ map_enabled: body.map_enabled })
+    .update(patch)
     .eq('singleton', true)
 
   if (error) {

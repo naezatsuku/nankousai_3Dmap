@@ -24,10 +24,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ exhibitI
 
   if (limitParam) commentQuery.limit(parseInt(limitParam))
 
-  const [commentsRes, likeCountRes, exhibitRes] = await Promise.all([
+  const [commentsRes, likeCountRes, siteRes] = await Promise.all([
     commentQuery,
     db.from('exhibit_likes').select('*', { count: 'exact', head: true }).eq('exhibit_id', exhibitId),
-    db.from('exhibits').select('show_like_count').eq('id', exhibitId).single(),
+    db.from('site_settings').select('like_count_visible').single(),
   ])
 
   let userLiked    = false
@@ -47,7 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ exhibitI
     likeCount:     likeCountRes.count ?? 0,
     userLiked,
     userHasStamp,
-    showLikeCount: exhibitRes.data?.show_like_count ?? true,
+    showLikeCount: siteRes.data?.like_count_visible ?? true,
     comments:      commentsRes.data ?? [],
   })
 }

@@ -10,9 +10,9 @@ const NAV = [
   { href:'/admin',               icon:'⊞', label:'ダッシュボード' },
   { href:'/admin/edit',          icon:'✏',  label:'展示編集' },
   { href:'/admin/notices',       icon:'🔔', label:'お知らせ管理' },
-  { href:'/admin/announcements', icon:'📢', label:'アナウンス管理' },
-  { href:'/admin/notify-test',   icon:'🧪', label:'通知テスト' },
-  { href:'/admin/food',           icon:'🍱', label:'販売数管理' },
+  { href:'/admin/announcements', icon:'📢', label:'アナウンス管理', adminOnly:true },
+  { href:'/admin/notify-test',   icon:'🧪', label:'通知テスト',    adminOnly:true },
+  { href:'/admin/food',          icon:'🍱', label:'販売数管理',    adminOnly:true },
   { href:'/admin/users',         icon:'👥', label:'権限管理',       adminOnly:true },
   { href:'/admin/exhibits',      icon:'🏫', label:'団体管理',       adminOnly:true },
   { href:'/admin/settings',      icon:'⚙',  label:'サイト設定',     adminOnly:true },
@@ -84,8 +84,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:16, fontWeight:700, color:'#fff' }}>
           南高祭 管理
         </span>
-        <div style={{ marginLeft:'auto', fontSize:11, color:'rgba(255,255,255,0.5)' }}>
-          {displayName}
+        <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+          <Link href="/map" style={{
+            width:34, height:34, borderRadius:8,
+            background:'rgba(255,255,255,0.08)',
+            border:'none', color:'#fff', cursor:'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            textDecoration:'none',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+              <line x1="9" y1="3" x2="9" y2="18"/>
+              <line x1="15" y1="6" x2="15" y2="21"/>
+            </svg>
+          </Link>
+          <span style={{ fontSize:11, color:'rgba(255,255,255,0.5)' }}>{displayName}</span>
         </div>
       </div>
 
@@ -192,6 +205,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }}>
           <Breadcrumb pathname={pathname} />
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
+            <Link href="/map" style={{
+              display:'flex', alignItems:'center', gap:5,
+              padding:'6px 14px', borderRadius:8,
+              background:'#f1f5f9', border:'1px solid #e2e8f0',
+              color:'#475569', fontSize:12, fontWeight:700,
+              fontFamily:"'Kiwi Maru',serif", textDecoration:'none',
+              transition:'background 0.15s',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+                <line x1="9" y1="3" x2="9" y2="18"/>
+                <line x1="15" y1="6" x2="15" y2="21"/>
+              </svg>
+              マップ
+            </Link>
             <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
               {displayName}
             </div>

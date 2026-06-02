@@ -35,8 +35,12 @@ export async function POST(req: Request) {
     .eq('exhibit_id', exhibitId)
     .eq('user_id', userId)
 
-  if ((existing ?? 0) === 0) {
+  const nowLiked = (existing ?? 0) === 0
+  if (nowLiked) {
     await db.from('exhibit_likes').insert({ exhibit_id: exhibitId, user_id: userId })
+  } else {
+    await db.from('exhibit_likes').delete()
+      .eq('exhibit_id', exhibitId).eq('user_id', userId)
   }
 
   const { count: likeCount } = await db
@@ -44,5 +48,5 @@ export async function POST(req: Request) {
     .select('*', { count: 'exact', head: true })
     .eq('exhibit_id', exhibitId)
 
-  return NextResponse.json({ liked: true, likeCount: likeCount ?? 0 })
+  return NextResponse.json({ liked: nowLiked, likeCount: likeCount ?? 0 })
 }

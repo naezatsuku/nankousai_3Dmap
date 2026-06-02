@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
-import InstallBanner from '@/components/ui/InstallBanner'
 
 const QrScanner     = dynamic(() => import('@/components/ui/QrScanner'),    { ssr: false })
 const FeedbackSheet = dynamic(() => import('@/components/ui/FeedbackSheet'), { ssr: false })
@@ -33,9 +32,22 @@ export default function StampPage() {
   const [newStampId,    setNewStampId]    = useState<string | null>(null)
   const [toast,         setToast]         = useState<Toast | null>(null)
   const [feedbackSheet, setFeedbackSheet] = useState<{ exhibitId: string; exhibitName: string } | null>(null)
-  const [page,          setPage]          = useState(0)
-  const [rowsPerPage,   setRowsPerPage]   = useState(3)
-  const [cellSize,      setCellSize]      = useState(56)
+  const [page,        setPage]        = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(3)
+  const [cellSize,    setCellSize]    = useState(56)
+  const [gate] = useState<'blocked' | 'ok'>(() => {
+    if (typeof window === 'undefined') return 'ok'
+    const ua         = navigator.userAgent
+    const isMobile   = /iPhone|iPad|iPod|Android/.test(ua)
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as { standalone?: boolean }).standalone === true
+    return (!isMobile || isStandalone) ? 'ok' : 'blocked'
+  })
+  const [gateIOS] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return /iPhone|iPad|iPod/.test(navigator.userAgent)
+  })
 
   const bodyRef  = useRef<HTMLDivElement>(null)
   const touchX   = useRef(0)
@@ -47,12 +59,13 @@ export default function StampPage() {
       const W = bodyRef.current.clientWidth
       const H = bodyRef.current.clientHeight
 
-      // セル幅 = (エリア幅 - 左右余白×2 - セル間gap×(COLS-1)) / 列数
-      const cs  = Math.floor((W - PAD * 2 - GAP * (COLS - 1)) / COLS)
+      // セル幅：画面幅から計算しつつ最大 100px に抑える
+      const csRaw = Math.floor((W - PAD * 2 - GAP * (COLS - 1)) / COLS)
+      const cs    = Math.min(csRaw, 100)
       // 名前エリアを含むセル全高
-      const cellH = cs + 20   // 画像 + 名前ラベル分
+      const cellH = cs + 22
       // 収まる行数
-      const rows = Math.max(1, Math.floor((H - GAP * 10) / (cellH + GAP)))
+      const rows = Math.max(1, Math.floor((H - GAP * 4) / (cellH + GAP)))
 
       setCellSize(cs)
       setRowsPerPage(rows)
@@ -134,6 +147,55 @@ export default function StampPage() {
   const collected  = stamps.length
   const total      = exhibits.length
 
+  // ── インストールゲート画面 ─────────────────────────────────────────
+  if (gate === 'blocked') {
+    return (
+      <div style={{
+        height: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '32px 24px', background: '#fff8f0', textAlign: 'center',
+      }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/nanpen.png" alt="" style={{ width: 80, marginBottom: 20, opacity: 0.85 }} />
+        <div style={{ fontFamily: "'Kaisei Decol',serif", fontSize: 20, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>
+          アプリ版でのみ使えます
+        </div>
+        <div style={{ fontSize: 12, color: '#64748b', fontFamily: "'Kiwi Maru',serif", lineHeight: 1.8, marginBottom: 32 }}>
+          スタンプラリーはホーム画面に追加した<br />
+          アプリ版からのみご利用いただけます。
+        </div>
+
+        <div style={{
+          width: '100%', maxWidth: 320,
+          background: '#fff', borderRadius: 16, padding: '20px',
+          border: '1.5px solid rgba(255,140,0,0.3)',
+          boxShadow: '0 4px 16px rgba(255,107,0,0.08)',
+          textAlign: 'left',
+        }}>
+          <div style={{ fontFamily: "'Kaisei Decol',serif", fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>
+            {gateIOS ? '📱 iPhoneの場合' : '📱 Androidの場合'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {gateIOS ? (
+              <>
+                <GateStep n={1} text="SafariでこのページをAirする（他のブラウザは不可）" />
+                <GateStep n={2} text="画面下の共有ボタン（□↑）をタップ" />
+                <GateStep n={3} text="「ホーム画面に追加」を選んで「追加」" />
+                <GateStep n={4} text="ホーム画面のアイコンからアプリを起動" />
+              </>
+            ) : (
+              <>
+                <GateStep n={1} text="Chrome でこのページを開く" />
+                <GateStep n={2} text="右上メニュー（⋮）→「ホーム画面に追加」" />
+                <GateStep n={3} text="ホーム画面のアイコンからアプリを起動" />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <style>{`
@@ -178,9 +240,6 @@ export default function StampPage() {
           </div>
         </div>
 
-        {/* ── インストール誘導 ── */}
-        <InstallBanner />
-
         {/* ── グリッド本体 ── */}
         <div
           ref={bodyRef}
@@ -204,6 +263,7 @@ export default function StampPage() {
               padding: `0 ${PAD}px`,
               display: 'flex', flexDirection: 'column', gap: GAP,
               width: '100%',
+              alignItems: 'center',  // デスクトップで中央寄せ
             }}>
               {Array.from({ length: rowsPerPage }, (_, r) => (
                 <div key={r} style={{ display: 'flex', gap: GAP }}>
@@ -371,5 +431,21 @@ export default function StampPage() {
         </div>
       )}
     </>
+  )
+}
+
+function GateStep({ n, text }: { n: number; text: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <div style={{
+        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+        background: 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: "'Kaisei Decol',serif",
+      }}>{n}</div>
+      <div style={{ fontSize: 12, color: '#374151', fontFamily: "'Kiwi Maru',serif", lineHeight: 1.65, paddingTop: 3 }}>
+        {text}
+      </div>
+    </div>
   )
 }
