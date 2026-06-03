@@ -5,8 +5,8 @@ import type { NextRequest } from 'next/server'
 export async function POST(request: NextRequest) {
   const { userId, role } = await request.json() as { userId?: string; role?: string }
 
-  if (!userId || (role !== 'admin' && role !== 'editor')) {
-    return NextResponse.json({ error: 'userId と role (admin|editor) が必要です' }, { status: 400 })
+  if (!userId || !['admin', 'editor', 'student'].includes(role ?? '')) {
+    return NextResponse.json({ error: 'userId と role (admin|editor|student) が必要です' }, { status: 400 })
   }
 
   const supabase = createClient(

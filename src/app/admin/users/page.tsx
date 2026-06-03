@@ -7,7 +7,10 @@ import type { Profile, Role } from '@/types'
 interface ExhibitOption { id: string; name: string; class_label: string | null }
 
 interface AssignedEntry { exhibit_id: string; exhibit: ExhibitOption | null }
-interface ProfileRow extends Profile { exhibit_editors: AssignedEntry[] }
+interface ProfileRow extends Profile {
+  exhibit_editors:  AssignedEntry[]
+  student_exhibits: AssignedEntry[]
+}
 
 export default function UsersPage() {
   const [profiles, setProfiles]   = useState<ProfileRow[]>([])
@@ -32,7 +35,7 @@ export default function UsersPage() {
     const supabase = createClient()
     supabase
       .from('profiles')
-      .select('*, exhibit_editors(exhibit_id, exhibit:exhibits(id, name, class_label))')
+      .select('*, exhibit_editors(exhibit_id, exhibit:exhibits(id, name, class_label)), student_exhibits(exhibit_id, exhibit:exhibits(id, name, class_label))')
       .order('role')
       .then(({ data }) => {
         if (data) setProfiles(data as unknown as ProfileRow[])
@@ -68,9 +71,10 @@ export default function UsersPage() {
     setInviting(false)
   }
 
-  // ── ロール切り替え ────────────────────────────────────────────
-  const toggleRole = async (profile: ProfileRow) => {
-    const next: Role = profile.role === 'admin' ? 'editor' : 'admin'
+  // ── ロール切り替え（admin→editor→student→admin） ────────────
+  const cycleRole = async (profile: ProfileRow) => {
+    const cycle: Role[] = ['admin', 'editor', 'student']
+    const next = cycle[(cycle.indexOf(profile.role) + 1) % cycle.length]
     const res = await fetch('/api/admin/users/role', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: profile.id, role: next }),
@@ -93,7 +97,10 @@ export default function UsersPage() {
   // ── 割り当てモーダルを開く ─────────────────────────────────
   const openAssign = (p: ProfileRow) => {
     setAssignTarget(p)
-    setPendingIds(new Set(p.exhibit_editors.map(e => e.exhibit_id)))
+    const ids = p.role === 'editor'
+      ? p.exhibit_editors.map(e => e.exhibit_id)
+      : p.student_exhibits.map(e => e.exhibit_id) // student / admin 共通
+    setPendingIds(new Set(ids))
   }
 
   const toggleExhibit = (id: string) => {
@@ -108,13 +115,16 @@ export default function UsersPage() {
   const saveAssignments = async () => {
     if (!assignTarget) return
     setSaving(true)
-    const supabase = createClient()
-    await supabase.from('exhibit_editors').delete().eq('user_id', assignTarget.id)
-    if (pendingIds.size > 0) {
-      await supabase.from('exhibit_editors').insert(
-        [...pendingIds].map(exhibit_id => ({ user_id: assignTarget.id, exhibit_id }))
-      )
-    }
+    const table = assignTarget.role === 'student' ? 'student_exhibits' : 'exhibit_editors'
+    await fetch('/api/admin/users/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId:     assignTarget.id,
+        exhibitIds: [...pendingIds],
+        table,
+      }),
+    })
     setSaving(false)
     setAssignTarget(null)
     loadProfiles()
@@ -169,20 +179,28 @@ export default function UsersPage() {
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           {profiles.map(p => {
-            const assignedExhibits = p.exhibit_editors
-              .map(e => e.exhibit)
-              .filter(Boolean) as ExhibitOption[]
+            const assignedExhibits = (p.role === 'student'
+              ? p.student_exhibits : p.exhibit_editors
+            ).map(e => e.exhibit).filter(Boolean) as ExhibitOption[]
+
+            const roleColor = p.role === 'admin' ? '#FF6B00'
+              : p.role === 'editor' ? '#6366f1' : '#10b981'
+            const roleBg = p.role === 'admin' ? 'rgba(255,107,0,0.15)'
+              : p.role === 'editor' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)'
+            const avatarBg = p.role === 'admin'
+              ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
+              : p.role === 'editor' ? 'linear-gradient(135deg,#6366f1,#818cf8)'
+              : 'linear-gradient(135deg,#10b981,#34d399)'
+
+            const nextRole: Role = p.role === 'admin' ? 'editor'
+              : p.role === 'editor' ? 'student' : 'admin'
 
             return (
               <div key={p.id} style={{ background:'#fff', borderRadius:16, padding:'18px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid #f1f5f9' }}>
-                {/* 上段: アバター + 情報 */}
                 <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-                  {/* アバター */}
                   <div style={{
                     width:42, height:42, borderRadius:'50%', flexShrink:0,
-                    background: p.role === 'admin'
-                      ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
-                      : 'linear-gradient(135deg,#6366f1,#818cf8)',
+                    background: avatarBg,
                     display:'flex', alignItems:'center', justifyContent:'center',
                     fontSize:16, fontWeight:700, color:'#fff',
                   }}>
@@ -190,16 +208,13 @@ export default function UsersPage() {
                   </div>
 
                   <div style={{ flex:1, minWidth:0 }}>
-                    {/* 名前・バッジ */}
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:2 }}>
                       <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700, color:'#1e293b' }}>
                         {p.name || '（名前未設定）'}
                       </span>
                       <span style={{
                         fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99,
-                        background: p.role === 'admin' ? 'rgba(255,107,0,0.15)' : 'rgba(99,102,241,0.12)',
-                        color: p.role === 'admin' ? '#FF6B00' : '#6366f1',
-                        fontFamily:"'Kiwi Maru',serif",
+                        background: roleBg, color: roleColor, fontFamily:"'Kiwi Maru',serif",
                       }}>
                         {p.role.toUpperCase()}
                       </span>
@@ -207,22 +222,24 @@ export default function UsersPage() {
                         <span style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>（自分）</span>
                       )}
                     </div>
-                    <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", wordBreak:'break-all', marginBottom: assignedExhibits.length > 0 ? 8 : 0 }}>
+                    <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", wordBreak:'break-all' }}>
                       {p.email}
                     </div>
 
-                    {/* 担当展示チップ */}
-                    {p.role === 'editor' && (
+                    {/* 担当展示/クラスチップ */}
+                    {(p.role === 'editor' || p.role === 'student') && (
                       <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:6 }}>
                         {assignedExhibits.length === 0 ? (
                           <span style={{ fontSize:11, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>
-                            担当展示なし（編集不可）
+                            {p.role === 'student' ? 'クラス未設定' : '担当展示なし（編集不可）'}
                           </span>
                         ) : (
                           assignedExhibits.map(ex => (
                             <span key={ex.id} style={{
                               fontSize:10, padding:'2px 8px', borderRadius:99,
-                              background:'#f0f9ff', color:'#0284c7', border:'1px solid #bae6fd',
+                              background: p.role === 'student' ? '#f0fdf4' : '#f0f9ff',
+                              color: p.role === 'student' ? '#16a34a' : '#0284c7',
+                              border: `1px solid ${p.role === 'student' ? '#86efac' : '#bae6fd'}`,
                               fontFamily:"'Kiwi Maru',serif",
                             }}>
                               {ex.class_label ?? ex.name}
@@ -232,34 +249,62 @@ export default function UsersPage() {
                       </div>
                     )}
                     {p.role === 'admin' && (
-                      <div style={{ marginTop:4 }}>
-                        <span style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
-                          すべての展示を編集できます
-                        </span>
+                      <div style={{ marginTop:6 }}>
+                        <div style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:4 }}>
+                          すべての展示を管理できます
+                        </div>
+                        {/* シフト用クラス割り当て */}
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                          {p.student_exhibits.length === 0 ? (
+                            <span style={{ fontSize:10, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>
+                              シフト参加クラス未設定
+                            </span>
+                          ) : (
+                            p.student_exhibits.map(e => e.exhibit).filter(Boolean).map(ex => (
+                              <span key={ex!.id} style={{
+                                fontSize:10, padding:'2px 8px', borderRadius:99,
+                                background:'#fff8f0', color:'#FF6B00', border:'1px solid #fed7aa',
+                                fontFamily:"'Kiwi Maru',serif",
+                              }}>
+                                {ex!.class_label ?? ex!.name}
+                              </span>
+                            ))
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* 下段: アクションボタン（自分以外） */}
                 {p.id !== myId && (
                   <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-end', marginTop:12, paddingTop:12, borderTop:'1px solid #f1f5f9' }}>
-                    {p.role === 'editor' && (
+                    {(p.role === 'editor' || p.role === 'student') && (
                       <button onClick={() => openAssign(p)} style={{
                         padding:'6px 12px', borderRadius:8,
-                        border:'1px solid #bae6fd', background:'#f0f9ff',
-                        fontSize:11, color:'#0284c7', cursor:'pointer',
-                        fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+                        border: `1px solid ${p.role === 'student' ? '#86efac' : '#bae6fd'}`,
+                        background: p.role === 'student' ? '#f0fdf4' : '#f0f9ff',
+                        fontSize:11, color: p.role === 'student' ? '#16a34a' : '#0284c7',
+                        cursor:'pointer', fontFamily:"'Kiwi Maru',serif", fontWeight:700,
                       }}>
-                        展示を割り当て
+                        {p.role === 'student' ? 'クラスを割り当て' : '展示を割り当て'}
                       </button>
                     )}
-                    <button onClick={() => toggleRole(p)} style={{
+                    {p.role === 'admin' && (
+                      <button onClick={() => openAssign(p)} style={{
+                        padding:'6px 12px', borderRadius:8,
+                        border:'1px solid #fed7aa', background:'#fff8f0',
+                        fontSize:11, color:'#FF6B00',
+                        cursor:'pointer', fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+                      }}>
+                        シフト参加クラスを設定
+                      </button>
+                    )}
+                    <button onClick={() => cycleRole(p)} style={{
                       padding:'6px 12px', borderRadius:8, border:'1px solid #e2e8f0',
                       background:'#fff', fontSize:11, color:'#64748b',
                       cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
                     }}>
-                      {p.role === 'admin' ? 'editorに変更' : 'adminに昇格'}
+                      → {nextRole.toUpperCase()} に変更
                     </button>
                     <button onClick={() => setDeleteId(p.id)} style={{
                       padding:'6px 12px', borderRadius:8, border:'1px solid #fee2e2',
@@ -322,10 +367,15 @@ export default function UsersPage() {
             maxHeight:'80vh', display:'flex', flexDirection:'column',
           }}>
             <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
-              担当展示を設定
+              {assignTarget.role === 'editor' ? '担当展示を設定' : assignTarget.role === 'admin' ? 'シフト参加クラスを設定' : 'クラスを設定'}
             </div>
             <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:16 }}>
-              {assignTarget.name || assignTarget.email} · チェックした展示のみ編集できます
+              {assignTarget.name || assignTarget.email} ·{' '}
+              {assignTarget.role === 'editor'
+                ? 'チェックした展示のみ編集できます'
+                : assignTarget.role === 'admin'
+                ? 'シフトアンケート・閲覧で使用するクラスです'
+                : 'チェックしたクラスのシフトを閲覧できます'}
             </div>
 
             {/* 全選択/解除 */}

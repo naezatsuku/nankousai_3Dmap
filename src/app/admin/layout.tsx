@@ -7,15 +7,20 @@ import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 
 const NAV = [
-  { href:'/admin',               icon:'⊞', label:'ダッシュボード' },
-  { href:'/admin/edit',          icon:'✏',  label:'展示編集' },
-  { href:'/admin/notices',       icon:'🔔', label:'お知らせ管理' },
-  { href:'/admin/announcements', icon:'📢', label:'アナウンス管理', adminOnly:true },
-  { href:'/admin/notify-test',   icon:'🧪', label:'通知テスト',    adminOnly:true },
-  { href:'/admin/food',          icon:'🍱', label:'販売数管理',    adminOnly:true },
-  { href:'/admin/users',         icon:'👥', label:'権限管理',       adminOnly:true },
-  { href:'/admin/exhibits',      icon:'🏫', label:'団体管理',       adminOnly:true },
-  { href:'/admin/settings',      icon:'⚙',  label:'サイト設定',     adminOnly:true },
+  { href:'/admin',                  icon:'⊞',  label:'ダッシュボード',    editorOk:true,  studentHide:true },
+  { href:'/admin/edit',             icon:'✏',   label:'展示編集',         editorOk:true,  studentHide:true },
+  { href:'/admin/notices',          icon:'🔔',  label:'お知らせ管理',     editorOk:true,  studentHide:true },
+  { href:'/admin/announcements',    icon:'📢',  label:'アナウンス管理',   adminOnly:true, studentHide:true },
+  { href:'/admin/notify-test',      icon:'🧪',  label:'通知テスト',       adminOnly:true, studentHide:true },
+  { href:'/admin/food',             icon:'🍱',  label:'販売数管理',       adminOnly:true, studentHide:true },
+  { href:'/admin/users',            icon:'👥',  label:'権限管理',         adminOnly:true, studentHide:true },
+  { href:'/admin/exhibits',         icon:'🏫',  label:'団体管理',         adminOnly:true, studentHide:true },
+  { href:'/admin/settings',         icon:'⚙',   label:'サイト設定',       adminOnly:true, studentHide:true },
+  // ── シフト管理 ──
+  { href:'/admin/shift/survey',     icon:'📝',  label:'シフトアンケート', editorOk:true,  studentOk:true },
+  { href:'/admin/shift/view',       icon:'📅',  label:'シフト表',         editorOk:true,  studentOk:true },
+  { href:'/admin/shift/members',    icon:'👤',  label:'メンバー管理',     editorOk:true,  studentHide:true },
+  { href:'/admin/shift/edit',       icon:'✏',   label:'シフト編集',       editorOk:true,  studentHide:true },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -52,8 +57,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (pathname === '/admin/login' || pathname.startsWith('/admin/quick/')) return <>{children}</>
 
   const isAdmin     = profile?.role === 'admin'
+  const isStudent   = profile?.role === 'student'
   const displayName = profile?.name || '…'
-  const visibleNav  = NAV.filter(n => !n.adminOnly || isAdmin)
+  const visibleNav  = NAV.filter(n => {
+    if (isStudent) return !!n.studentOk
+    if (!isAdmin)  return !n.adminOnly
+    return true
+  })
 
   return (
     <>
@@ -174,7 +184,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   color: isAdmin ? '#FF8C00' : 'rgba(255,255,255,0.5)',
                   padding:'1px 6px', borderRadius:99, fontSize:9, fontWeight:700,
                 }}>
-                  {isAdmin ? 'ADMIN' : 'EDITOR'}
+                  {isAdmin ? 'ADMIN' : isStudent ? 'STUDENT' : 'EDITOR'}
                 </span>
                 <span style={{ color:'rgba(255,255,255,0.25)', fontSize:9 }}>プロフィール編集 ›</span>
               </div>
