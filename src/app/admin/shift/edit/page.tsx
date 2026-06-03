@@ -41,8 +41,12 @@ export default function ShiftEditPage() {
   const [loading, setLoading] = useState(true)
 
   // メンバーピッカーモーダル
-  const [pickerSlot,   setPickerSlot]   = useState<Slot | null>(null)
-  const [pickerFilter, setPickerFilter] = useState<PrefType | 'all'>('all')
+  const [pickerSlot,    setPickerSlot]    = useState<Slot | null>(null)
+  const [pickerFilter,  setPickerFilter]  = useState<PrefType | 'all'>('all')
+  // 割当済みメンバー一覧モーダル（オーバーフロー用）
+  const [overflowSlot,  setOverflowSlot]  = useState<Slot | null>(null)
+
+  const MAX_ASSIGN_AVATARS = 5
 
   const fetchSlotData = useCallback(async (eid: string, d: 'sat'|'sun') => {
     const nc = { cache: 'no-store' as const }
@@ -317,21 +321,35 @@ export default function ShiftEditPage() {
             <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:14, fontWeight:700, color:'#1e293b', marginBottom:16 }}>
               {DATE_LABEL[date]} の設定
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
-              <Field label="開始時刻">
-                <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
-              </Field>
-              <Field label="終了時刻">
-                <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
-              </Field>
-              <Field label="コマの長さ（分）">
-                <input type="number" value={interval} min={10} max={120} step={5}
-                  onChange={e => setInterval(Number(e.target.value))} style={inputStyle} />
-              </Field>
-              <Field label="1コマあたり必要人数（一括）">
-                <input type="number" value={defRequired} min={1} max={20}
-                  onChange={e => setDefRequired(Number(e.target.value))} style={inputStyle} />
-              </Field>
+            <div style={{ display:'flex', flexDirection:'column', gap:14, marginBottom:16 }}>
+              {/* 開始・終了を横並び */}
+              <div style={{ display:'flex', gap:12 }}>
+                <div style={{ flex:1 }}>
+                  <Field label="開始時刻">
+                    <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
+                  </Field>
+                </div>
+                <div style={{ flex:1 }}>
+                  <Field label="終了時刻">
+                    <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
+                  </Field>
+                </div>
+              </div>
+              {/* コマ長さ・必要人数を横並び */}
+              <div style={{ display:'flex', gap:12 }}>
+                <div style={{ flex:1 }}>
+                  <Field label="コマの長さ（分）">
+                    <input type="number" value={interval} min={10} max={120} step={5}
+                      onChange={e => setInterval(Number(e.target.value))} style={inputStyle} />
+                  </Field>
+                </div>
+                <div style={{ flex:1 }}>
+                  <Field label="必要人数（一括）">
+                    <input type="number" value={defRequired} min={1} max={20}
+                      onChange={e => setDefRequired(Number(e.target.value))} style={inputStyle} />
+                  </Field>
+                </div>
+              </div>
             </div>
             <button onClick={handleGenerate} disabled={generating} style={{
               padding:'10px 24px', borderRadius:10, border:'none', cursor:'pointer',
@@ -351,16 +369,16 @@ export default function ShiftEditPage() {
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 {slots.filter(s => s.date === date).map(slot => (
-                  <div key={slot.id} style={{ display:'flex', alignItems:'center', gap:12 }}>
-                    <span style={{ minWidth:110, fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                  <div key={slot.id} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <span style={{ flex:1, fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight:700, color:'#1e293b', whiteSpace:'nowrap' }}>
                       {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
                     </span>
                     <input
                       type="number" min={1} max={20} value={slot.required_count}
                       onChange={e => handleSlotRequired(slot.id, Number(e.target.value))}
-                      style={{ ...inputStyle, width:80 }}
+                      style={{ ...inputStyle, width:72, textAlign:'center' }}
                     />
-                    <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>人</span>
+                    <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>人</span>
                   </div>
                 ))}
               </div>
@@ -460,7 +478,17 @@ export default function ShiftEditPage() {
             </div>
           ) : (
             <>
-              <table style={{ borderCollapse:'collapse', width:'100%', maxWidth:700 }}>
+              <style>{`
+                @media (min-width: 640px) {
+                  .assign-cards { display: none !important; }
+                }
+                @media (max-width: 639px) {
+                  .assign-table { display: none !important; }
+                }
+              `}</style>
+
+              {/* ── デスクトップ: テーブル ── */}
+              <table className="assign-table" style={{ borderCollapse:'collapse', width:'100%', maxWidth:700 }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, width:120 }}>時間</th>
@@ -479,41 +507,14 @@ export default function ShiftEditPage() {
                         <td style={{ ...tdStyle, verticalAlign:'middle', whiteSpace:'nowrap' }}>
                           {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
                         </td>
-                        <td style={{ padding:'8px 12px', border:'1px solid #f1f5f9', verticalAlign:'middle' }}>
-                          <div style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
-                            {assignedList.map(m => (
-                              <span key={m.user_id} style={{
-                                display:'inline-flex', alignItems:'center', gap:4,
-                                padding:'3px 8px 3px 6px', borderRadius:99,
-                                background:'#f0fdf4', boxShadow:'inset 0 0 0 1.5px #86efac',
-                                fontSize:12, color:'#16a34a', fontFamily:"'Kiwi Maru',serif", fontWeight:700,
-                              }}>
-                                <span style={{ fontSize:10, color: PREF_COLOR[prefs.get(`${m.user_id}:${slot.id}`) ?? 'neutral'] }}>
-                                  {PREF_ICON[prefs.get(`${m.user_id}:${slot.id}`) ?? 'neutral']}
-                                </span>
-                                {m.profiles?.name ?? '?'}
-                                <button onClick={() => toggleAssign(slot.id, m.user_id)} style={{
-                                  background:'none', border:'none', cursor:'pointer',
-                                  color:'#94a3b8', fontSize:12, padding:0, lineHeight:1,
-                                }}>×</button>
-                              </span>
-                            ))}
-                            {/* ＋ボタン */}
-                            <button onClick={() => { setPickerSlot(slot); setPickerFilter('all') }} style={{
-                              width:28, height:28, borderRadius:'50%', border:'2px dashed #cbd5e1',
-                              background:'#f8fafc', cursor:'pointer', color:'#94a3b8',
-                              display:'flex', alignItems:'center', justifyContent:'center',
-                              fontSize:18, lineHeight:1, flexShrink:0,
-                            }}>+</button>
-                          </div>
+                        <td style={{ padding:'8px 10px', border:'1px solid #f1f5f9', verticalAlign:'middle' }}>
+                          <AvatarRow slot={slot} assignedList={assignedList} prefs={prefs}
+                            maxAvatars={MAX_ASSIGN_AVATARS}
+                            onToggle={uid => toggleAssign(slot.id, uid)}
+                            onOverflow={() => setOverflowSlot(slot)}
+                            onAdd={() => { setPickerSlot(slot); setPickerFilter('all') }} />
                         </td>
-                        <td style={{
-                          ...tdStyle, textAlign:'center', fontWeight:700,
-                          fontFamily:"'Kaisei Decol',serif",
-                          color: short ? '#dc2626' : '#16a34a',
-                          background: short ? '#fef2f2' : '#f0fdf4',
-                          verticalAlign:'middle',
-                        }}>
+                        <td style={{ ...tdStyle, textAlign:'center', fontWeight:700, fontFamily:"'Kaisei Decol',serif", color: short ? '#dc2626' : '#16a34a', background: short ? '#fef2f2' : '#f0fdf4', verticalAlign:'middle' }}>
                           {filled}/{slot.required_count}
                         </td>
                       </tr>
@@ -521,6 +522,46 @@ export default function ShiftEditPage() {
                   })}
                 </tbody>
               </table>
+
+              {/* ── モバイル: カードリスト（2段） ── */}
+              <div className="assign-cards" style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {slots.filter(s => s.date === date).map(slot => {
+                  const slotAssigns  = assigns.get(slot.id) ?? new Set()
+                  const filled       = slotAssigns.size
+                  const short        = filled < slot.required_count
+                  const assignedList = members.filter(m => slotAssigns.has(m.user_id))
+                  return (
+                    <div key={slot.id} style={{
+                      background:'#fff', borderRadius:12,
+                      border: short ? '1px solid #fca5a5' : '1px solid #e2e8f0',
+                      overflow:'hidden',
+                    }}>
+                      {/* 1段目: 時間 + 人数 */}
+                      <div style={{
+                        display:'flex', alignItems:'center', justifyContent:'space-between',
+                        padding:'8px 12px',
+                        background: short ? '#fef2f2' : '#f8fafc',
+                        borderBottom:'1px solid #f1f5f9',
+                      }}>
+                        <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                          {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
+                        </span>
+                        <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight:700, color: short ? '#dc2626' : '#16a34a' }}>
+                          {filled}/{slot.required_count}人
+                        </span>
+                      </div>
+                      {/* 2段目: アバター（横幅フル） */}
+                      <div style={{ padding:'8px 12px' }}>
+                        <AvatarRow slot={slot} assignedList={assignedList} prefs={prefs}
+                          maxAvatars={MAX_ASSIGN_AVATARS}
+                          onToggle={uid => toggleAssign(slot.id, uid)}
+                          onOverflow={() => setOverflowSlot(slot)}
+                          onAdd={() => { setPickerSlot(slot); setPickerFilter('all') }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
 
               {/* メンバーピッカーモーダル */}
               {pickerSlot && (() => {
@@ -618,10 +659,62 @@ export default function ShiftEditPage() {
             </>
           )}
           <div style={{ marginTop:12, fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
-            セルをクリックして割当 / 解除。アンケートの回答（◎△✕）を参考にしてください。
+            アバターをタップで解除 / ＋で追加。右下の小アイコンはアンケート回答（◎△✕）。
           </div>
         </>
       )}
+
+      {/* オーバーフロー：割当済み全員モーダル */}
+      {overflowSlot && (() => {
+        const slotAssigns  = assigns.get(overflowSlot.id) ?? new Set()
+        const assignedList = members.filter(m => slotAssigns.has(m.user_id))
+        return (
+          <div style={{
+            position:'fixed', inset:0, zIndex:200,
+            background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:20,
+          }} onClick={() => setOverflowSlot(null)}>
+            <div style={{
+              background:'#fff', borderRadius:20, padding:24,
+              width:'100%', maxWidth:360, maxHeight:'75vh', display:'flex', flexDirection:'column',
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:16, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
+                {overflowSlot.start_at.slice(0,5)}〜{overflowSlot.end_at.slice(0,5)} の割当メンバー
+              </div>
+              <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:14 }}>
+                タップで解除
+              </div>
+              <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:6 }}>
+                {assignedList.map(m => {
+                  const pref = prefs.get(`${m.user_id}:${overflowSlot.id}`) ?? 'neutral'
+                  const name = m.profiles?.name ?? '?'
+                  return (
+                    <div key={m.user_id} onClick={() => { toggleAssign(overflowSlot.id, m.user_id); setOverflowSlot(null) }} style={{
+                      display:'flex', alignItems:'center', gap:10, padding:'10px 12px',
+                      borderRadius:10, cursor:'pointer', background:'#f0fdf4',
+                      border:'1px solid #86efac',
+                    }}>
+                      <div style={{
+                        width:30, height:30, borderRadius:'50%', background:'#10b981', flexShrink:0,
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:13, fontWeight:700, color:'#fff',
+                      }}>{name[0]}</div>
+                      <span style={{ flex:1, fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#1e293b' }}>{name}</span>
+                      <span style={{ fontSize:14, color: PREF_COLOR[pref] }}>{PREF_ICON[pref]}</span>
+                      <span style={{ fontSize:11, color:'#94a3b8' }}>✕ 解除</span>
+                    </div>
+                  )
+                })}
+              </div>
+              <button onClick={() => setOverflowSlot(null)} style={{
+                marginTop:14, width:'100%', padding:'11px', borderRadius:10, border:'none',
+                background:'#f1f5f9', color:'#64748b', fontSize:13, fontWeight:700,
+                cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
+              }}>閉じる</button>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -647,6 +740,66 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </label>
       {children}
+    </div>
+  )
+}
+
+type PrefType2 = 'want' | 'neutral' | 'avoid'
+const PREF_COLOR2: Record<PrefType2, string> = { want:'#16a34a', neutral:'#94a3b8', avoid:'#dc2626' }
+const PREF_ICON2:  Record<PrefType2, string> = { want:'◎', neutral:'△', avoid:'✕' }
+
+function AvatarRow({ slot, assignedList, prefs, maxAvatars, onToggle, onOverflow, onAdd }: {
+  slot:         { id: string }
+  assignedList: { user_id: string; profiles: { id: string; name: string } | null }[]
+  prefs:        Map<string, PrefType2>
+  maxAvatars:   number
+  onToggle:     (uid: string) => void
+  onOverflow:   () => void
+  onAdd:        () => void
+}) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+      {assignedList.slice(0, maxAvatars).map(m => {
+        const pref = prefs.get(`${m.user_id}:${slot.id}`) ?? 'neutral'
+        const name = m.profiles?.name ?? '?'
+        return (
+          <div key={m.user_id} onClick={() => onToggle(m.user_id)}
+            title={`${name} — タップで解除`}
+            style={{
+              width:30, height:30, borderRadius:'50%', flexShrink:0,
+              background:'#10b981', cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:12, fontWeight:700, color:'#fff', position:'relative',
+            }}
+          >
+            {name[0]}
+            <span style={{
+              position:'absolute', bottom:-2, right:-2,
+              fontSize:8, background:'#fff', borderRadius:'50%',
+              width:12, height:12, display:'flex', alignItems:'center', justifyContent:'center',
+              color: PREF_COLOR2[pref as PrefType2], lineHeight:1,
+            }}>
+              {PREF_ICON2[pref as PrefType2]}
+            </span>
+          </div>
+        )
+      })}
+      {assignedList.length > maxAvatars && (
+        <button onClick={onOverflow} style={{
+          width:30, height:30, borderRadius:'50%', flexShrink:0,
+          background:'#f1f5f9', border:'none', cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:10, fontWeight:700, color:'#64748b',
+        }}>
+          +{assignedList.length - maxAvatars}
+        </button>
+      )}
+      <button onClick={onAdd} style={{
+        width:28, height:28, borderRadius:'50%', border:'2px dashed #cbd5e1',
+        background:'#f8fafc', cursor:'pointer', color:'#94a3b8',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        fontSize:18, lineHeight:1, flexShrink:0,
+      }}>+</button>
     </div>
   )
 }

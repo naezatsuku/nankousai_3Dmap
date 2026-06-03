@@ -34,7 +34,18 @@ export default function ShiftViewPage() {
   const [noExhibit,   setNoExhibit]   = useState(false)
 
   // モーダル用
-  const [modalSlot, setModalSlot] = useState<Slot | null>(null)
+  const [modalSlot,      setModalSlot]      = useState<Slot | null>(null)
+  const [notifyModal,    setNotifyModal]    = useState(false)
+  const [notifyMinutes,  setNotifyMinutes]  = useState<number|null>(15)
+  const [notifySaving,   setNotifySaving]   = useState(false)
+  const [notifySaved,    setNotifySaved]    = useState(false)
+  const [userKey,        setUserKey]        = useState('')
+
+  useEffect(() => {
+    let k = localStorage.getItem('stamp_user_id')
+    if (!k) { k = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2); localStorage.setItem('stamp_user_id', k) }
+    setUserKey(k)
+  }, [])
 
   const fetchAll = useCallback(async (eid: string, d: 'sat'|'sun') => {
     setDataLoading(true)
@@ -89,6 +100,45 @@ export default function ShiftViewPage() {
 
   const currentExhibit = exhibits.find(e => e.id === exhibitId)
 
+  // 自分が担当するコマに通知を一括設定
+  const handleSaveNotify = async () => {
+    if (!myUserId || !exhibitId || !userKey) return
+    setNotifySaving(true)
+
+    const mySlotIds = assigns
+      .filter(a => a.user_id === myUserId)
+      .map(a => a.slot_id)
+    const mySlots = slots.filter(s => mySlotIds.includes(s.id))
+
+    // 既存のシフト系schedule_itemを削除してから再作成
+    for (const slot of mySlots) {
+      // 既存削除（同タイトル・日付・時刻で特定）
+      const delRes = await fetch(`/api/schedule?exhibitId=${exhibitId}&slotId=${slot.id}`, {
+        method: 'DELETE', headers: { 'x-user-key': userKey },
+        cache: 'no-store',
+      })
+      // 通知ありの場合は新規作成
+      if (notifyMinutes !== null) {
+        await fetch('/api/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
+          body: JSON.stringify({
+            title:          `シフト当番`,
+            date:           slot.date,
+            start_time:     slot.start_at.slice(0,5),
+            end_time:       slot.end_at.slice(0,5),
+            notify_minutes: notifyMinutes,
+            color:          '#6366f1',
+            type:           'custom',
+          }),
+        })
+      }
+    }
+
+    setNotifySaving(false); setNotifySaved(true); setNotifyModal(false)
+    setTimeout(() => setNotifySaved(false), 3000)
+  }
+
   if (loading) return (
     <div style={{ textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>読み込み中…</div>
   )
@@ -104,12 +154,19 @@ export default function ShiftViewPage() {
       {/* ヘッダー */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div>
-          <h1 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', marginBottom:4 }}>📅 シフト表</h1>
+          <h1 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
+            📅 シフト表
+            {notifySaved && (
+              <span style={{ marginLeft:10, fontSize:12, color:'#10b981', fontWeight:700, fontFamily:"'Kiwi Maru',serif" }}>
+                ✓ 通知を設定しました
+              </span>
+            )}
+          </h1>
           <div style={{ fontSize:13, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
             {currentExhibit?.class_label ?? currentExhibit?.name}
           </div>
         </div>
-        <div style={{ display:'flex', gap:6 }}>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
           {(['sat','sun'] as const).map(d => (
             <button key={d} onClick={() => setDate(d)} style={{
               padding:'7px 20px', borderRadius:99, border:'none', cursor:'pointer',
@@ -120,6 +177,15 @@ export default function ShiftViewPage() {
               {d === 'sat' ? '土曜日' : '日曜日'}
             </button>
           ))}
+          {/* 通知設定ボタン */}
+          <button onClick={() => setNotifyModal(true)} title="シフト通知を設定" style={{
+            width:36, height:36, borderRadius:'50%', border:'none', cursor:'pointer',
+            background: notifySaved ? '#f0fdf4' : '#f1f5f9',
+            color: notifySaved ? '#10b981' : '#64748b',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:16,
+            boxShadow: notifySaved ? '0 0 0 2px #86efac' : 'none',
+            transition:'all 0.2s',
+          }}>🔔</button>
         </div>
       </div>
 
@@ -289,6 +355,69 @@ export default function ShiftViewPage() {
           </div>
         )
       })()}
+
+      {/* 通知設定モーダル */}
+      {notifyModal && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:200,
+          background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)',
+          display:'flex', alignItems:'flex-end', justifyContent:'center',
+        }} onClick={() => setNotifyModal(false)}>
+          <div style={{
+            width:'100%', maxWidth:480, background:'#fff',
+            borderRadius:'20px 20px 0 0', padding:'24px 20px 40px',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
+              🔔 シフト通知を設定
+            </div>
+            <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:20, lineHeight:1.65 }}>
+              自分のシフト時間の何分前に通知しますか？<br />
+              設定すると予定ページを開いたときに通知がスケジュールされます。
+            </div>
+
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:24 }}>
+              {[
+                { label: 'なし（通知しない）', value: null },
+                { label: '5分前',  value: 5 },
+                { label: '10分前', value: 10 },
+                { label: '15分前', value: 15 },
+                { label: '30分前', value: 30 },
+                { label: '1時間前', value: 60 },
+              ].map(o => (
+                <button key={String(o.value)} onClick={() => setNotifyMinutes(o.value)} style={{
+                  padding:'8px 16px', borderRadius:99, border:'none', cursor:'pointer',
+                  background: notifyMinutes === o.value
+                    ? 'linear-gradient(135deg,#6366f1,#818cf8)'
+                    : '#f1f5f9',
+                  color: notifyMinutes === o.value ? '#fff' : '#64748b',
+                  fontWeight:700, fontSize:12, fontFamily:"'Kiwi Maru',serif",
+                  transition:'all 0.15s',
+                }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setNotifyModal(false)} style={{
+                flex:1, padding:'12px', borderRadius:10, border:'1px solid #e2e8f0',
+                background:'#fff', fontSize:13, fontWeight:700,
+                cursor:'pointer', fontFamily:"'Kiwi Maru',serif", color:'#64748b',
+              }}>キャンセル</button>
+              <button onClick={handleSaveNotify} disabled={notifySaving} style={{
+                flex:2, padding:'12px', borderRadius:10, border:'none',
+                background: notifySaving ? '#e2e8f0' : 'linear-gradient(135deg,#6366f1,#818cf8)',
+                color: notifySaving ? '#94a3b8' : '#fff',
+                fontSize:13, fontWeight:700,
+                cursor: notifySaving ? 'default' : 'pointer',
+                fontFamily:"'Kaisei Decol',serif",
+              }}>
+                {notifySaving ? '設定中…' : '設定する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

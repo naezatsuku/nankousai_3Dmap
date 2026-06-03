@@ -717,15 +717,33 @@ function TopPage({ onNavigate }: TopPageProps) {
 // ============================================================
 export default function Page() {
   const router = useRouter();
+  // SSR との一致のため初期値は false 固定
   const [loaded, setLoaded] = useState<boolean>(false);
+  const [checked, setChecked] = useState<boolean>(false);
+
+  // クライアントでのみ sessionStorage を確認
+  useEffect(() => {
+    if (sessionStorage.getItem('nanpen_loaded')) {
+      setLoaded(true)
+    }
+    setChecked(true)
+  }, [])
+
+  const handleComplete = () => {
+    sessionStorage.setItem('nanpen_loaded', '1')
+    setLoaded(true)
+  }
 
   const handleNavigate = (dest: string) => {
     router.push(`${dest}`)
   };
 
+  // sessionStorage 確認前は空白（ハイドレーションのズレを防ぐ）
+  if (!checked) return null
+
   return (
     <>
-      {!loaded && <NanpenLoader onComplete={() => setLoaded(true)} />}
+      {!loaded && <NanpenLoader onComplete={handleComplete} />}
       {loaded && <TopPage onNavigate={handleNavigate} />}
     </>
   );

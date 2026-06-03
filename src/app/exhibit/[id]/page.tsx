@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getExhibit, fetchExhibitDetail, ExhibitDetail, ExhibitSection, SectionMedia, ExhibitMedia, BodySegment } from '@/lib/exhibits'
 import NotifyButton from '@/components/ui/NotifyButton'
+import AddToScheduleButton from '@/components/ui/AddToScheduleButton'
 import { useState, useEffect } from 'react'
 import { FoodMenu, getFoodMenuStatus } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -264,6 +265,32 @@ function InfoSection({ exhibit }: { exhibit: ExhibitDetail }) {
           {{ both:'土・日 両日', sat:'土曜日のみ', sun:'日曜日のみ' }[exhibit.day]}
           &nbsp;· 9:00〜16:00
         </span>
+      </div>
+
+      {/* 予定に追加 */}
+      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:20 }}>
+        {(exhibit.day === 'sat' || exhibit.day === 'both') && (
+          <AddToScheduleButton
+            title={exhibit.name}
+            date="sat"
+            startTime="09:00"
+            endTime="16:00"
+            location={exhibit.room_display ?? undefined}
+            exhibitId={exhibit.id}
+            color="#FF6B00"
+          />
+        )}
+        {(exhibit.day === 'sun' || exhibit.day === 'both') && (
+          <AddToScheduleButton
+            title={exhibit.name}
+            date="sun"
+            startTime="09:00"
+            endTime="16:00"
+            location={exhibit.room_display ?? undefined}
+            exhibitId={exhibit.id}
+            color="#FF6B00"
+          />
+        )}
       </div>
 
       {/* キャッチコピー */}

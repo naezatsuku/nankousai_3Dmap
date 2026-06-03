@@ -1,10 +1,14 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { usePathname } from 'next/navigation'
 
 const THRESHOLD = 72
+const NO_PULL_PATHS = ['/stamp', '/schedule', '/map']
 
 export default function PullToRefresh({ children }: { children: React.ReactNode }) {
+  const pathname  = usePathname()
+  const disabled  = NO_PULL_PATHS.some(p => pathname.startsWith(p))
   const [pullY, setPullYState] = useState(0)
   const [loading, setLoading]  = useState(false)
   const outerRef   = useRef<HTMLDivElement>(null)
@@ -31,11 +35,12 @@ export default function PullToRefresh({ children }: { children: React.ReactNode 
     if (!outer || !content) return
 
     const onTouchStart = (e: TouchEvent) => {
+      if (disabled) return
       if (content.scrollTop === 0) startY.current = e.touches[0].clientY
     }
 
     const onTouchMove = (e: TouchEvent) => {
-      if (startY.current === null) return
+      if (disabled || startY.current === null) return
       if (content.scrollTop > 0) { startY.current = null; return }
       const delta = e.touches[0].clientY - startY.current
       if (delta <= 0) { startY.current = null; return }
@@ -44,6 +49,7 @@ export default function PullToRefresh({ children }: { children: React.ReactNode 
     }
 
     const onTouchEnd = () => {
+      if (disabled) return
       if (pullYRef.current >= THRESHOLD) {
         refresh()
       } else {
@@ -60,7 +66,7 @@ export default function PullToRefresh({ children }: { children: React.ReactNode 
       outer.removeEventListener('touchmove',  onTouchMove)
       outer.removeEventListener('touchend',   onTouchEnd)
     }
-  }, [refresh, setPullY])
+  }, [refresh, setPullY, disabled])
 
   const translateY = loading ? 44 : pullY
   const show       = loading || pullY > 4

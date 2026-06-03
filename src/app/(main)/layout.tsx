@@ -11,7 +11,7 @@ type LayoutProps = {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100dvh' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden', overscrollBehavior:'none', touchAction:'pan-x pan-y' }}>
       <NavigationLoader />
       <Header />
       <PullToRefresh>

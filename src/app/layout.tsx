@@ -85,6 +85,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
           document.addEventListener('dragstart', function(e) { if (e.target.tagName === 'IMG') e.preventDefault(); });
         `}</Script>
+        <Script id="prevent-overscroll" strategy="afterInteractive">{`
+          /* (main) レイアウト配下のページのみ iOS バウンス無効化 */
+          var MAIN_PATHS = ['/map','/notifications','/news','/stamp','/schedule','/vote'];
+          document.addEventListener('touchmove', function(e) {
+            var path = window.location.pathname;
+            var inMain = MAIN_PATHS.some(function(p){ return path.startsWith(p); });
+            if (!inMain) return;
+            var el = e.target;
+            while (el && el !== document.body) {
+              var st = window.getComputedStyle(el);
+              var oy = st.overflowY;
+              if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return;
+              el = el.parentElement;
+            }
+            e.preventDefault();
+          }, { passive: false });
+        `}</Script>
       </body>
     </html>
   )
