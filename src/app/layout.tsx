@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import './globals.css'
 import ErudaLoader from '@/components/ui/ErudaLoader'
 
@@ -80,10 +81,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         {process.env.NODE_ENV === 'development' && <ErudaLoader />}
-        <script dangerouslySetInnerHTML={{ __html: `
+        <Script id="prevent-save" strategy="afterInteractive">{`
           document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
           document.addEventListener('dragstart', function(e) { if (e.target.tagName === 'IMG') e.preventDefault(); });
-        `}} />
+        `}</Script>
       </body>
     </html>
   )

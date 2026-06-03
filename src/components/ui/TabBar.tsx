@@ -7,6 +7,7 @@ const TABS = [
   { id: 'notifications', href: '/notifications', label: '通知' },
   { id: 'news',          href: '/news',           label: 'お知らせ', badge: true },
   { id: 'stamp',         href: '/stamp',          label: 'スタンプ' },
+  { id: 'schedule',      href: '/schedule',       label: '予定' },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -22,8 +23,12 @@ export default function TabBar({ unreadCount = 0 }: TabBarProps) {
   const activeId: TabId =
     TABS.find((t) => pathname.startsWith(t.href))?.id ?? 'map'
 
-  // インジケーターの left 位置 (タブ幅 25% × 4)
-  const indicatorLeft = activeId === 'map' ? '3%' : activeId === 'notifications' ? '28%' : activeId === 'news' ? '53%' : '78%'
+  // インジケーターの left 位置 (タブ幅 20% × 5)
+  const indicatorLeft =
+    activeId === 'map'           ? '2%'  :
+    activeId === 'notifications' ? '22%' :
+    activeId === 'news'          ? '42%' :
+    activeId === 'stamp'         ? '62%' : '82%'
 
   return (
     <>
@@ -54,7 +59,7 @@ export default function TabBar({ unreadCount = 0 }: TabBarProps) {
             position: 'absolute',
             top: 0,
             height: 2.5,
-            width: '19%',
+            width: '15%',
             background: 'linear-gradient(90deg, #FF6B00, #FFB347)',
             borderRadius: '0 0 4px 4px',
             left: indicatorLeft,

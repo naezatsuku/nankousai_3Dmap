@@ -173,18 +173,43 @@ export default function ShiftMembersPage() {
 
       {/* 展示選択（複数の場合） */}
       {exhibits.length > 1 && (
-        <div style={{ marginBottom:16, display:'flex', gap:6, flexWrap:'wrap' }}>
-          {exhibits.map(ex => (
-            <button key={ex.id} onClick={() => setExhibitId(ex.id)} style={{
-              padding:'6px 16px', borderRadius:99, border:'none', cursor:'pointer',
-              background: exhibitId === ex.id ? '#1e293b' : '#f1f5f9',
-              color: exhibitId === ex.id ? '#fff' : '#64748b',
-              fontWeight:700, fontSize:12, fontFamily:"'Kiwi Maru',serif", transition:'all 0.15s',
-            }}>
-              {ex.class_label ?? ex.name}
-            </button>
-          ))}
-        </div>
+        <>
+          <div style={{ marginBottom:10, display:'flex', gap:6, flexWrap:'wrap' }}>
+            {exhibits.map(ex => (
+              <button key={ex.id} onClick={() => setExhibitId(ex.id)} style={{
+                padding:'6px 16px', borderRadius:99, border:'none', cursor:'pointer',
+                background: exhibitId === ex.id ? '#1e293b' : '#f1f5f9',
+                color: exhibitId === ex.id ? '#fff' : '#64748b',
+                fontWeight:700, fontSize:12, fontFamily:"'Kiwi Maru',serif", transition:'all 0.15s',
+              }}>
+                {ex.class_label ?? ex.name}
+              </button>
+            ))}
+          </div>
+
+          {/* 現在操作中クラスの説明 */}
+          {exhibitId && (() => {
+            const current = exhibits.find(e => e.id === exhibitId)
+            return (
+              <div style={{
+                marginBottom:16, padding:'12px 16px', borderRadius:12,
+                background:'#f0f9ff', border:'1px solid #bae6fd',
+                display:'flex', alignItems:'flex-start', gap:10,
+              }}>
+                <span style={{ fontSize:18, flexShrink:0 }}>ℹ️</span>
+                <div>
+                  <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight:700, color:'#0c4a6e', marginBottom:3 }}>
+                    現在 <span style={{ color:'#0284c7' }}>「{current?.class_label ?? current?.name}」</span> のメンバーを管理しています
+                  </div>
+                  <div style={{ fontSize:11, color:'#64748b', fontFamily:"'Kiwi Maru',serif", lineHeight:1.65 }}>
+                    ここで割り当てた生徒は、<strong>{current?.class_label ?? current?.name}</strong> のシフトアンケートとシフト表を利用できるようになります。<br />
+                    別のクラスのメンバーを管理するには、上のボタンで切り替えてください。
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </>
       )}
 
       {/* フィルターバー */}

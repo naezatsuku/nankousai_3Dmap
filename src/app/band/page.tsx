@@ -5,6 +5,7 @@ import { BandSchedule } from '@/types'
 import { DUMMY_BANDS, fetchBands } from '@/lib/bands'
 import type { BandWithSchedules } from '@/types'
 import BackButton from '@/components/ui/BackButton'
+import AddToScheduleButton from '@/components/ui/AddToScheduleButton'
 
 // ─── ユーティリティ ───────────────────────────────────────────
 const toMin = (t: string) => {
@@ -404,6 +405,14 @@ function Timeline({
                       終了
                     </div>
                   )}
+                  <AddToScheduleButton
+                    title={band.name}
+                    date={sch.day}
+                    startTime={sch.start_at}
+                    endTime={sch.end_at}
+                    location={sch.stage ? `${sch.stage}` : undefined}
+                    color="#a855f7"
+                  />
                 </div>
               </div>
             </div>

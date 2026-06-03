@@ -40,15 +40,23 @@ export default function ShiftEditPage() {
   const [autoMsg, setAutoMsg] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // メンバーピッカーモーダル
+  const [pickerSlot,   setPickerSlot]   = useState<Slot | null>(null)
+  const [pickerFilter, setPickerFilter] = useState<PrefType | 'all'>('all')
+
   const fetchSlotData = useCallback(async (eid: string, d: 'sat'|'sun') => {
+    const nc = { cache: 'no-store' as const }
     const [slotsRes, assignRes, prefRes] = await Promise.all([
-      fetch(`/api/shift/slots?exhibitId=${eid}&date=${d}`).then(r => r.json()) as Promise<{ slots: Slot[] }>,
-      fetch(`/api/shift/assignments?exhibitId=${eid}&date=${d}`).then(r => r.json()) as Promise<{ slots: Slot[]; members: Member[]; assignments: Assign[] }>,
-      fetch(`/api/shift/preferences?exhibitId=${eid}`).then(r => r.json()) as Promise<{ preferences: PrefRow[] }>,
+      fetch(`/api/shift/slots?exhibitId=${eid}&date=${d}`, nc).then(r => r.json()) as Promise<{ slots: Slot[] }>,
+      fetch(`/api/shift/assignments?exhibitId=${eid}&date=${d}`, nc).then(r => r.json()) as Promise<{ slots: Slot[]; members: Member[]; assignments: Assign[] }>,
+      fetch(`/api/shift/preferences?exhibitId=${eid}`, nc).then(r => r.json()) as Promise<{ preferences: PrefRow[] }>,
     ])
 
     setSlots(slotsRes.slots ?? [])
     setMembers(assignRes.members ?? [])
+
+    console.log('[fetchSlotData] assignments:', assignRes.assignments)
+    console.log('[fetchSlotData] members:', assignRes.members)
 
     const aMap = new Map<string, Set<string>>()
     for (const a of (assignRes.assignments ?? [])) {
@@ -166,10 +174,18 @@ export default function ShiftEditPage() {
       slotId:  s.id,
       userIds: [...(assigns.get(s.id) ?? [])],
     }))
-    await fetch('/api/shift/assignments', {
+    const res = await fetch('/api/shift/assignments', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exhibitId, date, assignments: payload }),
     })
+    const json = await res.json() as { ok?: boolean; error?: string }
+    if (!res.ok || !json.ok) {
+      alert(`保存エラー: ${json.error ?? res.status}`)
+      setSaving(false)
+      return
+    }
+    // 保存後にデータ再読み込み
+    await fetchSlotData(exhibitId, date)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -181,12 +197,28 @@ export default function ShiftEditPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exhibitId, date }),
     })
-    const json = await res.json() as { ok: boolean; warnings: string[] }
+    const json = await res.json() as {
+      ok?: boolean; error?: string
+      assigned?: number; warnings?: string[]
+      overloaded?: { name: string; count: number }[]
+      baseTarget?: number
+    }
+    if (!res.ok || !json.ok) {
+      alert(`自動割当エラー: ${json.error ?? res.status}`)
+      setSaving(false)
+      return
+    }
     await fetchSlotData(exhibitId, date)
     setSaving(false)
-    setAutoMsg(json.warnings.length > 0
-      ? `⚠ 完了（警告 ${json.warnings.length} 件）`
-      : '✓ 自動割当が完了しました')
+
+    const parts: string[] = [`✓ ${json.assigned ?? 0}件割当完了`]
+    if ((json.warnings?.length ?? 0) > 0)
+      parts.push(`⚠ 人数不足${json.warnings!.length}コマ`)
+    if ((json.overloaded?.length ?? 0) > 0) {
+      const names = json.overloaded!.map(o => `${o.name}(${o.count}コマ)`).join('・')
+      parts.push(`📌 基準より多め: ${names}`)
+    }
+    setAutoMsg(parts.join('　'))
   }
 
   const handleSlotRequired = async (slotId: string, count: number) => {
@@ -409,7 +441,17 @@ export default function ShiftEditPage() {
             }}>
               {saving ? '保存中…' : saved ? '✓ 保存しました' : '💾 割当を保存'}
             </button>
-            {autoMsg && <span style={{ fontSize:12, color:'#64748b', fontFamily:"'Kiwi Maru',serif" }}>{autoMsg}</span>}
+            {autoMsg && (
+              <div style={{
+                padding:'8px 14px', borderRadius:10, marginTop:4,
+                background: autoMsg.includes('⚠') || autoMsg.includes('📌') ? '#fffbeb' : '#f0fdf4',
+                border: `1px solid ${autoMsg.includes('⚠') || autoMsg.includes('📌') ? '#fde68a' : '#86efac'}`,
+                fontSize:12, color:'#374151', fontFamily:"'Kiwi Maru',serif", lineHeight:1.7,
+                whiteSpace:'pre-wrap',
+              }}>
+                {autoMsg.split('　').map((line, i) => <div key={i}>{line}</div>)}
+              </div>
+            )}
           </div>
 
           {members.length === 0 || slots.filter(s => s.date === date).length === 0 ? (
@@ -417,64 +459,163 @@ export default function ShiftEditPage() {
               コマまたはメンバーが設定されていません。
             </div>
           ) : (
-            <table style={{ borderCollapse:'collapse', width:'100%', maxWidth:700 }}>
-              <thead>
-                <tr>
-                  <th style={{ ...thStyle, width:120 }}>時間</th>
-                  <th style={thStyle}>メンバー（クリックで割当 / 解除）</th>
-                  <th style={{ ...thStyle, width:70, textAlign:'center' }}>人数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {slots.filter(s => s.date === date).map((slot, i) => {
-                  const slotAssigns = assigns.get(slot.id) ?? new Set()
-                  const filled = slotAssigns.size
-                  const short  = filled < slot.required_count
-                  return (
-                    <tr key={slot.id} style={{ borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
-                      <td style={{ ...tdStyle, verticalAlign:'middle' }}>
-                        {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
-                      </td>
-                      <td style={{ padding:'8px 12px', border:'1px solid #f1f5f9', verticalAlign:'middle' }}>
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                          {members.map(m => {
-                            const assigned = slotAssigns.has(m.user_id)
-                            const pref     = prefs.get(`${m.user_id}:${slot.id}`) ?? 'neutral'
-                            return (
-                              <button
-                                key={m.user_id}
-                                onClick={() => toggleAssign(slot.id, m.user_id)}
-                                title={`アンケート: ${pref === 'want' ? '入りたい' : pref === 'avoid' ? '入れない' : 'どちらでもいい'}`}
-                                style={{
-                                  padding:'4px 12px', borderRadius:99, border:'none', cursor:'pointer',
-                                  background: assigned ? '#f0fdf4' : '#f8fafc',
-                                  boxShadow: assigned ? 'inset 0 0 0 1.5px #86efac' : 'inset 0 0 0 1.5px #e2e8f0',
-                                  fontSize:12, fontFamily:"'Kiwi Maru',serif",
-                                  color: assigned ? '#16a34a' : '#94a3b8',
-                                  fontWeight: assigned ? 700 : 400,
-                                  transition:'all 0.12s',
-                                  display:'flex', alignItems:'center', gap:4,
-                                }}
-                              >
+            <>
+              <table style={{ borderCollapse:'collapse', width:'100%', maxWidth:700 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, width:120 }}>時間</th>
+                    <th style={thStyle}>割当メンバー</th>
+                    <th style={{ ...thStyle, width:70, textAlign:'center' }}>人数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slots.filter(s => s.date === date).map((slot, i) => {
+                    const slotAssigns  = assigns.get(slot.id) ?? new Set()
+                    const filled       = slotAssigns.size
+                    const short        = filled < slot.required_count
+                    const assignedList = members.filter(m => slotAssigns.has(m.user_id))
+                    return (
+                      <tr key={slot.id} style={{ borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
+                        <td style={{ ...tdStyle, verticalAlign:'middle', whiteSpace:'nowrap' }}>
+                          {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
+                        </td>
+                        <td style={{ padding:'8px 12px', border:'1px solid #f1f5f9', verticalAlign:'middle' }}>
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
+                            {assignedList.map(m => (
+                              <span key={m.user_id} style={{
+                                display:'inline-flex', alignItems:'center', gap:4,
+                                padding:'3px 8px 3px 6px', borderRadius:99,
+                                background:'#f0fdf4', boxShadow:'inset 0 0 0 1.5px #86efac',
+                                fontSize:12, color:'#16a34a', fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+                              }}>
+                                <span style={{ fontSize:10, color: PREF_COLOR[prefs.get(`${m.user_id}:${slot.id}`) ?? 'neutral'] }}>
+                                  {PREF_ICON[prefs.get(`${m.user_id}:${slot.id}`) ?? 'neutral']}
+                                </span>
                                 {m.profiles?.name ?? '?'}
-                                <span style={{ fontSize:10, color: PREF_COLOR[pref] }}>{PREF_ICON[pref]}</span>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </td>
-                      <td style={{ ...tdStyle, textAlign:'center', fontWeight:700,
-                        color: short ? '#dc2626' : '#16a34a',
-                        background: short ? '#fef2f2' : '#f0fdf4',
-                        fontFamily:"'Kaisei Decol',serif", verticalAlign:'middle',
-                      }}>
-                        {filled}/{slot.required_count}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                                <button onClick={() => toggleAssign(slot.id, m.user_id)} style={{
+                                  background:'none', border:'none', cursor:'pointer',
+                                  color:'#94a3b8', fontSize:12, padding:0, lineHeight:1,
+                                }}>×</button>
+                              </span>
+                            ))}
+                            {/* ＋ボタン */}
+                            <button onClick={() => { setPickerSlot(slot); setPickerFilter('all') }} style={{
+                              width:28, height:28, borderRadius:'50%', border:'2px dashed #cbd5e1',
+                              background:'#f8fafc', cursor:'pointer', color:'#94a3b8',
+                              display:'flex', alignItems:'center', justifyContent:'center',
+                              fontSize:18, lineHeight:1, flexShrink:0,
+                            }}>+</button>
+                          </div>
+                        </td>
+                        <td style={{
+                          ...tdStyle, textAlign:'center', fontWeight:700,
+                          fontFamily:"'Kaisei Decol',serif",
+                          color: short ? '#dc2626' : '#16a34a',
+                          background: short ? '#fef2f2' : '#f0fdf4',
+                          verticalAlign:'middle',
+                        }}>
+                          {filled}/{slot.required_count}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+
+              {/* メンバーピッカーモーダル */}
+              {pickerSlot && (() => {
+                const slotAssigns = assigns.get(pickerSlot.id) ?? new Set()
+                // 各メンバーのこの日の割当済みコマ数
+                const assignedCount = new Map<string, number>()
+                for (const s of slots.filter(s => s.date === date)) {
+                  for (const uid of (assigns.get(s.id) ?? [])) {
+                    assignedCount.set(uid, (assignedCount.get(uid) ?? 0) + 1)
+                  }
+                }
+                const filtered = members.filter(m => {
+                  if (pickerFilter === 'all') return true
+                  return (prefs.get(`${m.user_id}:${pickerSlot.id}`) ?? 'neutral') === pickerFilter
+                }).sort((a, b) =>
+                  (a.profiles?.name ?? '').localeCompare(b.profiles?.name ?? '', 'ja')
+                )
+                return (
+                  <div style={{
+                    position:'fixed', inset:0, zIndex:200,
+                    background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)',
+                    display:'flex', alignItems:'center', justifyContent:'center', padding:20,
+                  }} onClick={() => setPickerSlot(null)}>
+                    <div style={{
+                      background:'#fff', borderRadius:20, padding:24,
+                      width:'100%', maxWidth:400, maxHeight:'80vh', display:'flex', flexDirection:'column',
+                    }} onClick={e => e.stopPropagation()}>
+                      <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:16, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
+                        {pickerSlot.start_at.slice(0,5)}〜{pickerSlot.end_at.slice(0,5)} に割り当てる
+                      </div>
+
+                      {/* フィルタータブ */}
+                      <div style={{ display:'flex', gap:5, marginBottom:14 }}>
+                        {([
+                          { key:'all',     label:'すべて' },
+                          { key:'want',    label:'◎入りたい' },
+                          { key:'neutral', label:'△どちらでも' },
+                          { key:'avoid',   label:'✕入れない' },
+                        ] as { key: PrefType | 'all'; label: string }[]).map(f => (
+                          <button key={f.key} onClick={() => setPickerFilter(f.key)} style={{
+                            padding:'4px 10px', borderRadius:99, border:'none', cursor:'pointer',
+                            background: pickerFilter === f.key ? '#1e293b' : '#f1f5f9',
+                            color: pickerFilter === f.key ? '#fff' : '#64748b',
+                            fontSize:11, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                          }}>{f.label}</button>
+                        ))}
+                      </div>
+
+                      <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:6 }}>
+                        {filtered.map(m => {
+                          const inSlot  = slotAssigns.has(m.user_id)
+                          const pref    = prefs.get(`${m.user_id}:${pickerSlot.id}`) ?? 'neutral'
+                          const cnt     = assignedCount.get(m.user_id) ?? 0
+                          return (
+                            <div key={m.user_id} onClick={() => toggleAssign(pickerSlot.id, m.user_id)} style={{
+                              display:'flex', alignItems:'center', gap:10, padding:'10px 12px',
+                              borderRadius:10, cursor:'pointer', transition:'all 0.12s',
+                              background: inSlot ? '#f0fdf4' : '#fafafa',
+                              border: `1px solid ${inSlot ? '#86efac' : '#f1f5f9'}`,
+                            }}>
+                              <div style={{
+                                width:20, height:20, borderRadius:5, border:'2px solid',
+                                borderColor: inSlot ? '#10b981' : '#cbd5e1',
+                                background: inSlot ? '#10b981' : '#fff',
+                                display:'flex', alignItems:'center', justifyContent:'center',
+                                fontSize:11, color:'#fff', flexShrink:0,
+                              }}>{inSlot ? '✓' : ''}</div>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight: inSlot ? 700 : 400, color: inSlot ? '#16a34a' : '#1e293b' }}>
+                                  {m.profiles?.name ?? '?'}
+                                </span>
+                                {cnt > 0 && (
+                                  <span style={{ marginLeft:6, fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+                                    すでに{cnt}コマ
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize:14, color: PREF_COLOR[pref], fontWeight:700, flexShrink:0 }}>
+                                {PREF_ICON[pref]}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <button onClick={() => setPickerSlot(null)} style={{
+                        marginTop:14, width:'100%', padding:'11px', borderRadius:10, border:'none',
+                        background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                        color:'#fff', fontSize:13, fontWeight:700,
+                        cursor:'pointer', fontFamily:"'Kaisei Decol',serif",
+                      }}>完了</button>
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
           )}
           <div style={{ marginTop:12, fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
             セルをクリックして割当 / 解除。アンケートの回答（◎△✕）を参考にしてください。

@@ -31,10 +31,10 @@ export async function GET(req: Request) {
   const slotIds = ((slots ?? []) as { id: string }[]).map(s => s.id)
   if (slotIds.length === 0) return NextResponse.json({ slots: [], assignments: [], members: [] })
 
-  // 割当取得
+  // 割当取得（slot_id と user_id のみ取得 — profiles ジョインすると slot_id が消えるため）
   const { data: assignments } = await db
     .from('shift_assignments')
-    .select('slot_id, user_id, profiles(id, name)')
+    .select('slot_id, user_id')
     .in('slot_id', slotIds)
 
   // クラスメンバー取得（student + editor 両方）
@@ -47,10 +47,9 @@ export async function GET(req: Request) {
   type MemberRow = { user_id: string; profiles: { id: string; name: string } | null }
   const seen = new Set<string>()
   const members: MemberRow[] = []
-  for (const row of [
-    ...((studentsRes.data ?? []) as MemberRow[]),
-    ...((editorsRes.data  ?? []) as MemberRow[]),
-  ]) {
+  const studentRows = (studentsRes.data ?? []) as unknown as MemberRow[]
+  const editorRows = (editorsRes.data ?? []) as unknown as MemberRow[]
+  for (const row of [...studentRows, ...editorRows]) {
     if (!seen.has(row.user_id)) {
       seen.add(row.user_id)
       members.push(row)
@@ -81,12 +80,22 @@ export async function PUT(req: Request) {
   const slotIds = body.assignments.map(a => a.slotId)
 
   // 既存割当を削除して再挿入
-  await db.from('shift_assignments').delete().in('slot_id', slotIds)
+  const { error: delErr } = await db.from('shift_assignments').delete().in('slot_id', slotIds)
+  if (delErr) {
+    console.error('[assignments PUT] delete error:', delErr)
+    return NextResponse.json({ error: delErr.message }, { status: 500 })
+  }
 
   const rows = body.assignments.flatMap(a =>
     a.userIds.map(uid => ({ slot_id: a.slotId, user_id: uid, assigned_by: user.id }))
   )
-  if (rows.length > 0) await db.from('shift_assignments').insert(rows)
+  if (rows.length > 0) {
+    const { error: insErr } = await db.from('shift_assignments').insert(rows)
+    if (insErr) {
+      console.error('[assignments PUT] insert error:', insErr)
+      return NextResponse.json({ error: insErr.message }, { status: 500 })
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

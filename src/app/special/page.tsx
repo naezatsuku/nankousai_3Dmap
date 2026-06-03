@@ -5,6 +5,7 @@ import { PerformanceStatus, timeToMin, getPerformanceStatus } from '@/types'
 import { DUMMY_GROUPS, fetchSpecialGroups } from '@/lib/special'
 import type { SpecialGroup, SpecialSched } from '@/lib/special'
 import BackButton from '@/components/ui/BackButton'
+import AddToScheduleButton from '@/components/ui/AddToScheduleButton'
 
 // ─── カテゴリー絵文字 ─────────────────────────────────────────
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -308,9 +309,19 @@ export default function SpecialPage() {
                                 {s.note && <span style={{ marginLeft: 6, color: '#aaa' }}>· {s.note}</span>}
                               </div>
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color, flexShrink: 0, fontFamily: "'Kiwi Maru', serif" }}>
-                              {cfg.label}
-                            </span>
+                            <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4, flexShrink:0 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color, fontFamily: "'Kiwi Maru', serif" }}>
+                                {cfg.label}
+                              </span>
+                              <AddToScheduleButton
+                                title={`${group.name}${s.note ? ` (${s.note})` : ''}`}
+                                date={s.day}
+                                startTime={s.start_at}
+                                endTime={s.end_at}
+                                location={s.location}
+                                color="#f59e0b"
+                              />
+                            </div>
                           </div>
                         )
                       })}
