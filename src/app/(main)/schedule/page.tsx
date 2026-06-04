@@ -152,6 +152,11 @@ export default function SchedulePage() {
   const [shiftNotifySaving, setShiftNotifySaving] = useState(false)
   const [shiftNotifySaved,  setShiftNotifySaved]  = useState(false)
 
+  // 予定編集モーダル（シフト以外）
+  const [editItem,   setEditItem]   = useState<ScheduleItem | null>(null)
+  const [editNotify, setEditNotify] = useState<number | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
+
   // 初期化
   useEffect(() => {
     const key = (() => {
@@ -269,6 +274,31 @@ export default function SchedulePage() {
       method: 'DELETE', headers: { 'x-user-key': userKey },
     })
     setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const handleEditSave = async () => {
+    if (!editItem || !userKey) return
+    setEditSaving(true)
+    await fetch('/api/schedule', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
+      body: JSON.stringify({ id: editItem.id, notify_minutes: editNotify }),
+    })
+    const updated = items.map(i =>
+      i.id === editItem.id ? { ...i, notify_minutes: editNotify } : i
+    )
+    setItems(updated)
+    scheduleNotifications(updated, date)
+    setEditSaving(false)
+    setEditItem(null)
+  }
+
+  const handleEditDelete = async () => {
+    if (!editItem) return
+    if (!window.confirm(`「${editItem.title}」を削除しますか？`)) return
+    const id = editItem.id
+    setEditItem(null)
+    handleDelete(id)
   }
 
   const handleShiftNotify = async () => {
@@ -431,8 +461,9 @@ export default function SchedulePage() {
                         if (item.type === 'shift') {
                           setShiftNotifyMin(item.notify_minutes ?? 15)
                           setShiftNotifyItem(item)
-                        } else if (window.confirm(`「${item.title}」を削除しますか？`)) {
-                          handleDelete(item.id)
+                        } else {
+                          setEditNotify(item.notify_minutes ?? null)
+                          setEditItem(item)
                         }
                       }}
                       style={{
@@ -472,6 +503,71 @@ export default function SchedulePage() {
           </div>
         )}
       </div>
+
+      {/* ── 予定編集モーダル（シフト以外） ── */}
+      {editItem && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:200,
+          background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)',
+          display:'flex', alignItems:'flex-end', justifyContent:'center',
+        }} onClick={() => setEditItem(null)}>
+          <div style={{
+            width:'100%', maxWidth:480, background:'#fff',
+            borderRadius:'20px 20px 0 0', padding:'24px 20px 40px',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
+              {editItem.title}
+            </div>
+            <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:20 }}>
+              {fmtTime(editItem.start_time)}{editItem.end_time ? `〜${fmtTime(editItem.end_time)}` : ''}
+              {editItem.location ? `　📍 ${editItem.location}` : ''}
+            </div>
+
+            <div style={{ fontSize:11, fontWeight:700, color:'#64748b', fontFamily:"'Kiwi Maru',serif", marginBottom:8 }}>
+              🔔 通知タイミング
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:28 }}>
+              {NOTIFY_OPTIONS.map(o => (
+                <button key={String(o.value)} onClick={() => setEditNotify(o.value)} style={{
+                  padding:'8px 16px', borderRadius:99, border:'none', cursor:'pointer',
+                  background: editNotify === o.value
+                    ? `linear-gradient(135deg,${editItem.color},${editItem.color}cc)`
+                    : '#f1f5f9',
+                  color: editNotify === o.value ? '#fff' : '#64748b',
+                  fontWeight:700, fontSize:12, fontFamily:"'Kiwi Maru',serif",
+                  transition:'all 0.15s',
+                }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={handleEditDelete} style={{
+                flex:1, padding:'12px', borderRadius:10,
+                border:'1px solid #fca5a5', background:'#fff',
+                fontSize:13, fontWeight:700, cursor:'pointer',
+                fontFamily:"'Kiwi Maru',serif", color:'#ef4444',
+              }}>削除</button>
+              <button onClick={() => setEditItem(null)} style={{
+                flex:1, padding:'12px', borderRadius:10,
+                border:'1px solid #e2e8f0', background:'#fff',
+                fontSize:13, fontWeight:700, cursor:'pointer',
+                fontFamily:"'Kiwi Maru',serif", color:'#64748b',
+              }}>キャンセル</button>
+              <button onClick={handleEditSave} disabled={editSaving} style={{
+                flex:2, padding:'12px', borderRadius:10, border:'none',
+                background: editSaving ? '#e2e8f0' : `linear-gradient(135deg,${editItem.color},${editItem.color}cc)`,
+                color: editSaving ? '#94a3b8' : '#fff',
+                fontSize:13, fontWeight:700, cursor: editSaving ? 'default' : 'pointer',
+                fontFamily:"'Kaisei Decol',serif",
+              }}>
+                {editSaving ? '保存中…' : '保存する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── シフト通知設定モーダル ── */}
       {shiftNotifyItem && (

@@ -20,7 +20,14 @@ export async function POST(req: Request) {
   const { fcm_token } = await req.json() as { fcm_token: string }
   if (!fcm_token) return NextResponse.json({ error: 'fcm_token が必要です' }, { status: 400 })
 
-  const { error } = await serviceDb()
+  const db = serviceDb()
+
+  // 同じユーザーの古いトークンを削除（重複通知防止）してから新しいトークンを登録
+  await db.from('push_subscriptions').delete()
+    .eq('user_id', user.id)
+    .neq('fcm_token', fcm_token)
+
+  const { error } = await db
     .from('push_subscriptions')
     .upsert({ fcm_token, user_id: user.id }, { onConflict: 'fcm_token' })
 

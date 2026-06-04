@@ -141,11 +141,11 @@ export async function POST(req: Request) {
       if (assignErr) { shiftDiag.push({ step: 'shift_assignments', detail: `ERROR: ${assignErr.message}` }); continue }
 
       const slotIds = ((assignments ?? []) as { slot_id: string }[]).map(a => a.slot_id)
-      shiftDiag.push({ step: `user ${pref.user_id.slice(0,8)}… assignments`, detail: `${slotIds.length} コマ, window=${winFrom}〜${winTo}, day=${day}` })
+      shiftDiag.push({ step: `user ${pref.user_id.slice(0,8)}…`, detail: `notify_minutes=${pref.notify_minutes}, ${slotIds.length}コマ割当, window=${winFrom}〜${winTo}, day=${day}` })
       if (!slotIds.length) continue
 
       const { data: rawSlots, error: slotErr } = await supabase
-        .from('shift_slots').select('start_at, exhibit_id')
+        .from('shift_slots').select('id, start_at, exhibit_id')
         .in('id', slotIds).eq('date', day)
         .gte('start_at', winFrom).lte('start_at', winTo)
       if (slotErr) { shiftDiag.push({ step: 'shift_slots', detail: `ERROR: ${slotErr.message}` }); continue }
@@ -162,9 +162,18 @@ export async function POST(req: Request) {
       shiftDiag.push({ step: 'push_subscriptions', detail: `${(subs ?? []).length} トークン` })
       if (!subs?.length) continue
 
-      for (const slot of rawSlots as any[]) {
+      for (const slot of rawSlots as { id: string; start_at: string; exhibit_id: string }[]) {
+        // 送信済みチェック（cron の重複送信防止）
+        const { error: dupErr } = await supabase
+          .from('sent_shift_notifications')
+          .insert({ user_id: pref.user_id, slot_id: slot.id })
+        if (dupErr) {
+          shiftDiag.push({ step: '重複チェック', detail: `スキップ（送信済み）slot=${slot.id.slice(0,8)}…` })
+          continue // すでに送信済み
+        }
+
         const exhibitName = nameMap.get(slot.exhibit_id) ?? 'クラス'
-        const start = (slot.start_at as string).slice(0, 5)
+        const start = slot.start_at.slice(0, 5)
         const title = `📅 ${pref.notify_minutes}分後: シフト当番`
         const body  = `${start}〜 ${exhibitName} のシフトが始まります`
         let sent = 0

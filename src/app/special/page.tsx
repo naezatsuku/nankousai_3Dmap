@@ -444,6 +444,16 @@ function Timeline({
                       終了
                     </div>
                   )}
+                  {!isDone && (
+                    <AddToScheduleButton
+                      title={`${group.name}${sched.note ? ` (${sched.note})` : ''}`}
+                      date={sched.day}
+                      startTime={sched.start_at}
+                      endTime={sched.end_at}
+                      location={sched.location}
+                      color="#f59e0b"
+                    />
+                  )}
                 </div>
               </div>
             </div>

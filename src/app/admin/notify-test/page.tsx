@@ -109,9 +109,16 @@ export default function NotifyTestPage() {
         </div>
 
         <div style={{ marginTop:12, padding:'10px 14px', borderRadius:10, background:'#f8fafc', fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
-          <strong style={{ color:'#475569' }}>10分前ウィンドウ:</strong> {time} の 8〜12分後に開始予定の催しに通知
+          <div style={{ fontWeight:700, color:'#64748b', marginBottom:4 }}>催し・軽音（固定ウィンドウ）</div>
+          <strong style={{ color:'#475569' }}>10分前:</strong> {time} の 8〜12分後に開始予定の催しに通知
           <br />
-          <strong style={{ color:'#475569' }}>開始ウィンドウ:</strong> {time} の -2〜+3分に開始予定の催しに通知
+          <strong style={{ color:'#475569' }}>開始時:</strong> {time} の -2〜+3分に開始予定の催しに通知
+          <div style={{ fontWeight:700, color:'#6366f1', margin:'8px 0 4px' }}>シフト通知（個人設定による）</div>
+          基準時刻 = <strong style={{ color:'#1e293b' }}>シフト開始時刻 − 自分の通知設定分数</strong> に設定してください
+          <br />
+          例: 10:00 のシフトで 15分前設定 → 基準時刻を <strong style={{ color:'#1e293b' }}>09:45</strong> にする
+          <br />
+          <span style={{ color:'#94a3b8' }}>診断ログで実際のウィンドウと notify_minutes を確認できます</span>
         </div>
       </div>
 

@@ -120,10 +120,10 @@ serve(async (_req) => {
       const slotIds = ((assignments ?? []) as { slot_id: string }[]).map(a => a.slot_id)
       if (!slotIds.length) continue
 
-      // ウィンドウ内のコマを取得
+      // ウィンドウ内のコマを取得（id も含める）
       const { data: rawSlots } = await supabase
         .from('shift_slots')
-        .select('start_at, exhibit_id')
+        .select('id, start_at, exhibit_id')
         .in('id', slotIds)
         .eq('date', today)
         .gte('start_at', winFrom)
@@ -145,7 +145,13 @@ serve(async (_req) => {
 
       if (!subs?.length) continue
 
-      for (const slot of rawSlots as any[]) {
+      for (const slot of (rawSlots as any[])) {
+        // 送信済みチェック（毎分 cron の重複送信防止）
+        const { error: dupErr } = await supabase
+          .from('sent_shift_notifications')
+          .insert({ user_id: pref.user_id, slot_id: slot.id })
+        if (dupErr) continue // すでに送信済みならスキップ
+
         const exhibitName = nameMap.get(slot.exhibit_id) ?? 'クラス'
         const start = (slot.start_at as string).slice(0, 5)
         const title = `📅 ${pref.notify_minutes}分後: シフト当番`
