@@ -103,36 +103,22 @@ export default function ShiftViewPage() {
 
   // 自分が担当するコマに通知を一括設定
   const handleSaveNotify = async () => {
-    if (!myUserId || !exhibitId || !userKey) return
     setNotifySaving(true)
 
-    const mySlotIds = assigns
-      .filter(a => a.user_id === myUserId)
-      .map(a => a.slot_id)
-    const mySlots = slots.filter(s => mySlotIds.includes(s.id))
-
-    // 全スロットの削除を並列実行してから、POSTを並列実行
-    await Promise.all(mySlots.map(slot =>
-      fetch(`/api/schedule?exhibitId=${exhibitId}&slotId=${slot.id}`, {
-        method: 'DELETE', headers: { 'x-user-key': userKey }, cache: 'no-store',
-      })
-    ))
+    // localStorage に保存
     if (notifyMinutes !== null) {
-      await Promise.all(mySlots.map(slot =>
-        fetch('/api/schedule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
-          body: JSON.stringify({
-            title:          'シフト当番',
-            date:           slot.date,
-            start_time:     slot.start_at.slice(0,5),
-            end_time:       slot.end_at.slice(0,5),
-            notify_minutes: notifyMinutes,
-            color:          '#6366f1',
-            type:           'custom',
-          }),
-        })
-      ))
+      localStorage.setItem('shift_notify_minutes', String(notifyMinutes))
+    } else {
+      localStorage.removeItem('shift_notify_minutes')
+    }
+
+    // DB に保存（FCM サーバー側で参照）
+    const supabase = createClient()
+    if (notifyMinutes !== null) {
+      await supabase.from('shift_notification_prefs')
+        .upsert({ user_id: myUserId, notify_minutes: notifyMinutes }, { onConflict: 'user_id' })
+    } else {
+      await supabase.from('shift_notification_prefs').delete().eq('user_id', myUserId)
     }
 
     setNotifySaving(false); setNotifySaved(true); setNotifyModal(false)

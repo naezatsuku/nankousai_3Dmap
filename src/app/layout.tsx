@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import './globals.css'
-import ErudaLoader from '@/components/ui/ErudaLoader'
+import ErudaLoader   from '@/components/ui/ErudaLoader'
+import TokenLinker   from '@/components/ui/TokenLinker'
 
 // ── 本番URLをここに設定（OGP・canonical に使用）──────────────────
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nankousai.example.com'
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <TokenLinker />
         {children}
         {process.env.NODE_ENV === 'development' && <ErudaLoader />}
         <Script id="prevent-save" strategy="afterInteractive">{`

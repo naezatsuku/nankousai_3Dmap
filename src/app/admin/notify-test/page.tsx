@@ -6,8 +6,11 @@ import { createClient } from '@/lib/supabase/client'
 
 interface TestResult {
   referenceTime: string
+  day?:          string
   windows:       { '10min': string; start: string }
   results:       { phase: string; name: string; start: string; sent: number }[]
+  shiftResults:  { user_id: string; slotStart: string; exhibitName: string; notifyMin: number; sent: number }[]
+  shiftDiag?:    { step: string; detail: string }[]
   totalSent:     number
   skipped?:      string
   error?:        string
@@ -30,8 +33,10 @@ export default function NotifyTestPage() {
 
   const [time, setTime]       = useState(defaultTime)
   const [bypass, setBypass]   = useState(true)
+  const [dayChoice, setDayChoice] = useState<'sat'|'sun'>('sat')
   const [running, setRunning] = useState(false)
   const [result, setResult]   = useState<TestResult | null>(null)
+  const [showDiag, setShowDiag] = useState(false)
 
   const run = async () => {
     setRunning(true)
@@ -40,11 +45,11 @@ export default function NotifyTestPage() {
       const res  = await fetch('/api/schedule-remind', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ testTime: time, bypassDayCheck: bypass }),
+        body:    JSON.stringify({ testTime: time, bypassDayCheck: bypass, dayOverride: dayChoice }),
       })
       setResult(await res.json())
     } catch (e) {
-      setResult({ referenceTime: time, windows: { '10min': '', start: '' }, results: [], totalSent: 0, error: String(e) })
+      setResult({ referenceTime: time, windows: { '10min': '', start: '' }, results: [], shiftResults: [], totalSent: 0, error: String(e) })
     }
     setRunning(false)
   }
@@ -87,6 +92,20 @@ export default function NotifyTestPage() {
               祭当日チェックをスキップ
             </span>
           </label>
+
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>
+              日付（シフト検索用）
+            </div>
+            <select
+              value={dayChoice}
+              onChange={e => setDayChoice(e.target.value as 'sat'|'sun')}
+              style={{ padding:'8px 12px', borderRadius:10, border:'1px solid #e2e8f0', fontSize:13, fontFamily:"'Kiwi Maru',serif" }}
+            >
+              <option value="sat">土曜日（9/13）</option>
+              <option value="sun">日曜日（9/14）</option>
+            </select>
+          </div>
         </div>
 
         <div style={{ marginTop:12, padding:'10px 14px', borderRadius:10, background:'#f8fafc', fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
@@ -134,12 +153,16 @@ export default function NotifyTestPage() {
                 10分前: {result.windows['10min']} &nbsp;|&nbsp; 開始: {result.windows.start}
               </div>
 
+              {/* 催し・軽音 */}
+              <div style={{ fontSize:11, fontWeight:700, color:'#64748b', fontFamily:"'Kiwi Maru',serif", marginBottom:6 }}>
+                催し・軽音
+              </div>
               {result.results.length === 0 ? (
-                <div style={{ padding:'20px 0', textAlign:'center', color:'#cbd5e1', fontSize:13, fontFamily:"'Kiwi Maru',serif" }}>
+                <div style={{ padding:'12px 0', color:'#cbd5e1', fontSize:13, fontFamily:"'Kiwi Maru',serif" }}>
                   対象の催しがありませんでした
                 </div>
               ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
                   {result.results.map((r, i) => (
                     <div key={i} style={{
                       display:'flex', alignItems:'center', gap:12,
@@ -160,12 +183,66 @@ export default function NotifyTestPage() {
                       <div style={{ fontSize:11, color:'#94a3b8', fontFamily:'monospace', flexShrink:0 }}>
                         {r.start}
                       </div>
-                      <div style={{
-                        fontSize:11, fontWeight:700, flexShrink:0,
-                        color: r.sent > 0 ? '#22c55e' : '#94a3b8',
-                        fontFamily:"'Kiwi Maru',serif",
-                      }}>
+                      <div style={{ fontSize:11, fontWeight:700, flexShrink:0, color: r.sent > 0 ? '#22c55e' : '#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
                         {r.sent > 0 ? `✓ ${r.sent}件` : '購読者なし'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 診断ログ */}
+              {(result.shiftDiag ?? []).length > 0 && (
+                <div style={{ marginTop:16 }}>
+                  <button onClick={() => setShowDiag(v => !v)} style={{
+                    fontSize:11, color:'#6366f1', background:'none', border:'none',
+                    cursor:'pointer', fontFamily:"'Kiwi Maru',serif", fontWeight:700, padding:0, marginBottom:6,
+                  }}>
+                    {showDiag ? '▲ 診断ログを隠す' : '▼ 診断ログを表示'}
+                  </button>
+                  {showDiag && (
+                    <div style={{ background:'#f8fafc', borderRadius:10, padding:'10px 14px', fontSize:11, fontFamily:'monospace', display:'flex', flexDirection:'column', gap:3 }}>
+                      {(result.shiftDiag ?? []).map((d, i) => (
+                        <div key={i} style={{ color: d.detail.startsWith('ERROR') ? '#ef4444' : '#475569' }}>
+                          <span style={{ color:'#94a3b8' }}>[{d.step}]</span> {d.detail}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* シフト通知 */}
+              <div style={{ fontSize:11, fontWeight:700, color:'#64748b', fontFamily:"'Kiwi Maru',serif", marginBottom:6, marginTop:8 }}>
+                シフト通知
+              </div>
+              {(result.shiftResults ?? []).length === 0 ? (
+                <div style={{ padding:'12px 0', color:'#cbd5e1', fontSize:13, fontFamily:"'Kiwi Maru',serif" }}>
+                  対象のシフトがありませんでした（通知設定済みユーザーのシフトが基準時刻±2分にない）
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {(result.shiftResults ?? []).map((r, i) => (
+                    <div key={i} style={{
+                      display:'flex', alignItems:'center', gap:12,
+                      padding:'10px 14px', borderRadius:10, background:'#f8fafc',
+                      border: r.sent > 0 ? '1px solid #86efac' : '1px solid #f1f5f9',
+                    }}>
+                      <div style={{
+                        fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99,
+                        background:'#EEF2FF', color:'#6366f1',
+                        fontFamily:"'Kiwi Maru',serif", flexShrink:0,
+                      }}>
+                        {r.notifyMin}分前
+                      </div>
+                      <div style={{ flex:1, fontSize:13, fontWeight:700, color:'#1e293b', fontFamily:"'Kaisei Decol',serif" }}>
+                        {r.exhibitName}
+                      </div>
+                      <div style={{ fontSize:11, color:'#94a3b8', fontFamily:'monospace', flexShrink:0 }}>
+                        {r.slotStart}
+                      </div>
+                      <div style={{ fontSize:11, fontWeight:700, flexShrink:0, color: r.sent > 0 ? '#22c55e' : '#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+                        {r.sent > 0 ? `✓ ${r.sent}件` : 'トークンなし'}
                       </div>
                     </div>
                   ))}

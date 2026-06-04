@@ -39,7 +39,7 @@ export default function ExhibitsPage() {
   }, [])
 
   const add = async () => {
-    if (!form.name) return
+    if (!form.class_label) return
     const supabase = createClient()
     const { data } = await supabase
       .from('exhibits')
@@ -94,10 +94,10 @@ export default function ExhibitsPage() {
             新しい展示団体
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-            <Field label="展示名 *">
+            <Field label="展示名">
               <Input value={form.name} onChange={v=>setForm(f=>({...f,name:v}))} placeholder="例: 高2-1 お化け屋敷" />
             </Field>
-            <Field label="クラス名">
+            <Field label="クラス名 *">
               <Input value={form.class_label ?? ''} onChange={v=>setForm(f=>({...f,class_label:v}))} placeholder="例: 高2-1" />
             </Field>
             <Field label="種別 *">
@@ -125,10 +125,10 @@ export default function ExhibitsPage() {
             <button onClick={()=>setAdding(false)} style={{ padding:'9px 18px', borderRadius:8, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', fontSize:13, cursor:'pointer', fontFamily:"'Kiwi Maru',serif" }}>
               キャンセル
             </button>
-            <button onClick={add} disabled={!form.name} style={{
-              padding:'9px 20px', borderRadius:8, border:'none', cursor:form.name?'pointer':'not-allowed',
-              background: form.name ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f1f5f9',
-              color: form.name ? '#fff' : '#94a3b8', fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+            <button onClick={add} disabled={!form.class_label} style={{
+              padding:'9px 20px', borderRadius:8, border:'none', cursor:form.class_label?'pointer':'not-allowed',
+              background: form.class_label ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f1f5f9',
+              color: form.class_label ? '#fff' : '#94a3b8', fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
             }}>
               追加する
             </button>

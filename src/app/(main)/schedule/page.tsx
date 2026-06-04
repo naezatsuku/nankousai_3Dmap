@@ -166,8 +166,17 @@ export default function SchedulePage() {
       if (user) {
         setIsLoggedIn(true)
         setMyUserId(user.id)
-        supabase.from('profiles').select('role').eq('id', user.id).single()
-          .then(({ data }) => setRole((data as { role: string } | null)?.role ?? ''))
+        // ロール取得 + シフト通知設定を DB から同期（並列）
+        Promise.all([
+          supabase.from('profiles').select('role').eq('id', user.id).single(),
+          supabase.from('shift_notification_prefs').select('notify_minutes').eq('user_id', user.id).maybeSingle(),
+        ]).then(([profileRes, prefRes]) => {
+          setRole((profileRes.data as { role: string } | null)?.role ?? '')
+          if (prefRes.data) {
+            localStorage.setItem('shift_notify_minutes', String(prefRes.data.notify_minutes))
+            setShiftNotifyMin(prefRes.data.notify_minutes)
+          }
+        })
       }
     })
   }, [])
@@ -190,10 +199,9 @@ export default function SchedulePage() {
         .from(table).select('exhibit_id').eq('user_id', myUserId)
       const eids = ((links ?? []) as { exhibit_id: string }[]).map(l => l.exhibit_id)
 
-      // 既存のシフト通知（schedule_items 経由で保存済み）を取り出して
-      // シフト項目の notify_minutes にマージ。重複表示を防ぐため本体から除外。
-      const shiftNotifyItems = all.filter(i => i.type === 'custom' && i.title === 'シフト当番')
-      all = all.filter(i => !(i.type === 'custom' && i.title === 'シフト当番'))
+      // localStorage からシフト通知設定を読み込む（全シフトに一括適用）
+      const stored = localStorage.getItem('shift_notify_minutes')
+      const savedShiftNotifyMin = stored !== null ? parseInt(stored) : null
 
       for (const eid of eids) {
         for (const d of ['sat', 'sun'] as const) {
@@ -208,9 +216,6 @@ export default function SchedulePage() {
           )
           for (const slot of slots) {
             if (!mySlotIds.has(slot.id)) continue
-            const existingNotify = shiftNotifyItems.find(n =>
-              n.date === d && n.start_time === slot.start_at.slice(0, 5)
-            )
             all.push({
               id:             `shift-${slot.id}`,
               title:          'シフト当番',
@@ -220,7 +225,7 @@ export default function SchedulePage() {
               color:          TYPE_COLOR.shift,
               type:           'shift',
               exhibit_id:     eid,
-              notify_minutes: existingNotify?.notify_minutes ?? null,
+              notify_minutes: savedShiftNotifyMin,
             })
           }
         }
@@ -267,44 +272,39 @@ export default function SchedulePage() {
   }
 
   const handleShiftNotify = async () => {
-    if (!shiftNotifyItem || !userKey) return
+    if (!shiftNotifyItem) return
     setShiftNotifySaving(true)
-    const targetItem = shiftNotifyItem
-    const slotId = targetItem.id.replace('shift-', '')
+    const newNotifyMin = shiftNotifyMin
 
-    // 既存のシフト通知を削除（slotId で date+start_time を引いて削除）
-    await fetch(`/api/schedule?slotId=${slotId}`, {
-      method: 'DELETE',
-      headers: { 'x-user-key': userKey },
-      cache: 'no-store',
-    })
-
-    if (shiftNotifyMin !== null) {
-      await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
-        body: JSON.stringify({
-          title:          'シフト当番',
-          date:           targetItem.date,
-          start_time:     targetItem.start_time,
-          end_time:       targetItem.end_time,
-          notify_minutes: shiftNotifyMin,
-          color:          '#6366f1',
-          type:           'custom',
-        }),
-      })
+    // localStorage に保存
+    if (newNotifyMin !== null) {
+      localStorage.setItem('shift_notify_minutes', String(newNotifyMin))
+    } else {
+      localStorage.removeItem('shift_notify_minutes')
     }
 
-    // 楽観的 UI 更新（fetchItems の完了を待たず即反映）
-    setItems(prev => prev.map(i =>
-      i.id === targetItem.id ? { ...i, notify_minutes: shiftNotifyMin } : i
-    ))
+    // DB に保存（FCM サーバー側で参照）
+    if (isLoggedIn && myUserId) {
+      const supabase = createClient()
+      if (newNotifyMin !== null) {
+        await supabase.from('shift_notification_prefs')
+          .upsert({ user_id: myUserId, notify_minutes: newNotifyMin }, { onConflict: 'user_id' })
+      } else {
+        await supabase.from('shift_notification_prefs').delete().eq('user_id', myUserId)
+      }
+    }
+
+    // 全シフトアイテムに一括反映してブラウザ通知をスケジュール
+    const updatedItems = items.map(i =>
+      i.type === 'shift' ? { ...i, notify_minutes: newNotifyMin } : i
+    )
+    setItems(updatedItems)
+    scheduleNotifications(updatedItems, date)
 
     setShiftNotifySaving(false)
     setShiftNotifySaved(true)
     setShiftNotifyItem(null)
     setTimeout(() => setShiftNotifySaved(false), 3000)
-    fetchItems()
   }
 
   const filtered = items.filter(i => i.date === date)

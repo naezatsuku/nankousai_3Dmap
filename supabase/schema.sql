@@ -140,6 +140,44 @@ CREATE TABLE IF NOT EXISTS public.special_schedules (
   description TEXT
 );
 
+-- ─── shift_notification_prefs ────────────────────────────────
+-- ユーザーのシフト通知設定。schedule-remind Edge Function が参照して FCM を送信する。
+CREATE TABLE IF NOT EXISTS public.shift_notification_prefs (
+  user_id        UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  notify_minutes INTEGER NOT NULL DEFAULT 15,
+  updated_at     TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.shift_notification_prefs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "shift_notification_prefs: self rw"
+  ON public.shift_notification_prefs FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- push_subscriptions の user_id カラム（ログイン済みユーザーとトークンを紐付ける）
+-- ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+-- CREATE INDEX IF NOT EXISTS push_subscriptions_user_id_idx ON public.push_subscriptions(user_id);
+
+-- ─── schedule_items ───────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.schedule_items (
+  id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_key       TEXT    NOT NULL,
+  title          TEXT    NOT NULL,
+  date           TEXT    NOT NULL CHECK (date IN ('sat', 'sun')),
+  start_time     TEXT    NOT NULL,
+  end_time       TEXT,
+  location       TEXT,
+  exhibit_id     UUID    REFERENCES public.exhibits(id) ON DELETE SET NULL,
+  notify_minutes INTEGER,
+  color          TEXT,
+  type           TEXT    NOT NULL DEFAULT 'visit' CHECK (type IN ('visit', 'custom')),
+  created_at     TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS schedule_items_user_key_idx
+  ON public.schedule_items (user_key);
+
 -- ─── announcements ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.announcements (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

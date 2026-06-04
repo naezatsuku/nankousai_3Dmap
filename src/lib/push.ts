@@ -19,10 +19,18 @@ export async function getFCMToken(): Promise<string> {
 
   localStorage.setItem(TOKEN_KEY, token)
 
-  const supabase = createClient()
-  await supabase
-    .from('push_subscriptions')
-    .upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
+  // サーバー API 経由で登録（service_role で RLS バイパス、ログイン済みなら user_id も紐付け）
+  await fetch('/api/link-fcm-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fcm_token: token }),
+  }).catch(async () => {
+    // API が失敗した場合は user_id なしで直接登録（来場者など未ログインの場合）
+    const supabase = createClient()
+    await supabase
+      .from('push_subscriptions')
+      .upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
+  })
 
   return token
 }

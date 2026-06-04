@@ -14,11 +14,24 @@ function addMin(d: Date, min: number) { return new Date(d.getTime() + min * 60 *
 serve(async (_req) => {
   try {
     const now = new Date()
-    const dow = now.getDay()
-    const today = dow === 6 ? 'sat' : dow === 0 ? 'sun' : null
+    const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000) // UTC→JST
+
+    // 日付チェック（文化祭当日のみ）
+    const dateStr = `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, '0')}-${String(jst.getUTCDate()).padStart(2, '0')}`
+    const today =
+      dateStr === '2025-09-13' ? 'sat' :
+      dateStr === '2025-09-14' ? 'sun' : null
 
     if (!today) {
       return new Response(JSON.stringify({ skipped: 'not a festival day' }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // 時刻チェック（JST 8:30〜16:30 のみ）
+    const jstMin = jst.getUTCHours() * 60 + jst.getUTCMinutes()
+    if (jstMin < 8 * 60 + 30 || jstMin > 16 * 60 + 30) {
+      return new Response(JSON.stringify({ skipped: 'outside festival hours' }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
@@ -83,6 +96,62 @@ serve(async (_req) => {
         const body  = phase === '10min' ? `${start}〜 ${stage}に来てね！`.trim() : `${stage}でスタート！`.trim()
 
         for (const sub of (subs ?? []) as any[]) {
+          if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, body) === 200) sent++
+        }
+      }
+    }
+
+    // ── シフト通知 ────────────────────────────────────────────
+    // shift_notification_prefs に登録されたユーザーの担当シフト開始前に通知
+    const { data: prefs } = await supabase
+      .from('shift_notification_prefs')
+      .select('user_id, notify_minutes')
+
+    for (const pref of (prefs ?? []) as { user_id: string; notify_minutes: number }[]) {
+      const winFrom = toHHMMSS(addMin(now, pref.notify_minutes - 2))
+      const winTo   = toHHMMSS(addMin(now, pref.notify_minutes + 2))
+
+      // このユーザーの割り当てコマ ID を取得
+      const { data: assignments } = await supabase
+        .from('shift_assignments')
+        .select('slot_id')
+        .eq('user_id', pref.user_id)
+
+      const slotIds = ((assignments ?? []) as { slot_id: string }[]).map(a => a.slot_id)
+      if (!slotIds.length) continue
+
+      // ウィンドウ内のコマを取得
+      const { data: rawSlots } = await supabase
+        .from('shift_slots')
+        .select('start_at, exhibit_id')
+        .in('id', slotIds)
+        .eq('date', today)
+        .gte('start_at', winFrom)
+        .lte('start_at', winTo)
+
+      if (!rawSlots?.length) continue
+
+      // 展示名を取得
+      const eids = [...new Set((rawSlots as any[]).map(s => s.exhibit_id))]
+      const { data: exhibitRows } = await supabase
+        .from('exhibits').select('id, name').in('id', eids)
+      const nameMap = new Map((exhibitRows ?? []).map((e: any) => [e.id, e.name as string]))
+
+      // ユーザーの FCM トークンを取得
+      const { data: subs } = await supabase
+        .from('push_subscriptions')
+        .select('fcm_token')
+        .eq('user_id', pref.user_id)
+
+      if (!subs?.length) continue
+
+      for (const slot of rawSlots as any[]) {
+        const exhibitName = nameMap.get(slot.exhibit_id) ?? 'クラス'
+        const start = (slot.start_at as string).slice(0, 5)
+        const title = `📅 ${pref.notify_minutes}分後: シフト当番`
+        const body  = `${start}〜 ${exhibitName} のシフトが始まります`
+
+        for (const sub of subs as { fcm_token: string }[]) {
           if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, body) === 200) sent++
         }
       }

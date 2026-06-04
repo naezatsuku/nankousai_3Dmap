@@ -9,7 +9,7 @@ function addMin(d: Date, min: number) { return new Date(d.getTime() + min * 60 *
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json() as { testTime?: string; bypassDayCheck?: boolean }
+    const body = await req.json() as { testTime?: string; bypassDayCheck?: boolean; dayOverride?: 'sat' | 'sun' }
 
     let now = new Date()
     if (body.testTime) {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     if (!today && !body.bypassDayCheck) {
       return NextResponse.json({ skipped: 'not a festival day' })
     }
-    const day = today ?? 'sat'
+    const day = body.dayOverride ?? today ?? 'sat'
 
     const sa          = parseSA()
     const accessToken = await getAccessToken(sa)
@@ -118,11 +118,76 @@ export async function POST(req: Request) {
       }
     }
 
+    // ── shift_assignments 通知 ─────────────────────────────────
+    const shiftResults: { user_id: string; slotStart: string; exhibitName: string; notifyMin: number; sent: number }[] = []
+    const shiftDiag: { step: string; detail: string }[] = []
+
+    const { data: prefs, error: prefsErr } = await supabase
+      .from('shift_notification_prefs')
+      .select('user_id, notify_minutes')
+
+    if (prefsErr) {
+      shiftDiag.push({ step: 'shift_notification_prefs', detail: `ERROR: ${prefsErr.message}` })
+    } else {
+      shiftDiag.push({ step: 'shift_notification_prefs', detail: `${(prefs ?? []).length} 件` })
+    }
+
+    for (const pref of (prefs ?? []) as { user_id: string; notify_minutes: number }[]) {
+      const winFrom = toHHMMSS(addMin(now, pref.notify_minutes - 2))
+      const winTo   = toHHMMSS(addMin(now, pref.notify_minutes + 2))
+
+      const { data: assignments, error: assignErr } = await supabase
+        .from('shift_assignments').select('slot_id').eq('user_id', pref.user_id)
+      if (assignErr) { shiftDiag.push({ step: 'shift_assignments', detail: `ERROR: ${assignErr.message}` }); continue }
+
+      const slotIds = ((assignments ?? []) as { slot_id: string }[]).map(a => a.slot_id)
+      shiftDiag.push({ step: `user ${pref.user_id.slice(0,8)}… assignments`, detail: `${slotIds.length} コマ, window=${winFrom}〜${winTo}, day=${day}` })
+      if (!slotIds.length) continue
+
+      const { data: rawSlots, error: slotErr } = await supabase
+        .from('shift_slots').select('start_at, exhibit_id')
+        .in('id', slotIds).eq('date', day)
+        .gte('start_at', winFrom).lte('start_at', winTo)
+      if (slotErr) { shiftDiag.push({ step: 'shift_slots', detail: `ERROR: ${slotErr.message}` }); continue }
+      shiftDiag.push({ step: 'shift_slots in window', detail: `${(rawSlots ?? []).length} 件` })
+      if (!rawSlots?.length) continue
+
+      const eids = [...new Set((rawSlots as any[]).map(s => s.exhibit_id))]
+      const { data: exhibitRows } = await supabase.from('exhibits').select('id, name').in('id', eids)
+      const nameMap = new Map((exhibitRows ?? []).map((e: any) => [e.id, e.name as string]))
+
+      const { data: subs, error: subsErr } = await supabase
+        .from('push_subscriptions').select('fcm_token').eq('user_id', pref.user_id)
+      if (subsErr) { shiftDiag.push({ step: 'push_subscriptions', detail: `ERROR: ${subsErr.message}` }); continue }
+      shiftDiag.push({ step: 'push_subscriptions', detail: `${(subs ?? []).length} トークン` })
+      if (!subs?.length) continue
+
+      for (const slot of rawSlots as any[]) {
+        const exhibitName = nameMap.get(slot.exhibit_id) ?? 'クラス'
+        const start = (slot.start_at as string).slice(0, 5)
+        const title = `📅 ${pref.notify_minutes}分後: シフト当番`
+        const body  = `${start}〜 ${exhibitName} のシフトが始まります`
+        let sent = 0
+        for (const sub of subs as { fcm_token: string }[]) {
+          const status = await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, body)
+          shiftDiag.push({ step: 'FCM送信', detail: `status=${status}` })
+          if (status === 200) sent++
+        }
+        shiftResults.push({ user_id: pref.user_id, slotStart: start, exhibitName, notifyMin: pref.notify_minutes, sent })
+      }
+    }
+
+    const allSent = results.reduce((s, r) => s + r.sent, 0)
+                  + shiftResults.reduce((s, r) => s + r.sent, 0)
+
     return NextResponse.json({
       referenceTime: toHHMM(now),
+      day,
       windows: { '10min': `${w10from}〜${w10to}`, start: `${w0from}〜${w0to}` },
       results,
-      totalSent: results.reduce((s, r) => s + r.sent, 0),
+      shiftResults,
+      shiftDiag,
+      totalSent: allSent,
     })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
