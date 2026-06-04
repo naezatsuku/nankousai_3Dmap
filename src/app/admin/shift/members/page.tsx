@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PageLoader from '@/components/ui/PageLoader'
 
 interface StudentProfile {
   id:          string
@@ -64,6 +65,13 @@ export default function ShiftMembersPage() {
       if (role === 'student') { router.push('/admin/shift/view'); return }
 
       // 担当展示を取得
+      // 全 student を先行取得開始（exhibit 取得・loadAssigned と並列で走る）
+      const studentsPromise = supabase
+        .from('profiles')
+        .select('id, name, email, school_type, grade, class_num, student_num')
+        .eq('role', 'student')
+        .order('grade').order('class_num').order('student_num')
+
       if (role === 'admin') {
         const { data: allEx } = await supabase
           .from('exhibits').select('id, name, class_label').order('class_label', { nullsFirst: false })
@@ -90,12 +98,7 @@ export default function ShiftMembersPage() {
         }
       }
 
-      // 全 student ユーザーを取得
-      const { data: stuData } = await supabase
-        .from('profiles')
-        .select('id, name, email, school_type, grade, class_num, student_num')
-        .eq('role', 'student')
-        .order('grade').order('class_num').order('student_num')
+      const { data: stuData } = await studentsPromise
       setStudents((stuData ?? []) as StudentProfile[])
       setLoading(false)
     }
@@ -157,7 +160,7 @@ export default function ShiftMembersPage() {
   }
 
   if (loading) return (
-    <div style={{ textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>読み込み中…</div>
+    <PageLoader />
   )
 
   return (

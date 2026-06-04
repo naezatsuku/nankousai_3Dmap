@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>南高祭 公式サイト　企画書・利用説明書</title>
+<style>
+  body { font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif; font-size: 11pt; line-height: 1.8; color: #222; max-width: 820px; margin: 40px auto; padding: 0 40px; }
+  h1 { font-size: 18pt; font-weight: bold; color: #1a237e; border-bottom: 3px solid #1a237e; padding-bottom: 6px; margin-top: 48px; page-break-before: always; }
+  h1.no-break { page-break-before: avoid; }
+  h2 { font-size: 14pt; font-weight: bold; color: #283593; margin-top: 28px; border-left: 4px solid #3f51b5; padding-left: 10px; }
+  h3 { font-size: 12pt; font-weight: bold; color: #333; margin-top: 20px; }
+  h4 { font-size: 11pt; font-weight: bold; color: #555; margin-top: 14px; }
+  .cover { text-align: center; padding: 80px 0 60px; border-bottom: 2px solid #1a237e; margin-bottom: 48px; page-break-before: avoid; }
+  .cover-title { font-size: 28pt; font-weight: bold; color: #1a237e; margin-bottom: 12px; }
+  .cover-sub { font-size: 16pt; color: #3f51b5; margin-bottom: 8px; }
+  .cover-meta { font-size: 11pt; color: #888; margin-top: 40px; line-height: 2; }
+  .toc { background: #e8eaf6; border: 1px solid #9fa8da; border-radius: 8px; padding: 24px 32px; margin-bottom: 48px; }
+  .toc-title { font-size: 14pt; font-weight: bold; color: #1a237e; margin-bottom: 14px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin-bottom: 5px; }
+  .toc a { color: #283593; text-decoration: none; }
+  .toc-sub { list-style: none; padding-left: 16px; margin: 4px 0; }
+  .toc-sub li::before { content: "─ "; color: #9fa8da; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 10.5pt; }
+  th { background: #e8eaf6; color: #1a237e; font-weight: bold; padding: 9px 12px; border: 1px solid #9fa8da; text-align: left; }
+  td { padding: 8px 12px; border: 1px solid #c5cae9; vertical-align: top; }
+  tr:nth-child(even) td { background: #f3f4fb; }
+  pre, .code-block { background: #263238; color: #cfd8dc; border-radius: 6px; padding: 16px 20px; font-family: 'Courier New', monospace; font-size: 9.5pt; line-height: 1.6; white-space: pre; overflow-x: auto; margin: 12px 0; }
+  .code-comment { color: #90a4ae; }
+  .notice { padding: 12px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; font-size: 10.5pt; }
+  .notice.warning { background: #fff8e1; border-left: 4px solid #ffc107; }
+  .notice.danger  { background: #fce4ec; border-left: 4px solid #e53935; }
+  .notice.info    { background: #e3f2fd; border-left: 4px solid #1976d2; }
+  .notice.success { background: #e8f5e9; border-left: 4px solid #43a047; }
+  .chapter-label { display: inline-block; background: #1a237e; color: white; padding: 2px 12px; border-radius: 4px; font-size: 9pt; font-weight: bold; margin-bottom: 8px; }
+  .role-table th { text-align: center; }
+  .role-table td { text-align: center; }
+  .check { color: #43a047; font-weight: bold; }
+  .cross { color: #e53935; }
+  .partial { color: #f57c00; }
+  ul li, ol li { margin-bottom: 4px; }
+  p { margin: 10px 0; }
+  hr { border: none; border-top: 1px solid #e8eaf6; margin: 36px 0; }
+  .security-box { background: #1a237e; color: white; border-radius: 10px; padding: 20px 24px; margin: 20px 0; }
+  .security-box h4 { color: #e8eaf6; margin-top: 0; }
+  .security-box code { background: rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 3px; font-family: monospace; }
+  .flow { background: #f3f4fb; border: 1px solid #c5cae9; border-radius: 8px; padding: 20px 28px; margin: 16px 0; }
+  .flow-item { display: flex; align-items: flex-start; gap: 12px; margin: 8px 0; font-size: 10.5pt; }
+  .flow-num { background: #3f51b5; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11pt; flex-shrink: 0; margin-top: 1px; }
+  .flow-arrow { color: #3f51b5; font-size: 14pt; font-weight: bold; margin: 4px 0 4px 9px; }
+  .badge { display: inline-block; border-radius: 4px; padding: 1px 8px; font-size: 9pt; font-weight: bold; margin: 1px; }
+  .badge-admin   { background: #ff5722; color: white; }
+  .badge-editor  { background: #3f51b5; color: white; }
+  .badge-student { background: #43a047; color: white; }
+  .badge-visitor { background: #78909c; color: white; }
+  .footer { text-align: center; color: #aaa; font-size: 9pt; margin-top: 60px; border-top: 1px solid #e8eaf6; padding-top: 20px; }
+  .page-break { page-break-after: always; }
+</style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<div class="cover">
+  <div style="font-size:52pt; margin-bottom:20px;">🎪</div>
+  <div class="cover-title">南高祭 公式サイト</div>
+  <div class="cover-sub">企画書・利用説明書</div>
+  <div class="cover-meta">
+    南高校 文化祭実行委員会<br>
+    2025年度　南高祭
+  </div>
+</div>
+
+<!-- 目次 -->
+<div class="toc">
+  <div class="toc-title">📋 目次</div>
+  <ol>
+    <li><a href="#ch1">企画書</a>
+      <ul class="toc-sub">
+        <li><a href="#ch1-1">プロジェクト概要</a></li>
+        <li><a href="#ch1-2">目的と解決する課題</a></li>
+        <li><a href="#ch1-3">対象ユーザーとロール</a></li>
+        <li><a href="#ch1-4">主要機能一覧</a></li>
+        <li><a href="#ch1-5">期待される効果</a></li>
+      </ul>
+    </li>
+    <li><a href="#ch2">システム概要・技術仕様</a></li>
+    <li><a href="#ch3">セキュリティ設計</a>
+      <ul class="toc-sub">
+        <li><a href="#ch3-1">認証システム</a></li>
+        <li><a href="#ch3-2">なりすまし防止</a></li>
+        <li><a href="#ch3-3">スタンプラリーの不正防止</a></li>
+        <li><a href="#ch3-4">データ・著作権保護</a></li>
+      </ul>
+    </li>
+    <li><a href="#ch4">来場者向けガイド</a></li>
+    <li><a href="#ch5">生徒（student）向けガイド</a></li>
+    <li><a href="#ch6">担当者（editor）向けガイド</a></li>
+    <li><a href="#ch7">管理者（admin）向けガイド</a></li>
+    <li><a href="#ch8">個人情報・プライバシーポリシー</a></li>
+  </ol>
+</div>
+
+<!-- ==================== 第1章 ==================== -->
+<h1 class="no-break" id="ch1"><span class="chapter-label">第1章</span> 企画書</h1>
+
+<h2 id="ch1-1">1.1 プロジェクト概要</h2>
+<table>
+  <tr><th style="width:160px">項目</th><th>内容</th></tr>
+  <tr><td>サービス名</td><td>南高祭 公式サイト</td></tr>
+  <tr><td>開催日</td><td>2025年9月（土）・（日）2日間</td></tr>
+  <tr><td>提供形態</td><td>Progressive Web App（PWA）— スマートフォン・PC ブラウザで動作。インストール不要でブラウザから利用可能。</td></tr>
+  <tr><td>目的</td><td>文化祭当日の情報提供・運営支援を一元化し、来場者・生徒双方の体験を向上させる</td></tr>
+  <tr><td>開発・運用</td><td>南高祭 実行委員会</td></tr>
+</table>
+
+<h2 id="ch1-2">1.2 目的と解決する課題</h2>
+
+<h3>現状の課題</h3>
+<table>
+  <tr><th>課題</th><th>具体的な問題点</th></tr>
+  <tr><td>情報の鮮度</td><td>当日配布の紙のパンフレットは更新できず、変更情報（時間変更・売り切れ等）が来場者に届かない</td></tr>
+  <tr><td>混雑把握</td><td>各クラスの待ち時間や混雑状況をリアルタイムで知る手段がない</td></tr>
+  <tr><td>シフト管理</td><td>生徒のシフト管理が紙や口頭で煩雑。希望調整・変更連絡に手間がかかる</td></tr>
+  <tr><td>道案内</td><td>来場者が目的のクラスを見つけるのに迷う。地図が静的で操作できない</td></tr>
+</table>
+
+<h3>本サービスによる解決</h3>
+<table>
+  <tr><th>課題</th><th>解決策</th></tr>
+  <tr><td>情報の鮮度</td><td>リアルタイムで更新される展示情報・プッシュ通知によるお知らせ配信</td></tr>
+  <tr><td>混雑把握</td><td>担当者が更新する待ち時間をマップ上にリアルタイム表示</td></tr>
+  <tr><td>シフト管理</td><td>希望アンケート収集→自動割り当て→共有までをシステム化</td></tr>
+  <tr><td>道案内</td><td>インタラクティブな3D校舎マップでフロア別に案内・検索対応</td></tr>
+</table>
+
+<h2 id="ch1-3">1.3 対象ユーザーとロール</h2>
+
+<p>本サービスは4つのロール（役割）でアクセス権限を管理します。</p>
+
+<table>
+  <tr><th style="width:130px">ロール</th><th>対象者</th><th>主な権限</th></tr>
+  <tr>
+    <td><span class="badge badge-visitor">来場者</span></td>
+    <td>一般来場者（ログイン不要）</td>
+    <td>マップ・展示情報・スタンプラリー・人気投票・予定管理・フード情報・通知設定</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-student">student</span></td>
+    <td>文化祭に参加する生徒</td>
+    <td>来場者の全機能＋自クラスのシフト確認・シフトアンケート回答</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-editor">editor</span></td>
+    <td>各クラスの担当者（委員等）</td>
+    <td>担当クラスの展示情報編集・お知らせ投稿・シフト設定・割り当て・メンバー管理</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-admin">admin</span></td>
+    <td>実行委員会（管理者）</td>
+    <td>全機能＋ユーザー権限管理・サイト設定・全体アナウンス管理</td>
+  </tr>
+</table>
+
+<div class="notice info">
+  ℹ アカウント作成（signup）後の初期ロールは <strong>student</strong> です。admin が必要に応じて editor や admin に変更します。
+</div>
+
+<h2 id="ch1-4">1.4 主要機能一覧</h2>
+
+<table class="role-table">
+  <tr>
+    <th>機能</th>
+    <th><span class="badge badge-visitor">来場者</span></th>
+    <th><span class="badge badge-student">student</span></th>
+    <th><span class="badge badge-editor">editor</span></th>
+    <th><span class="badge badge-admin">admin</span></th>
+  </tr>
+  <tr><td>校舎マップ（フロア別・検索対応）</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>展示詳細・待ち時間リアルタイム表示</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>お知らせ・プッシュ通知</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>スタンプラリー（QR 読み取り）</td><td class="partial">✅ ※要PWA</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>人気投票</td><td class="partial">✅ ※スタンプ必要</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>個人予定管理（タイムライン）</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>フード情報・販売ランキング</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>軽音・催し物スケジュール</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>いいね（スタンプ取得後）</td><td class="partial">✅ ※スタンプ必要</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>展示情報・メニュー編集</td><td class="cross">❌</td><td class="cross">❌</td><td class="partial">✅（担当クラスのみ）</td><td class="check">✅</td></tr>
+  <tr><td>シフトアンケート回答</td><td class="cross">❌</td><td class="check">✅</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>シフト表閲覧</td><td class="cross">❌</td><td class="partial">✅（自クラスのみ）</td><td class="partial">✅（担当クラス）</td><td class="check">✅（全クラス）</td></tr>
+  <tr><td>シフト設定・自動割り当て</td><td class="cross">❌</td><td class="cross">❌</td><td class="check">✅</td><td class="check">✅</td></tr>
+  <tr><td>ユーザー権限管理</td><td class="cross">❌</td><td class="cross">❌</td><td class="cross">❌</td><td class="check">✅</td></tr>
+  <tr><td>サイト設定（マップ公開/非公開等）</td><td class="cross">❌</td><td class="cross">❌</td><td class="cross">❌</td><td class="check">✅</td></tr>
+</table>
+
+<h2 id="ch1-5">1.5 期待される効果</h2>
+<table>
+  <tr><th>対象</th><th>効果</th></tr>
+  <tr><td>来場者</td><td>目的のクラスへ迷わず到達、混雑を避けた行動、当日リアルタイム情報の取得が可能</td></tr>
+  <tr><td>クラス担当者</td><td>情報更新のリアルタイム化、シフト管理工数の大幅削減、メンバーとの情報共有の効率化</td></tr>
+  <tr><td>実行委員会</td><td>紙のパンフレット配布不要、全体アナウンスの即時配信、各クラスの運営状況を一元把握</td></tr>
+  <tr><td>次年度</td><td>いいね数・スタンプ数・販売数などのデータを次年度の企画立案に活用可能</td></tr>
+</table>
+
+<!-- ==================== 第2章 ==================== -->
+<h1 id="ch2"><span class="chapter-label">第2章</span> システム概要・技術仕様</h1>
+
+<h2>2.1 技術スタック</h2>
+<table>
+  <tr><th style="width:180px">分類</th><th>使用技術</th></tr>
+  <tr><td>フロントエンド</td><td>Next.js 16（App Router）/ React / TypeScript</td></tr>
+  <tr><td>データベース・認証</td><td>Supabase（PostgreSQL + Auth + Realtime + Storage）</td></tr>
+  <tr><td>プッシュ通知</td><td>Firebase Cloud Messaging（FCM）</td></tr>
+  <tr><td>ホスティング</td><td>Vercel（CDN 配信・サーバーレス API）</td></tr>
+  <tr><td>PWA</td><td>Web App Manifest + Service Worker</td></tr>
+</table>
+
+<h2>2.2 インフラ構成</h2>
+<pre>
+ ユーザー（スマートフォン・PC）
+          │
+          ▼
+   [Vercel / CDN]  ← Next.js アプリ（SSR + CSR）
+          │
+          ├──▶  [Supabase]
+          │         ├── PostgreSQL（全データ保存）
+          │         ├── Auth（JWT ベース認証）
+          │         ├── Realtime（待ち時間リアルタイム更新）
+          │         └── Storage（画像・動画）
+          │
+          └──▶  [Firebase]
+                    └── FCM（プッシュ通知）
+</pre>
+
+<h2>2.3 主要データベーステーブル</h2>
+<table>
+  <tr><th>テーブル名</th><th>概要</th></tr>
+  <tr><td>profiles</td><td>ユーザー情報（ロール・学年・クラス・出席番号）</td></tr>
+  <tr><td>exhibits</td><td>展示団体情報（名前・場所・フロア・待ち時間等）</td></tr>
+  <tr><td>exhibit_sections</td><td>展示の詳細セクション（本文・メディア）</td></tr>
+  <tr><td>food_menus</td><td>フードメニュー（価格・在庫・販売数）</td></tr>
+  <tr><td>notices</td><td>各クラスからのお知らせ</td></tr>
+  <tr><td>announcements</td><td>全体アナウンス（ヘッダーティッカー表示）</td></tr>
+  <tr><td>stamps</td><td>スタンプ取得記録（user_id × exhibit_id）</td></tr>
+  <tr><td>exhibit_likes</td><td>いいね記録（user_id × exhibit_id）</td></tr>
+  <tr><td>schedule_items</td><td>個人予定データ（来場者・ログイン済み共通）</td></tr>
+  <tr><td>shift_settings</td><td>シフトの時間設定（開始/終了/コマ長）</td></tr>
+  <tr><td>shift_slots</td><td>生成されたシフトコマ</td></tr>
+  <tr><td>shift_preferences</td><td>シフトアンケート回答（want/neutral/avoid）</td></tr>
+  <tr><td>shift_assignments</td><td>確定シフト割り当て</td></tr>
+  <tr><td>student_exhibits</td><td>生徒とクラスの紐付け</td></tr>
+  <tr><td>site_settings</td><td>サイト全体設定（マップ公開/非公開等）</td></tr>
+</table>
+
+<!-- ==================== 第3章 ==================== -->
+<h1 id="ch3"><span class="chapter-label">第3章</span> セキュリティ設計</h1>
+
+<div class="notice danger">
+  ⚠ <strong>本章は許可申請の審査において特に重要な箇所です。</strong> セキュリティ上の懸念点に対する具体的な対策を記載しています。
+</div>
+
+<h2 id="ch3-1">3.1 認証システム</h2>
+
+<h3>採用技術</h3>
+<p>本サービスは <strong>Supabase Auth</strong>（業界標準の認証基盤・ISO 27001 取得済みのインフラ上で動作）を採用しています。</p>
+
+<h3>ログインの仕組み</h3>
+<div class="flow">
+  <div class="flow-item"><span class="flow-num">1</span><span>ユーザーがメールアドレス・パスワードを入力</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">2</span><span>Supabase が認証を行い <strong>JWT（JSON Web Token）</strong> を発行</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">3</span><span>JWT はブラウザの <strong>Cookie に保存</strong>（HttpOnly・Secure フラグ付き）<br><small>→ JavaScript から直接読み取れないため XSS 攻撃への耐性が高い</small></span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">4</span><span>以後のすべてのリクエストに JWT が自動付与される</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">5</span><span>サーバーサイドで JWT を検証してから処理を実行</span></div>
+</div>
+
+<h3>パスワードの保護</h3>
+<ul>
+  <li>パスワードは <strong>bcrypt</strong> でハッシュ化して保存（平文では一切保存しない）</li>
+  <li>最低8文字を必須とし、強度インジケーターで安全なパスワードを誘導</li>
+  <li>パスワードリセットはメールリンク経由のみ（管理者であっても他人のパスワードは不明）</li>
+</ul>
+
+<h3>セッション管理</h3>
+<ul>
+  <li>JWT の有効期限：1時間（期限切れ前に自動更新）</li>
+  <li>ログアウト時は JWT を無効化しセッションを完全破棄</li>
+  <li>不正な JWT でのアクセスはすべてサーバーで拒否</li>
+</ul>
+
+<h2 id="ch3-2">3.2 なりすまし防止</h2>
+
+<h3>ロールベースアクセス制御（RBAC）</h3>
+<p>ユーザーのロール（admin / editor / student）は<strong>サーバーサイドのデータベース</strong>に保存されています。</p>
+
+<div class="security-box">
+  <h4>なりすましが不可能な理由</h4>
+  <p>✗ ロール情報をブラウザの Cookie や localStorage に保存しない<br>
+  ✓ API アクセス時に毎回サーバーで JWT の <code>user_id</code> からロールを照合する</p>
+  <p><strong>例：</strong> editor が admin ページにアクセスしようとした場合<br>
+  → サーバーが JWT から user_id を取得<br>
+  → profiles テーブルで role = 'editor' を確認<br>
+  → <strong>403 Forbidden を返却（アクセス不可）</strong></p>
+</div>
+
+<h3>担当クラスの制限</h3>
+<p>editor は <code>exhibit_editors</code> テーブルで許可された展示 ID のみ編集可能です。<strong>他クラスの情報を改ざんすることは技術的に不可能</strong>です。</p>
+<pre>
+例：高1-1 の editor が 高2-3 の情報を書き換えようとした場合
+  → API が JWT の user_id を確認
+  → exhibit_editors テーブルに「高2-3 への許可」がないと判定
+  → 403 Forbidden を返却（操作不可）
+</pre>
+
+<h3>行レベルセキュリティ（RLS）</h3>
+<p>PostgreSQL の <strong>RLS（Row Level Security）</strong> により、データベース層でもアクセス制御を実施しています。アプリケーション層にバグがあってもデータベース層でブロックします。</p>
+<pre>
+<span class="code-comment">-- 例：シフト表は自分のクラスのメンバーのみ参照可能</span>
+CREATE POLICY "self read on student_exhibits"
+  ON student_exhibits FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
+<span class="code-comment">-- 例：シフト割り当ては service_role のみ書き込み可能</span>
+<span class="code-comment">-- → 認証済みユーザーは読み取りのみ、書き込みはサーバーのAPI経由</span>
+</pre>
+
+<h2 id="ch3-3">3.3 スタンプラリーの不正防止</h2>
+
+<h3>QR コードの仕組み（HMAC-SHA256 署名）</h3>
+
+<div class="security-box">
+  <h4>QR URL の構造</h4>
+  <p><code>/stamp?e={展示ID}&w={時間ウィンドウ}&h={HMAC署名(16文字)}</code></p>
+  <p>時間ウィンドウ = Unix時刻 ÷ 60秒 の整数 → <strong>1分ごとに変化</strong></p>
+</div>
+
+<h3>検証フロー</h3>
+<div class="flow">
+  <div class="flow-item"><span class="flow-num">1</span><span>来場者が QR を読み取り、サーバーに送信</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">2</span><span>サーバーが展示の <strong>stamp_secret</strong>（DB 上の秘密鍵）で HMAC を再計算</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">3</span><span>QR の署名と一致すれば正規 QR と判定。±1ウィンドウ（最大2分）を許容</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">4</span><span>スタンプを付与（同一展示は UNIQUE 制約で重複防止）</span></div>
+</div>
+
+<h3>不正が不可能な理由</h3>
+<table>
+  <tr><th>攻撃手法</th><th>対策</th></tr>
+  <tr><td>QR 画像の写真を転用</td><td>1分ごとに QR が変化するため最大2分後に無効化</td></tr>
+  <tr><td>QR URL を自作・改ざん</td><td>stamp_secret（サーバーのみ保有の秘密鍵）なしに正規の署名を生成することは計算上不可能</td></tr>
+  <tr><td>同じ展示を複数回スキャン</td><td>stamps テーブルの UNIQUE 制約（user_id × exhibit_id）で重複を防止</td></tr>
+  <tr><td>他人の user_id を使用</td><td>JWT 認証により本人以外の user_id でのアクセス不可</td></tr>
+</table>
+
+<h2 id="ch3-4">3.4 データ・著作権保護</h2>
+
+<h3>画像の保護</h3>
+<ul>
+  <li>全 <code>&lt;img&gt;</code> タグに <code>pointer-events: none</code> + <code>-webkit-user-drag: none</code> を設定（ドラッグ保存防止）</li>
+  <li>右クリックメニューを JavaScript でブロック</li>
+  <li>テキスト選択禁止（入力欄は除く）</li>
+</ul>
+
+<h3>サービスロールキーの保護</h3>
+<ul>
+  <li>Supabase の <strong>service_role_key</strong>（管理者権限キー）は環境変数（<code>.env.local</code>）にのみ保存</li>
+  <li>フロントエンドのコードには<strong>一切含まれない</strong></li>
+  <li>サーバーサイドの API Route からのみアクセス可能</li>
+  <li>Vercel のシークレット管理機能で本番環境に設定</li>
+</ul>
+
+<h3>プッシュ通知のセキュリティ</h3>
+<ul>
+  <li>FCM トークンはユーザーの user_id に紐付けて管理</li>
+  <li>通知の送信は service_role_key を持つ API のみが実行可能</li>
+  <li>ユーザーは自分の通知設定のみ変更可能（他人の通知操作は不可）</li>
+</ul>
+
+<!-- ==================== 第4章 ==================== -->
+<h1 id="ch4"><span class="chapter-label">第4章</span> 来場者向けガイド</h1>
+
+<div class="notice info">
+  ℹ 詳細な操作方法は別冊「<strong>来場者向け使い方ガイド</strong>」をご参照ください。
+</div>
+
+<h2>4.1 アクセス・インストール方法</h2>
+<p>スマートフォンのブラウザ（Safari / Chrome）でサイトにアクセスします。</p>
+<div class="notice warning">
+  💡 <strong>スタンプラリーと通知機能を利用するには、ホーム画面への追加（PWA インストール）が必要です。</strong>
+</div>
+
+<table>
+  <tr><th style="width:120px">端末</th><th>手順</th></tr>
+  <tr><td>iPhone</td><td>Safari でサイトを開く → 共有ボタン（□↑）→「ホーム画面に追加」→「追加」</td></tr>
+  <tr><td>Android</td><td>Chrome でサイトを開く → メニュー（⋮）→「ホーム画面に追加」→「追加」</td></tr>
+</table>
+
+<h2>4.2 主な機能</h2>
+<table>
+  <tr><th>機能</th><th>概要</th></tr>
+  <tr><td>🗺 マップ</td><td>フロア別校舎マップ。教室をタップして展示情報・待ち時間を表示。検索対応。</td></tr>
+  <tr><td>📣 お知らせ</td><td>各クラスのリアルタイム情報。重要マーク・未読バッジあり。</td></tr>
+  <tr><td>🔔 通知</td><td>気になる展示をフォローしてプッシュ通知を受け取る。</td></tr>
+  <tr><td>🎯 スタンプ</td><td>QR コードをスキャンしてスタンプを収集。不正防止のため1分ごとに QR が変化。</td></tr>
+  <tr><td>🗳 投票</td><td>スタンプ取得後に好きな展示に投票。後から変更可能。</td></tr>
+  <tr><td>📅 予定</td><td>8:30〜16:30のタイムラインで当日の予定を管理。通知設定あり。</td></tr>
+  <tr><td>🍱 フード</td><td>模擬店・食堂のメニュー・在庫・販売ランキングをリアルタイム表示。</td></tr>
+  <tr><td>❤ いいね</td><td>スタンプ取得済みの展示に1回いいね（取り消し可能）。</td></tr>
+</table>
+
+<!-- ==================== 第5章 ==================== -->
+<h1 id="ch5"><span class="chapter-label">第5章</span> 生徒（student）向けガイド</h1>
+
+<h2>5.1 アカウント作成</h2>
+<div class="flow">
+  <div class="flow-item"><span class="flow-num">1</span><span>管理画面（<code>/admin</code>）→「アカウント作成」</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">2</span><span>メールアドレス・パスワード（8文字以上）を入力して登録</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">3</span><span>初回ログイン時にプロフィール（名前・学年・クラス・出席番号）を設定</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="flow-num">4</span><span>担当の先生（editor/admin）にクラスへの割り当てを依頼する</span></div>
+</div>
+<div class="notice warning">
+  ⚠ クラスに割り当てられるまでシフト機能は使用できません。
+</div>
+
+<h2>5.2 シフトアンケート</h2>
+<p>管理画面 → サイドバー「シフト管理」→「シフトアンケート」</p>
+
+<table>
+  <tr><th>選択肢</th><th>意味</th></tr>
+  <tr><td>◎ 入りたい</td><td>この時間帯に入りたい（優先的に割り当てられる）</td></tr>
+  <tr><td>△ どちらでもいい</td><td>どちらでも対応可能（◎が不足した場合に補填）</td></tr>
+  <tr><td>✕ 入れない</td><td>この時間帯には入れない（絶対に割り当てられない）</td></tr>
+</table>
+
+<div class="notice danger">
+  ⚠ <strong>✕ を選択したコマには絶対にシフトが割り当てられません。</strong>確実に都合が悪い場合のみ使用してください。
+</div>
+
+<p>回答に締め切りはなく、割り当て確定前であれば何度でも変更できます。</p>
+
+<h2>5.3 シフト表の確認とシフト通知</h2>
+<p>管理画面 → 「シフト表」→ 土/日ボタンで日付切替。自分のコマはオレンジ色で表示。</p>
+<p>シフト表右上の 🔔 ボタンから「何分前に通知するか」を設定すると、「予定」ページを開いたときに通知がスケジュールされます。</p>
+
+<!-- ==================== 第6章 ==================== -->
+<h1 id="ch6"><span class="chapter-label">第6章</span> 担当者（editor）向けガイド</h1>
+
+<h2>6.1 ログインと担当展示</h2>
+<p>管理画面（<code>/admin</code>）にアクセス → メールアドレス・パスワードを入力。</p>
+<div class="notice warning">
+  ⚠ editor は admin または別の editor に「担当展示の割り当て」をしてもらう必要があります。割り当てがない場合は展示情報を編集できません。
+</div>
+
+<h2>6.2 展示情報の編集</h2>
+<p>管理画面 → 「展示編集」→ 担当展示をクリック。</p>
+
+<table>
+  <tr><th>タブ</th><th>編集できる内容</th></tr>
+  <tr><td>① 基本情報</td><td>展示名・キャッチコピー・説明文・表紙画像・場所・フロア</td></tr>
+  <tr><td>② コンテンツ</td><td>セクション（見出し＋本文＋画像/動画）の追加・並び替え。フードの場合はメニュー管理（名前・価格・在庫・販売数）</td></tr>
+  <tr><td>③ 設定・クイック</td><td>待ち時間更新・スタンプラリー参加設定</td></tr>
+</table>
+
+<h2>6.3 お知らせの投稿</h2>
+<p>管理画面 → 「お知らせ管理」→「新規作成」。タイトル・本文・画像・重要マークを設定して「投稿する」。投稿と同時にフォローしているユーザーへプッシュ通知が送信されます。</p>
+
+<h2>6.4 かんたん更新（当日使用）</h2>
+<p>展示編集ページの「かんたん更新」ボタンから当日の素早い更新が可能。</p>
+<ul>
+  <li>待ち時間の更新（待ち組数 × 1組あたりの時間）</li>
+  <li>スタンプ QR の表示</li>
+  <li>フードメニューの在庫・販売数・販売状況</li>
+  <li>コメントの承認・削除</li>
+</ul>
+
+<h2>6.5 シフト管理</h2>
+
+<h3>① メンバー登録</h3>
+<p>管理画面 → 「メンバー管理」→ 学年・クラスでフィルタリングして生徒を割り当て。「表示中を一括追加」ボタンで一括登録が可能。</p>
+
+<h3>② 時間設定・コマ生成</h3>
+<p>管理画面 → 「シフト編集」→「時間設定」タブ。開始/終了時刻・コマの長さ・必要人数を設定して「コマを生成する」。</p>
+
+<h3>③ アンケート確認</h3>
+<p>「アンケート確認」タブで生徒全員の希望（◎△✕）をマトリクスで確認。</p>
+
+<h3>④ シフト割り当て</h3>
+<p>「シフト割り当て」タブ。</p>
+
+<table>
+  <tr><th>方法</th><th>説明</th></tr>
+  <tr><td>🤖 自動割当</td><td>グリーディ法で自動割り当て。◎優先→△補填、✕は絶対割り当てなし。結果に警告・過負荷者を表示。</td></tr>
+  <tr><td>手動割当</td><td>＋ボタンから生徒をピッカーで選択。アンケート回答と既存割り当てコマ数を参考に選択可能。</td></tr>
+</table>
+
+<!-- ==================== 第7章 ==================== -->
+<h1 id="ch7"><span class="chapter-label">第7章</span> 管理者（admin）向けガイド</h1>
+
+<h2>7.1 管理画面の構成</h2>
+<table>
+  <tr><th>カテゴリー</th><th>ページ</th><th>主な機能</th></tr>
+  <tr><td rowspan="1">（単独）</td><td>ダッシュボード</td><td>統計カード・混雑TOP・最近の更新・クイックアクセス</td></tr>
+  <tr><td rowspan="4">🏫 展示管理</td><td>展示編集</td><td>全展示の情報編集・お知らせ管理</td></tr>
+  <tr><td>お知らせ管理</td><td>全クラスのお知らせ一覧・管理</td></tr>
+  <tr><td>販売数管理</td><td>フード全クラスの販売数一覧更新</td></tr>
+  <tr><td>団体管理</td><td>展示団体の追加・削除・公開設定</td></tr>
+  <tr><td rowspan="2">📢 告知・通知</td><td>アナウンス管理</td><td>ヘッダーテロップ・全体アナウンスの投稿</td></tr>
+  <tr><td>通知テスト</td><td>プッシュ通知の動作確認</td></tr>
+  <tr><td rowspan="4">📅 シフト管理</td><td>アンケート</td><td>自分のシフト希望を回答</td></tr>
+  <tr><td>シフト表</td><td>全クラスのシフト閲覧（クラス切り替え可能）</td></tr>
+  <tr><td>メンバー管理</td><td>生徒のクラス割り当て</td></tr>
+  <tr><td>シフト編集</td><td>全クラスのコマ設定・割り当て</td></tr>
+  <tr><td rowspan="2">⚙ システム</td><td>権限管理</td><td>ユーザーロール変更・担当展示の割り当て</td></tr>
+  <tr><td>サイト設定</td><td>マップ公開/非公開・いいね数表示ON/OFF</td></tr>
+</table>
+
+<h2>7.2 ユーザー権限管理</h2>
+<p>管理画面 → 「システム」→「権限管理」。ロールの変更・担当展示/クラスの割り当てを行います。</p>
+<table>
+  <tr><th>操作</th><th>説明</th></tr>
+  <tr><td>ロール変更</td><td>admin → editor → student → admin のサイクルで切り替え</td></tr>
+  <tr><td>展示割り当て（editor）</td><td>「展示を割り当て」ボタンで担当展示を設定。割り当てがない editor は編集不可</td></tr>
+  <tr><td>クラス割り当て（student）</td><td>「クラスを割り当て」ボタンで所属クラスを設定。シフト機能が使用可能になる</td></tr>
+  <tr><td>シフト参加クラス設定（admin）</td><td>「シフト参加クラスを設定」ボタンで自分のシフトアンケート対象クラスを設定</td></tr>
+</table>
+
+<h2>7.3 サイト設定</h2>
+<table>
+  <tr><th>設定項目</th><th>説明</th></tr>
+  <tr><td>マップ公開設定</td><td>「公開する」/「非公開にする」。非公開時はマップページに「準備中」と表示</td></tr>
+  <tr><td>いいね数表示</td><td>「表示する」/「非表示にする」。非表示でもいいねボタン自体は残る</td></tr>
+</table>
+
+<!-- ==================== 第8章 ==================== -->
+<h1 id="ch8"><span class="chapter-label">第8章</span> 個人情報・プライバシーポリシー</h1>
+
+<h2>8.1 収集する情報</h2>
+<table>
+  <tr><th>情報</th><th>対象</th><th>利用目的</th></tr>
+  <tr><td>メールアドレス</td><td>ログインユーザー</td><td>認証・パスワードリセット</td></tr>
+  <tr><td>名前・学年・クラス・出席番号</td><td>ログインユーザー</td><td>シフト管理・表示名</td></tr>
+  <tr><td>スタンプ取得記録</td><td>来場者（匿名ID）</td><td>スタンプラリー・投票機能</td></tr>
+  <tr><td>個人予定データ</td><td>来場者（匿名ID）</td><td>予定管理機能</td></tr>
+  <tr><td>いいね・投票記録</td><td>来場者（匿名ID）</td><td>機能提供・次年度データ</td></tr>
+  <tr><td>FCM トークン</td><td>通知同意ユーザー</td><td>プッシュ通知送信</td></tr>
+</table>
+
+<h2>8.2 来場者の匿名性</h2>
+<p>ログイン不要のユーザーは、端末のローカルストレージに保存された<strong>ランダムな UUID</strong>（例：<code>a1b2c3d4-e5f6-...</code>）のみで識別されます。</p>
+<ul>
+  <li>氏名・メールアドレス等の個人を特定できる情報は収集しない</li>
+  <li>スタンプ・予定・投票記録はこの UUID に紐付き、<strong>本人しか閲覧できない</strong></li>
+  <li>UUID は端末を変更すると引き継がれない（意図的な設計）</li>
+</ul>
+
+<h2>8.3 データの保管と管理</h2>
+<ul>
+  <li>すべてのデータは <strong>Supabase</strong>（アジア太平洋リージョン）に保管</li>
+  <li>パスワードは bcrypt でハッシュ化して保存（平文では保管しない）</li>
+  <li>通信はすべて <strong>HTTPS（TLS 1.3）</strong> で暗号化</li>
+  <li>ログインユーザーの情報は当事者以外の利用者からは閲覧不可</li>
+</ul>
+
+<h2>8.4 データの保存期間</h2>
+<p>文化祭終了後のデータ保持期間・削除方針については学校の情報管理規定に従います。ユーザーは admin にアカウント削除をリクエストできます。</p>
+
+<h2>8.5 第三者提供</h2>
+<p>収集した個人情報は以下の場合を除き、第三者に提供しません。</p>
+<ul>
+  <li>法令に基づく場合</li>
+  <li>人の生命・身体または財産の保護のために必要な場合</li>
+</ul>
+
+<h2>8.6 使用する外部サービス</h2>
+<table>
+  <tr><th>サービス</th><th>用途</th></tr>
+  <tr><td>Supabase</td><td>データベース・認証（ISO 27001 取得済みインフラ）</td></tr>
+  <tr><td>Firebase（Google）</td><td>プッシュ通知配信</td></tr>
+  <tr><td>Vercel</td><td>ウェブサイトのホスティング・CDN 配信</td></tr>
+  <tr><td>Google Fonts</td><td>フォントの配信</td></tr>
+</table>
+
+<div class="footer">
+  南高祭 公式サイト　企画書・利用説明書<br>
+  南高祭 実行委員会
+</div>
+
+</body>
+</html>

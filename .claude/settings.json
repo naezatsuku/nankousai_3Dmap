@@ -33,7 +33,9 @@
       "Bash(findstr \":3000\")",
       "Bash(node -e ' *)",
       "Bash(grep -r \"localhost:3000\\\\|localhost\" /mnt/c/Users/owner/Desktop/PROJECT/3d-map_ver2/.env* 2>/dev/null || echo \"not found\")",
-      "Read(//mnt/c/Users/owner/Desktop/PROJECT/**)"
+      "Read(//mnt/c/Users/owner/Desktop/PROJECT/**)",
+      "Bash(copy \"c:\\\\Users\\\\owner\\\\Desktop\\\\PROJECT\\\\3d-map_ver2\\\\docs\\\\overview.html\" \"c:\\\\Users\\\\owner\\\\Desktop\\\\PROJECT\\\\3d-map_ver2\\\\public\\\\docs\\\\overview.html\")",
+      "Bash(copy \"c:\\\\Users\\\\owner\\\\Desktop\\\\PROJECT\\\\3d-map_ver2\\\\docs\\\\visitor-guide.html\" \"c:\\\\Users\\\\owner\\\\Desktop\\\\PROJECT\\\\3d-map_ver2\\\\public\\\\docs\\\\visitor-guide.html\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\owner\\Desktop\\PROJECT\\3d-map_ver2\\src\\app\\admin",

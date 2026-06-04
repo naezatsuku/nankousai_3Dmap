@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -72,9 +74,7 @@ export default function EditListPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth:900, textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
-        読み込み中…
-      </div>
+      <PageLoader />
     )
   }
 

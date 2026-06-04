@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import PageLoader from '@/components/ui/PageLoader'
 
 // ── 定数 ────────────────────────────────────────────────────────
 const START_MIN = 8 * 60 + 30   // 8:30
@@ -145,6 +146,12 @@ export default function SchedulePage() {
   const [newNotify,setNewNotify]= useState<number|null>(null)
   const [adding,   setAdding]   = useState(false)
 
+  // シフト通知モーダル
+  const [shiftNotifyItem,   setShiftNotifyItem]   = useState<ScheduleItem | null>(null)
+  const [shiftNotifyMin,    setShiftNotifyMin]     = useState<number | null>(15)
+  const [shiftNotifySaving, setShiftNotifySaving] = useState(false)
+  const [shiftNotifySaved,  setShiftNotifySaved]  = useState(false)
+
   // 初期化
   useEffect(() => {
     const key = (() => {
@@ -183,6 +190,11 @@ export default function SchedulePage() {
         .from(table).select('exhibit_id').eq('user_id', myUserId)
       const eids = ((links ?? []) as { exhibit_id: string }[]).map(l => l.exhibit_id)
 
+      // 既存のシフト通知（schedule_items 経由で保存済み）を取り出して
+      // シフト項目の notify_minutes にマージ。重複表示を防ぐため本体から除外。
+      const shiftNotifyItems = all.filter(i => i.type === 'custom' && i.title === 'シフト当番')
+      all = all.filter(i => !(i.type === 'custom' && i.title === 'シフト当番'))
+
       for (const eid of eids) {
         for (const d of ['sat', 'sun'] as const) {
           const sr = await fetch(`/api/shift/assignments?exhibitId=${eid}&date=${d}`, { cache: 'no-store' })
@@ -196,14 +208,19 @@ export default function SchedulePage() {
           )
           for (const slot of slots) {
             if (!mySlotIds.has(slot.id)) continue
+            const existingNotify = shiftNotifyItems.find(n =>
+              n.date === d && n.start_time === slot.start_at.slice(0, 5)
+            )
             all.push({
-              id:         `shift-${slot.id}`,
-              title:      'シフト当番',
-              date:       d,
-              start_time: slot.start_at.slice(0,5),
-              end_time:   slot.end_at.slice(0,5),
-              color:      TYPE_COLOR.shift,
-              type:       'shift',
+              id:             `shift-${slot.id}`,
+              title:          'シフト当番',
+              date:           d,
+              start_time:     slot.start_at.slice(0,5),
+              end_time:       slot.end_at.slice(0,5),
+              color:          TYPE_COLOR.shift,
+              type:           'shift',
+              exhibit_id:     eid,
+              notify_minutes: existingNotify?.notify_minutes ?? null,
             })
           }
         }
@@ -247,6 +264,47 @@ export default function SchedulePage() {
       method: 'DELETE', headers: { 'x-user-key': userKey },
     })
     setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const handleShiftNotify = async () => {
+    if (!shiftNotifyItem || !userKey) return
+    setShiftNotifySaving(true)
+    const targetItem = shiftNotifyItem
+    const slotId = targetItem.id.replace('shift-', '')
+
+    // 既存のシフト通知を削除（slotId で date+start_time を引いて削除）
+    await fetch(`/api/schedule?slotId=${slotId}`, {
+      method: 'DELETE',
+      headers: { 'x-user-key': userKey },
+      cache: 'no-store',
+    })
+
+    if (shiftNotifyMin !== null) {
+      await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
+        body: JSON.stringify({
+          title:          'シフト当番',
+          date:           targetItem.date,
+          start_time:     targetItem.start_time,
+          end_time:       targetItem.end_time,
+          notify_minutes: shiftNotifyMin,
+          color:          '#6366f1',
+          type:           'custom',
+        }),
+      })
+    }
+
+    // 楽観的 UI 更新（fetchItems の完了を待たず即反映）
+    setItems(prev => prev.map(i =>
+      i.id === targetItem.id ? { ...i, notify_minutes: shiftNotifyMin } : i
+    ))
+
+    setShiftNotifySaving(false)
+    setShiftNotifySaved(true)
+    setShiftNotifyItem(null)
+    setTimeout(() => setShiftNotifySaved(false), 3000)
+    fetchItems()
   }
 
   const filtered = items.filter(i => i.date === date)
@@ -324,9 +382,7 @@ export default function SchedulePage() {
 
         {/* ── タイムライン ── */}
         {loading ? (
-          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
-            読み込み中…
-          </div>
+          <div style={{ flex:1 }}><PageLoader /></div>
         ) : (
           <div style={{ flex:1, overflowY:'auto', padding:'0 16px 24px' }}>
             <div style={{ position:'relative', marginTop:8 }}>
@@ -372,7 +428,10 @@ export default function SchedulePage() {
                       key={item.id}
                       className="sch-item"
                       onClick={() => {
-                        if (!item.id.startsWith('shift-') && window.confirm(`「${item.title}」を削除しますか？`)) {
+                        if (item.type === 'shift') {
+                          setShiftNotifyMin(item.notify_minutes ?? 15)
+                          setShiftNotifyItem(item)
+                        } else if (window.confirm(`「${item.title}」を削除しますか？`)) {
                           handleDelete(item.id)
                         }
                       }}
@@ -381,7 +440,7 @@ export default function SchedulePage() {
                         borderRadius:8, padding:'4px 7px', overflow:'hidden',
                         background:`${item.color}22`,
                         borderLeft:`3px solid ${item.color}`,
-                        cursor: item.type === 'shift' ? 'default' : 'pointer',
+                        cursor: 'pointer',
                         boxSizing:'border-box',
                         animation:'fadeUp 0.2s ease',
                       }}
@@ -399,9 +458,12 @@ export default function SchedulePage() {
                           {fmtTime(item.start_time)}{item.end_time ? `〜${fmtTime(item.end_time)}` : ''}
                         </div>
                       )}
-                      {item.notify_minutes && (
+                      {/* シフトは常に🔔を表示（設定済み=色あり、未設定=薄い） */}
+                      {item.type === 'shift' ? (
+                        <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color: item.notify_minutes ? item.color : '#cbd5e1' }}>🔔</div>
+                      ) : item.notify_minutes ? (
                         <div style={{ fontSize:9, color: item.color, position:'absolute', bottom:3, right:5 }}>🔔</div>
-                      )}
+                      ) : null}
                     </div>
                   )
                 })}
@@ -410,6 +472,77 @@ export default function SchedulePage() {
           </div>
         )}
       </div>
+
+      {/* ── シフト通知設定モーダル ── */}
+      {shiftNotifyItem && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:200,
+          background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)',
+          display:'flex', alignItems:'flex-end', justifyContent:'center',
+        }} onClick={() => setShiftNotifyItem(null)}>
+          <div style={{
+            width:'100%', maxWidth:480, background:'#fff',
+            borderRadius:'20px 20px 0 0', padding:'24px 20px 40px',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
+              🔔 シフト通知を設定
+              {shiftNotifySaved && (
+                <span style={{ marginLeft:10, fontSize:12, color:'#10b981', fontWeight:700, fontFamily:"'Kiwi Maru',serif" }}>
+                  ✓ 設定しました
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize:13, color:'#6366f1', fontFamily:"'Kaisei Decol',serif", fontWeight:700, marginBottom:6 }}>
+              {shiftNotifyItem.start_time}〜{shiftNotifyItem.end_time} のシフト当番
+            </div>
+            <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:20, lineHeight:1.65 }}>
+              シフト時間の何分前に通知しますか？<br />
+              予定ページを開いたときに通知がスケジュールされます。
+            </div>
+
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:24 }}>
+              {[
+                { label: 'なし（通知しない）', value: null },
+                { label: '5分前',   value: 5 },
+                { label: '10分前',  value: 10 },
+                { label: '15分前',  value: 15 },
+                { label: '30分前',  value: 30 },
+                { label: '1時間前', value: 60 },
+              ].map(o => (
+                <button key={String(o.value)} onClick={() => setShiftNotifyMin(o.value)} style={{
+                  padding:'8px 16px', borderRadius:99, border:'none', cursor:'pointer',
+                  background: shiftNotifyMin === o.value
+                    ? 'linear-gradient(135deg,#6366f1,#818cf8)'
+                    : '#f1f5f9',
+                  color: shiftNotifyMin === o.value ? '#fff' : '#64748b',
+                  fontWeight:700, fontSize:12, fontFamily:"'Kiwi Maru',serif",
+                  transition:'all 0.15s',
+                }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setShiftNotifyItem(null)} style={{
+                flex:1, padding:'12px', borderRadius:10, border:'1px solid #e2e8f0',
+                background:'#fff', fontSize:13, fontWeight:700,
+                cursor:'pointer', fontFamily:"'Kiwi Maru',serif", color:'#64748b',
+              }}>キャンセル</button>
+              <button onClick={handleShiftNotify} disabled={shiftNotifySaving} style={{
+                flex:2, padding:'12px', borderRadius:10, border:'none',
+                background: shiftNotifySaving ? '#e2e8f0' : 'linear-gradient(135deg,#6366f1,#818cf8)',
+                color: shiftNotifySaving ? '#94a3b8' : '#fff',
+                fontSize:13, fontWeight:700,
+                cursor: shiftNotifySaving ? 'default' : 'pointer',
+                fontFamily:"'Kaisei Decol',serif",
+              }}>
+                {shiftNotifySaving ? '設定中…' : '設定する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 新規追加モーダル ── */}
       {showAdd && (

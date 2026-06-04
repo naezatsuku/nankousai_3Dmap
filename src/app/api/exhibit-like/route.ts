@@ -18,24 +18,25 @@ export async function POST(req: Request) {
 
   const db = supabase()
 
-  // スタンプ未取得ならいいね不可
-  const { count: stampCount } = await db
-    .from('stamps')
-    .select('*', { count: 'exact', head: true })
-    .eq('exhibit_id', exhibitId)
-    .eq('user_id', userId)
+  // 3クエリを並列実行
+  const [
+    { count: stampCount },
+    { count: userLikeCount },
+    { count: totalLikeCount },
+  ] = await Promise.all([
+    db.from('stamps').select('*', { count: 'exact', head: true })
+      .eq('exhibit_id', exhibitId).eq('user_id', userId),
+    db.from('exhibit_likes').select('*', { count: 'exact', head: true })
+      .eq('exhibit_id', exhibitId).eq('user_id', userId),
+    db.from('exhibit_likes').select('*', { count: 'exact', head: true })
+      .eq('exhibit_id', exhibitId),
+  ])
 
   if ((stampCount ?? 0) === 0) {
     return NextResponse.json({ error: 'スタンプを取得していない展示にはいいねできません' }, { status: 403 })
   }
 
-  const { count: existing } = await db
-    .from('exhibit_likes')
-    .select('*', { count: 'exact', head: true })
-    .eq('exhibit_id', exhibitId)
-    .eq('user_id', userId)
-
-  const nowLiked = (existing ?? 0) === 0
+  const nowLiked = (userLikeCount ?? 0) === 0
   if (nowLiked) {
     await db.from('exhibit_likes').insert({ exhibit_id: exhibitId, user_id: userId })
   } else {
@@ -43,10 +44,8 @@ export async function POST(req: Request) {
       .eq('exhibit_id', exhibitId).eq('user_id', userId)
   }
 
-  const { count: likeCount } = await db
-    .from('exhibit_likes')
-    .select('*', { count: 'exact', head: true })
-    .eq('exhibit_id', exhibitId)
+  // 操作後のカウントは取得済みの値から計算（追加クエリ不要）
+  const likeCount = (totalLikeCount ?? 0) + (nowLiked ? 1 : -1)
 
-  return NextResponse.json({ liked: nowLiked, likeCount: likeCount ?? 0 })
+  return NextResponse.json({ liked: nowLiked, likeCount })
 }

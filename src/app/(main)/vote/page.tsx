@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import PageLoader from '@/components/ui/PageLoader'
 
 interface StampedExhibit { id: string; name: string; type: string; class_label: string | null }
 interface RankEntry       { rank: number; exhibitId: string; exhibitName: string }
@@ -67,14 +68,7 @@ export default function VotePage() {
     setSubmitting(false)
   }
 
-  if (!data) {
-    return (
-      <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center',
-        fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#94a3b8' }}>
-        読み込み中…
-      </div>
-    )
-  }
+  if (!data) return <PageLoader />
 
   const hasVoted  = !!data.userVote
   const isChanged = selected !== data.userVote?.exhibitId

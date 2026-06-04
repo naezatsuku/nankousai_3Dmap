@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -134,7 +136,7 @@ export default function AdminVotesPage() {
         </div>
 
         {loading ? (
-          <div style={{ color:'#94a3b8', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>読み込み中…</div>
+          <PageLoader />
         ) : voteCounts.length === 0 ? (
           <div style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
             まだ投票がありません

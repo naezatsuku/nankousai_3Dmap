@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PageLoader from '@/components/ui/PageLoader'
 
 type PrefType = 'want' | 'neutral' | 'avoid'
 interface Slot    { id: string; date: string; start_at: string; end_at: string; required_count: number; order_index: number }
@@ -234,7 +235,7 @@ export default function ShiftEditPage() {
   }
 
   if (loading) return (
-    <div style={{ textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>読み込み中…</div>
+    <PageLoader />
   )
 
   const currentExhibit = exhibits.find(e => e.id === exhibitId)

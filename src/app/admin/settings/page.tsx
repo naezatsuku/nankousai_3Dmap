@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import { useState, useEffect } from 'react'
 
 export default function SettingsPage() {
@@ -58,7 +60,7 @@ export default function SettingsPage() {
         </div>
 
         {mapEnabled === null || likeCountVisible === null ? (
-          <div style={{ color: '#cbd5e1', fontSize: 13, fontFamily: "'Kiwi Maru',serif" }}>読み込み中…</div>
+          <PageLoader />
         ) : (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>

@@ -62,22 +62,38 @@ export async function POST(req: Request) {
   return NextResponse.json({ item: data })
 }
 
-// DELETE /api/schedule?id=
+// DELETE /api/schedule?id=  または  ?slotId=
 export async function DELETE(req: Request) {
   const userKey = await resolveUserKey(req)
   if (!userKey) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
 
-  const id = new URL(req.url).searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
+  const params = new URL(req.url).searchParams
+  const id     = params.get('id')
+  const slotId = params.get('slotId')
+  const db     = serviceDb()
 
-  const { error } = await serviceDb()
-    .from('schedule_items')
-    .delete()
-    .eq('id', id)
-    .eq('user_key', userKey)
+  if (id) {
+    const { error } = await db.from('schedule_items').delete().eq('id', id).eq('user_key', userKey)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  if (slotId) {
+    // シフトコマIDからdate/start_atを引いてシフト通知を削除
+    const { data: slot } = await db.from('shift_slots').select('date, start_at').eq('id', slotId).single()
+    if (!slot) return NextResponse.json({ ok: true })
+    const s = slot as { date: string; start_at: string }
+    const { error } = await db.from('schedule_items')
+      .delete()
+      .eq('user_key', userKey)
+      .eq('title', 'シフト当番')
+      .eq('date', s.date)
+      .eq('start_time', s.start_at.slice(0, 5))
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  return NextResponse.json({ error: 'id または slotId が必要です' }, { status: 400 })
 }
 
 // PATCH /api/schedule  — notify_minutes 更新

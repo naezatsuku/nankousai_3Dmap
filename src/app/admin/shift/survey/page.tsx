@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PageLoader from '@/components/ui/PageLoader'
 
 type PrefType = 'want' | 'neutral' | 'avoid'
 interface Slot    { id: string; date: string; start_at: string; end_at: string }
@@ -46,20 +47,19 @@ export default function ShiftSurveyPage() {
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()
       const role = (profile as { role: string } | null)?.role
-      if (role === 'admin') {
-        setIsAdmin(true)
-        // 全展示を取得（クラス設定モーダル用）
-        const { data: allEx } = await supabase
-          .from('exhibits').select('id, name, class_label').order('class_label', { nullsFirst: false })
-        setAllExhibits((allEx ?? []) as Exhibit[])
-      }
+      if (role === 'admin') setIsAdmin(true)
 
       // editor は exhibit_editors、それ以外（student/admin）は student_exhibits
       const table = role === 'editor' ? 'exhibit_editors' : 'student_exhibits'
-      const { data: links } = await supabase
-        .from(table)
-        .select('exhibit_id, exhibits(id, name, class_label)')
-        .eq('user_id', user.id)
+
+      // admin の場合は全展示（モーダル用）とリンクを並列取得
+      const [{ data: links }, allExResult] = await Promise.all([
+        supabase.from(table).select('exhibit_id, exhibits(id, name, class_label)').eq('user_id', user.id),
+        role === 'admin'
+          ? supabase.from('exhibits').select('id, name, class_label').order('class_label', { nullsFirst: false })
+          : Promise.resolve({ data: null }),
+      ])
+      if (allExResult.data) setAllExhibits(allExResult.data as Exhibit[])
 
       type LinkRow = { exhibit_id: string; exhibits: Exhibit | null }
       const exs = ((links ?? []) as unknown as LinkRow[])
@@ -126,7 +126,7 @@ export default function ShiftSurveyPage() {
   }, {})
 
   if (loading) return (
-    <div style={{ textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>読み込み中…</div>
+    <PageLoader />
   )
 
   if (noExhibit) return (
@@ -207,7 +207,7 @@ export default function ShiftSurveyPage() {
       )}
 
       {slotLoading ? (
-        <div style={{ color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13, padding:'20px 0' }}>読み込み中…</div>
+        <PageLoader />
       ) : slots.length === 0 ? (
         <div style={{ padding:'20px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
           コマが設定されていません。担当の先生にコマの設定を依頼してください。

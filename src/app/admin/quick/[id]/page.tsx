@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -140,10 +142,7 @@ export default function QuickPage() {
 
   if (loading) {
     return (
-      <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center',
-        fontFamily:"'Kiwi Maru',serif", fontSize:13, color:'#94a3b8', background:'#f8fafc' }}>
-        読み込み中…
-      </div>
+      <PageLoader />
     )
   }
 
@@ -542,9 +541,7 @@ function QrDisplay({ exhibitId }: { exhibitId: string }) {
     </div>
   )
   if (!qrUrl || !QrComp) return (
-    <div style={{ color:'#94a3b8', fontSize:13, fontFamily:"'Kiwi Maru',serif", padding:'16px', textAlign:'center' }}>
-      読み込み中…
-    </div>
+    <PageLoader />
   )
   return (
     <div style={{ textAlign:'center' }}>

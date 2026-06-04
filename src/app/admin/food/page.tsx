@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -124,7 +126,7 @@ export default function AdminFoodPage() {
       </div>
 
       {loading ? (
-        <div style={{ color: '#94a3b8', fontSize: 13, fontFamily: "'Kiwi Maru',serif" }}>読み込み中…</div>
+        <PageLoader />
       ) : stalls.length === 0 ? (
         <div style={{
           textAlign: 'center', padding: '48px 16px',

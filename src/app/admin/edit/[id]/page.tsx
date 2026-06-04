@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -374,9 +376,7 @@ export default function ExhibitEditPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth:1200, textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
-        読み込み中…
-      </div>
+      <PageLoader />
     )
   }
 
@@ -1435,7 +1435,7 @@ function StampQrCard({ exhibitId, isTarget, onToggle, onSave, saving, saved }: {
               <QrComp value={qrUrl} size={200} />
             </div>
           ) : (
-            <div style={{ color:'#94a3b8', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>読み込み中…</div>
+            <PageLoader />
           )}
         </div>
       )}

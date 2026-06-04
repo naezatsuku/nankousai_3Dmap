@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>南高祭 公式アプリ 来場者向け使い方ガイド</title>
+<style>
+  body { font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif; font-size: 11pt; line-height: 1.8; color: #222; max-width: 800px; margin: 40px auto; padding: 0 40px; }
+  h1 { font-size: 20pt; font-weight: bold; color: #e65100; border-bottom: 3px solid #e65100; padding-bottom: 6px; margin-top: 40px; }
+  h2 { font-size: 15pt; font-weight: bold; color: #bf360c; margin-top: 28px; border-left: 4px solid #ff8c00; padding-left: 10px; }
+  h3 { font-size: 12pt; font-weight: bold; color: #333; margin-top: 20px; }
+  .cover { text-align: center; padding: 60px 0 40px; border-bottom: 2px solid #ff8c00; margin-bottom: 40px; }
+  .cover h1 { font-size: 26pt; border: none; color: #e65100; }
+  .cover .subtitle { font-size: 13pt; color: #888; margin-top: 8px; }
+  .cover .date { font-size: 11pt; color: #aaa; margin-top: 32px; }
+  .toc { background: #fff8f0; border: 1px solid #ffcc80; border-radius: 8px; padding: 20px 28px; margin-bottom: 40px; }
+  .toc h2 { border: none; padding: 0; margin: 0 0 12px; font-size: 13pt; color: #e65100; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin-bottom: 4px; }
+  .toc a { color: #bf360c; text-decoration: none; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 10.5pt; }
+  th { background: #fff3e0; color: #bf360c; font-weight: bold; padding: 8px 12px; border: 1px solid #ffcc80; text-align: left; }
+  td { padding: 7px 12px; border: 1px solid #e0e0e0; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  pre, .code-block { background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 6px; padding: 14px 18px; font-family: 'Courier New', monospace; font-size: 10pt; line-height: 1.6; white-space: pre; overflow-x: auto; margin: 12px 0; color: #333; }
+  .notice { background: #fff8e1; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; font-size: 10.5pt; }
+  .notice.important { background: #fce4ec; border-left-color: #e53935; }
+  .notice.info { background: #e3f2fd; border-left-color: #1976d2; }
+  .step { display: flex; align-items: flex-start; gap: 12px; margin: 10px 0; }
+  .step-num { background: #ff8c00; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12pt; flex-shrink: 0; margin-top: 1px; }
+  .screenshot-placeholder { background: #f0f4f8; border: 2px dashed #b0bec5; border-radius: 8px; padding: 24px; text-align: center; color: #90a4ae; font-style: italic; margin: 16px 0; font-size: 10pt; }
+  .flow { background: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; padding: 20px 28px; margin: 16px 0; }
+  .flow-item { display: flex; align-items: center; gap: 12px; margin: 8px 0; font-size: 11pt; }
+  .flow-arrow { color: #ff8c00; font-size: 14pt; font-weight: bold; margin: 4px 0 4px 11px; }
+  .badge { display: inline-block; background: #ff8c00; color: white; border-radius: 4px; padding: 1px 8px; font-size: 9pt; font-weight: bold; margin-right: 4px; }
+  .badge.important { background: #e53935; }
+  .badge.live { background: #ff8c00; }
+  ul li, ol li { margin-bottom: 4px; }
+  p { margin: 10px 0; }
+  hr { border: none; border-top: 1px solid #eee; margin: 32px 0; }
+  .faq-q { font-weight: bold; color: #bf360c; margin-top: 20px; font-size: 11pt; }
+  .faq-a { margin-left: 16px; color: #333; }
+  .section-icon { font-size: 18pt; margin-right: 6px; }
+  .footer { text-align: center; color: #aaa; font-size: 9pt; margin-top: 60px; border-top: 1px solid #eee; padding-top: 20px; }
+</style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<div class="cover">
+  <div style="font-size:48pt; margin-bottom:16px;">🎪</div>
+  <h1 style="border:none; color:#e65100;">南高祭 公式アプリ</h1>
+  <div class="subtitle">来場者向け　使い方ガイド</div>
+  <div class="date">2025年9月　南高祭 実行委員会</div>
+</div>
+
+<!-- 目次 -->
+<div class="toc">
+  <h2>目次</h2>
+  <ol>
+    <li><a href="#install">はじめに ─ アプリのインストール</a></li>
+    <li><a href="#screen">画面の見方</a></li>
+    <li><a href="#map">🗺 マップ ─ 校舎を探索しよう</a></li>
+    <li><a href="#news">📣 お知らせ ─ 最新情報をチェック</a></li>
+    <li><a href="#notify">🔔 通知 ─ 気になる展示をフォロー</a></li>
+    <li><a href="#stamp">🎯 スタンプラリー ─ 展示を巡ろう</a></li>
+    <li><a href="#vote">🗳 人気投票 ─ お気に入りに投票しよう</a></li>
+    <li><a href="#schedule">📅 予定 ─ 自分だけのタイムラインを作ろう</a></li>
+    <li><a href="#food">🍱 フード ─ グルメ情報をチェック</a></li>
+    <li><a href="#stage">🎸 軽音ライブ・催し物 ─ ステージスケジュール</a></li>
+    <li><a href="#like">❤ いいね ─ お気に入りの展示を応援</a></li>
+    <li><a href="#faq">困ったときは（FAQ）</a></li>
+  </ol>
+</div>
+
+<!-- 1. インストール -->
+<h1 id="install">1. はじめに ─ アプリのインストール</h1>
+
+<p>南高祭公式サイトは<strong>スマートフォンにインストールして使うアプリ</strong>として動作します。インストールするとホーム画面にアイコンが追加され、普通のアプリと同じように使えます。</p>
+
+<div class="notice important">
+  ✅ <strong>スタンプラリーと通知機能を使うにはインストールが必要です。</strong><br>
+  マップや展示情報だけなら、ブラウザからそのまま使えます。
+</div>
+
+<h2>iPhone の場合（Safari を使用）</h2>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：iOSの「ホーム画面に追加」手順（Safari の共有ボタン）</div>
+
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span><strong>Safari</strong> でこのサイトを開く<br><small style="color:#888">※ Chrome など他のブラウザでは追加できません</small></span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>画面下部の「<strong>共有</strong>」ボタンをタップ<br><small style="color:#888">（四角から上矢印が出ているアイコン）</small></span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>上にスクロールして「<strong>ホーム画面に追加</strong>」を選ぶ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">4</span><span>右上の「<strong>追加</strong>」をタップ → 完了！</span></div>
+</div>
+
+<h2>Android の場合（Chrome を使用）</h2>
+
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span><strong>Chrome</strong> でこのサイトを開く</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>画面に「ホーム画面に追加」の案内が表示される<br><small style="color:#888">表示されない場合は右上メニュー（⋮）→「ホーム画面に追加」</small></span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>「<strong>追加</strong>」をタップ → 完了！</span></div>
+</div>
+
+<hr>
+
+<!-- 2. 画面の見方 -->
+<h1 id="screen">2. 画面の見方</h1>
+
+<h2>タブバー（画面下部）</h2>
+<p>アプリを開くと画面下部に5つのタブが並んでいます。</p>
+
+<table>
+  <tr><th>タブ</th><th>できること</th></tr>
+  <tr><td>🗺 マップ</td><td>校内マップで展示を探す・フロア別に確認</td></tr>
+  <tr><td>🔔 通知</td><td>展示のフォロー・プッシュ通知の設定</td></tr>
+  <tr><td>📣 お知らせ</td><td>各クラスの最新情報を見る</td></tr>
+  <tr><td>🎯 スタンプ</td><td>QRコードを読み取ってスタンプを集める</td></tr>
+  <tr><td>📅 予定</td><td>自分の当日スケジュールを管理する</td></tr>
+</table>
+
+<h2>ヘッダー（画面上部）</h2>
+<ul>
+  <li><strong>左</strong>：南高祭ロゴ（タップでトップページへ）</li>
+  <li><strong>右</strong>：現在時刻（時：分：秒）</li>
+  <li><strong>下段テロップ</strong>：各クラスからの最新お知らせが流れる</li>
+</ul>
+
+<hr>
+
+<!-- 3. マップ -->
+<h1 id="map"><span class="section-icon">🗺</span>3. マップ ─ 校舎を探索しよう</h1>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：マップ全体表示（2Fの例）</div>
+
+<h2>基本操作</h2>
+<table>
+  <tr><th>操作</th><th>動作</th></tr>
+  <tr><td>指2本でピンチ</td><td>拡大・縮小</td></tr>
+  <tr><td>1本指でドラッグ</td><td>マップを移動</td></tr>
+  <tr><td>教室をタップ</td><td>その展示の情報を表示</td></tr>
+</table>
+
+<h2>フロアを切り替える</h2>
+<p>画面左側の <strong>1F〜6F</strong> ボタンで切り替えられます。現在のフロアはオレンジ色でハイライトされます。</p>
+
+<h2>展示を検索する</h2>
+<p>画面上部の検索バーにクラス名や展示名を入力すると、マップ上でハイライトしてフロアも自動で切り替わります。</p>
+
+<h2>教室をタップ → 展示情報が表示される</h2>
+<div class="screenshot-placeholder">📸 スクリーンショット：ボトムシート（展示名・待ち時間・詳細ボタン）</div>
+<p>教室をタップすると画面下からスライドアップして以下の情報が表示されます：</p>
+<ul>
+  <li>展示名・クラス名・種別</li>
+  <li><strong>混雑状況・待ち時間</strong>（担当者がリアルタイムで更新）<br>
+    <small>緑（待ちなし）→ 黄（〜10分）→ オレンジ（〜25分）→ 赤（それ以上）</small></li>
+  <li>「展示の詳細を見る」ボタン</li>
+  <li>🔔 通知 ON/OFF ボタン</li>
+  <li>❤ いいねボタン（スタンプ取得者のみ）</li>
+</ul>
+
+<hr>
+
+<!-- 4. お知らせ -->
+<h1 id="news"><span class="section-icon">📣</span>4. お知らせ ─ 最新情報をチェック</h1>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：お知らせ一覧画面</div>
+
+<p>各クラスや実行委員からのリアルタイム情報を新着順で確認できます。</p>
+
+<h2>一覧の見方</h2>
+<ul>
+  <li><strong>オレンジのドット（●）</strong>：未読のお知らせ</li>
+  <li><span class="badge important">重要</span>：担当者が重要とマークしたお知らせ（赤く強調）</li>
+  <li>グレー表示：既読のお知らせ</li>
+</ul>
+
+<h2>詳細ページ</h2>
+<p>お知らせをタップすると本文・画像・動画を含む詳細が表示されます。開いた時点で自動的に既読になります。</p>
+
+<h2>「すべて既読」ボタン</h2>
+<p>右上の「すべて既読」ボタンを押すと一括で既読にできます。</p>
+
+<hr>
+
+<!-- 5. 通知 -->
+<h1 id="notify"><span class="section-icon">🔔</span>5. 通知 ─ 気になる展示をフォロー</h1>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：通知設定ページ</div>
+
+<p>気になる展示をフォローして、新しいお知らせが届いたときにプッシュ通知を受け取れます。</p>
+
+<h2>通知を ON にする手順</h2>
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span>「通知」タブをタップ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>「南高祭 公式アナウンス」を <strong>ON</strong> にする</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>「許可する」ボタンをタップ → ブラウザの確認で「許可」を選択</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">4</span><span>気になるクラスを個別に ON/OFF できる</span></div>
+</div>
+
+<div class="notice info">
+  📱 <strong>iPhone をお使いの場合</strong>：プッシュ通知を受け取るには PWA インストール（ホーム画面に追加）が必要です。
+</div>
+
+<hr>
+
+<!-- 6. スタンプラリー -->
+<h1 id="stamp"><span class="section-icon">🎯</span>6. スタンプラリー ─ 展示を巡ろう</h1>
+
+<div class="notice important">
+  ⚠ <strong>ホーム画面への追加（PWA インストール）が必要です</strong>
+</div>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：スタンプラリーのグリッド画面（一部押されている状態）</div>
+
+<p>展示を訪れて QR コードを読み取ると、その展示のスタンプがもらえます。スタンプを集めると<strong>いいね</strong>と<strong>人気投票</strong>に参加できるようになります。</p>
+
+<h2>参加の流れ</h2>
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span>ホーム画面のアイコンからアプリを起動</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>「スタンプ」タブをタップ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>「QR をスキャン」ボタンをタップ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">4</span><span>カメラが起動 → 展示の QR コードを読み取る</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">5</span><span>スタンプが押される！グリッドに展示の写真が表示される 🎉</span></div>
+</div>
+
+<h2>スタンプが集まると…</h2>
+<ul>
+  <li>ページが複数ある場合は横スワイプで切り替え</li>
+  <li>全展示コンプリートすると「🎉 完了！」と表示</li>
+</ul>
+
+<h2>QR コードについての注意</h2>
+<div class="notice">
+  ⏱ QR コードは<strong>1分ごとに自動更新</strong>される特殊なコードです。<br>
+  他の人の QR 画像の写真では最大2分後に無効になります。必ず会場で<strong>直接</strong>スキャンしてください。
+</div>
+
+<hr>
+
+<!-- 7. 人気投票 -->
+<h1 id="vote"><span class="section-icon">🗳</span>7. 人気投票 ─ お気に入りに投票しよう</h1>
+
+<div class="notice info">
+  ℹ スタンプを1つ以上集めると投票できます。
+</div>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：投票ページ（展示リストと現在のランキング）</div>
+
+<h2>投票方法</h2>
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span>スタンプを1つ以上集める</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>投票ページを開く（展示詳細ページのリンクから）</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>スタンプを集めた展示の一覧から投票したい展示を選ぶ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">4</span><span>「投票する」ボタンをタップ</span></div>
+</div>
+
+<h2>ランキング</h2>
+<p>現在のランキングが表示されます（管理者が公開設定した場合のみ）。</p>
+
+<h2>投票の変更</h2>
+<p>投票後も投票先を変更できます。一度入れた票を別の展示に移せます。同時に複数の展示に投票することはできません。</p>
+
+<hr>
+
+<!-- 8. 予定 -->
+<h1 id="schedule"><span class="section-icon">📅</span>8. 予定 ─ 自分だけのタイムラインを作ろう</h1>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：予定タイムライン（8:30〜16:30、イベントが並んでいる状態）</div>
+
+<p>当日訪れたい場所や見たいステージを <strong>8:30〜16:30 のタイムライン</strong>で管理できます。</p>
+
+<h2>予定の追加方法</h2>
+
+<h3>方法①：展示・イベントのページから追加（かんたん）</h3>
+<p>展示詳細ページ・軽音ページ・催し物ページの「📅 予定に追加」ボタンをタップ。</p>
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span>行きたい展示のページを開く</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>「📅 予定に追加」ボタンをタップ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>通知タイミングを選ぶ（なし / 5分前 / 10分前 / 15分前 / 30分前 / 1時間前）</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">4</span><span>「追加する」ボタン → 完了！</span></div>
+</div>
+
+<h3>方法②：予定ページから自分で入力</h3>
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span>「📅 予定」タブをタップ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>右上の「＋」ボタンをタップ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>タイトル・日付・開始/終了時刻・場所・通知を設定</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">4</span><span>「追加する」ボタン → 完了！</span></div>
+</div>
+
+<h2>タイムラインの色分け</h2>
+<table>
+  <tr><th>色</th><th>意味</th></tr>
+  <tr><td>🟠 オレンジ</td><td>展示・イベントの訪問予定</td></tr>
+  <tr><td>🟢 グリーン</td><td>自分で入力したカスタム予定</td></tr>
+  <tr><td>🟣 パープル</td><td>自分のシフト当番（ログイン時のみ）</td></tr>
+</table>
+
+<p>同じ時間帯に予定が重なると<strong>横に並べて</strong>表示されます。</p>
+
+<h2>予定の削除</h2>
+<p>タイムライン上の予定をタップすると削除の確認ダイアログが表示されます。</p>
+
+<h2>通知について</h2>
+<div class="notice">
+  🔔 設定した時間前にブラウザ通知でお知らせします。アプリを開いているとき（または PWA として起動中）に通知が届きます。
+</div>
+
+<hr>
+
+<!-- 9. フード -->
+<h1 id="food"><span class="section-icon">🍱</span>9. フード ─ グルメ情報をチェック</h1>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：フードページ（ランキング＋メニュー一覧）</div>
+
+<p>模擬店・食堂のメニュー・価格・在庫状況をリアルタイムで確認できます。</p>
+
+<h2>人気ランキング</h2>
+<p>販売数が多い順にトップ5を表示。何が売れているかひと目でわかります。</p>
+
+<h2>メニュー一覧</h2>
+<p>クラス別にメニューと在庫状況を確認できます。</p>
+<table>
+  <tr><th>表示</th><th>意味</th></tr>
+  <tr><td>✅ 販売中</td><td>現在購入できます</td></tr>
+  <tr><td>❌ 売り切れ</td><td>在庫がなくなりました</td></tr>
+  <tr><td>🚫 販売停止</td><td>一時的に販売を停止しています</td></tr>
+</table>
+
+<p>「<strong>販売中のみ</strong>」フィルターボタンをタップすると、在庫のある商品だけを表示できます。</p>
+
+<hr>
+
+<!-- 10. 軽音・催し物 -->
+<h1 id="stage"><span class="section-icon">🎸</span>10. 軽音ライブ・催し物 ─ ステージスケジュール</h1>
+
+<h2>軽音ライブ</h2>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：軽音ページ（バンド一覧・ライブ中バッジ）</div>
+
+<ul>
+  <li><span class="badge live">LIVE</span>：現在演奏中のバンドに表示されます</li>
+  <li>バンド名をタップするとメンバー情報・SNS リンク・全スケジュールを確認できます</li>
+  <li>「📅 予定に追加」ボタンでそのステージを予定タイムラインに追加できます</li>
+</ul>
+
+<h2>催し物（ダンス・演劇・合唱など）</h2>
+
+<div class="screenshot-placeholder">📸 スクリーンショット：催し物ページ（ダンス・演劇のカード）</div>
+
+<ul>
+  <li>各イベントをタップすると開催場所・時間・説明を表示</li>
+  <li>「📅 予定に追加」ボタンで予定タイムラインに追加できます</li>
+  <li>土曜日・日曜日ボタンで日付を切り替えられます</li>
+</ul>
+
+<hr>
+
+<!-- 11. いいね -->
+<h1 id="like"><span class="section-icon">❤</span>11. いいね ─ お気に入りの展示を応援</h1>
+
+<div class="notice info">
+  ℹ スタンプを集めた展示に1回いいねできます。
+</div>
+
+<h2>いいねの方法</h2>
+<div class="flow">
+  <div class="flow-item"><span class="step-num">1</span><span>スタンプラリーで展示を訪れてスタンプを取得する</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">2</span><span>展示詳細ページ <strong>または</strong> マップのボトムシートで「いいねする」ボタンをタップ</span></div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-item"><span class="step-num">3</span><span>❤ ハートが赤くなる → いいね完了！</span></div>
+</div>
+
+<h2>いいねの取り消し</h2>
+<p>「いいねを取り消す」ボタンをタップするといつでも取り消せます。</p>
+
+<hr>
+
+<!-- 12. FAQ -->
+<h1 id="faq">12. 困ったときは（FAQ）</h1>
+
+<div class="faq-q">Q. スタンプラリーが使えない</div>
+<div class="faq-a">
+  A. ホーム画面への追加（PWA インストール）が必要です。iPhone なら <strong>Safari</strong>、Android なら <strong>Chrome</strong> からアクセスして「ホーム画面に追加」を行ってください。詳しくは「1. はじめに」をご参照ください。
+</div>
+
+<div class="faq-q">Q. 通知が届かない（iPhone）</div>
+<div class="faq-a">
+  A. iOS では PWA としてインストールした場合のみ通知が届きます。Safari の「ホーム画面に追加」からインストールして、ホーム画面のアイコンからアプリを起動してください。
+</div>
+
+<div class="faq-q">Q. QR コードを読んだのにスタンプが押されない</div>
+<div class="faq-a">
+  A. 以下をご確認ください。<br>
+  ・スタンプラリーに参加している展示の QR ですか？（すべての教室に QR があるわけではありません）<br>
+  ・QR コードは1分ごとに変わります。撮影した写真では読み取れません。必ず会場で直接スキャンしてください。
+</div>
+
+<div class="faq-q">Q. 予定の通知が届かない</div>
+<div class="faq-a">
+  A. 通知はアプリを開いているとき（またはバックグラウンドで起動中）に届きます。アプリをホーム画面に追加してご利用ください。
+</div>
+
+<div class="faq-q">Q. マップが表示されない</div>
+<div class="faq-a">
+  A. 文化祭の準備中などの期間はマップが一時的に非公開になっている場合があります。開催当日になると公開されます。
+</div>
+
+<div class="faq-q">Q. アプリのデータを削除したい</div>
+<div class="faq-a">
+  A. スタンプや予定データはこの端末に紐付いています。ブラウザの「サイトのデータを消去」または「キャッシュを削除」から削除できます。
+</div>
+
+<div class="footer">
+  南高祭 公式アプリ　来場者ガイド　ver.1.0<br>
+  南高祭 実行委員会
+</div>
+
+</body>
+</html>

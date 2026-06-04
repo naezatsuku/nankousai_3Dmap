@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PageLoader from '@/components/ui/PageLoader'
 
 interface Slot    { id: string; date: string; start_at: string; end_at: string; required_count: number }
 interface Member  { user_id: string; profiles: { id: string; name: string } | null }
@@ -110,20 +111,19 @@ export default function ShiftViewPage() {
       .map(a => a.slot_id)
     const mySlots = slots.filter(s => mySlotIds.includes(s.id))
 
-    // 既存のシフト系schedule_itemを削除してから再作成
-    for (const slot of mySlots) {
-      // 既存削除（同タイトル・日付・時刻で特定）
-      const delRes = await fetch(`/api/schedule?exhibitId=${exhibitId}&slotId=${slot.id}`, {
-        method: 'DELETE', headers: { 'x-user-key': userKey },
-        cache: 'no-store',
+    // 全スロットの削除を並列実行してから、POSTを並列実行
+    await Promise.all(mySlots.map(slot =>
+      fetch(`/api/schedule?exhibitId=${exhibitId}&slotId=${slot.id}`, {
+        method: 'DELETE', headers: { 'x-user-key': userKey }, cache: 'no-store',
       })
-      // 通知ありの場合は新規作成
-      if (notifyMinutes !== null) {
-        await fetch('/api/schedule', {
+    ))
+    if (notifyMinutes !== null) {
+      await Promise.all(mySlots.map(slot =>
+        fetch('/api/schedule', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
           body: JSON.stringify({
-            title:          `シフト当番`,
+            title:          'シフト当番',
             date:           slot.date,
             start_time:     slot.start_at.slice(0,5),
             end_time:       slot.end_at.slice(0,5),
@@ -132,7 +132,7 @@ export default function ShiftViewPage() {
             type:           'custom',
           }),
         })
-      }
+      ))
     }
 
     setNotifySaving(false); setNotifySaved(true); setNotifyModal(false)
@@ -140,7 +140,7 @@ export default function ShiftViewPage() {
   }
 
   if (loading) return (
-    <div style={{ textAlign:'center', padding:'60px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>読み込み中…</div>
+    <PageLoader />
   )
   if (noExhibit) return (
     <div style={{ maxWidth:600 }}>
@@ -206,7 +206,7 @@ export default function ShiftViewPage() {
       )}
 
       {dataLoading ? (
-        <div style={{ color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13, padding:'20px 0' }}>読み込み中…</div>
+        <PageLoader />
       ) : slots.length === 0 ? (
         <div style={{ color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13, padding:'20px 0' }}>
           この日のシフトはまだ設定されていません。

@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ exhibitI
 
   const [commentsRes, likeCountRes, siteRes] = await Promise.all([
     commentQuery,
-    db.from('exhibit_likes').select('*', { count: 'exact', head: true }).eq('exhibit_id', exhibitId),
+    db.from('exhibit_likes').select('id', { count: 'exact', head: true }).eq('exhibit_id', exhibitId),
     db.from('site_settings').select('like_count_visible').single(),
   ])
 
@@ -34,9 +34,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ exhibitI
   let userHasStamp = false
   if (userId) {
     const [likedRes, stampRes] = await Promise.all([
-      db.from('exhibit_likes').select('*', { count: 'exact', head: true })
+      db.from('exhibit_likes').select('id', { count: 'exact', head: true })
         .eq('exhibit_id', exhibitId).eq('user_id', userId),
-      db.from('stamps').select('*', { count: 'exact', head: true })
+      db.from('stamps').select('id', { count: 'exact', head: true })
         .eq('exhibit_id', exhibitId).eq('user_id', userId),
     ])
     userLiked    = (likedRes.count  ?? 0) > 0

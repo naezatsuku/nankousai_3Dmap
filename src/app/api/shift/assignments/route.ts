@@ -23,8 +23,8 @@ export async function GET(req: Request) {
 
   const db = serviceDb()
 
-  // コマ取得
-  let slotQuery = db.from('shift_slots').select('*').eq('exhibit_id', exhibitId).order('order_index')
+  // コマ取得（クライアントが使うカラムのみ）
+  let slotQuery = db.from('shift_slots').select('id, date, start_at, end_at, required_count').eq('exhibit_id', exhibitId).order('order_index')
   if (date) slotQuery = slotQuery.eq('date', date)
   const { data: slots } = await slotQuery
 

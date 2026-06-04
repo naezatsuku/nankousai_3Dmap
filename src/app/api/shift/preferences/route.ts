@@ -22,19 +22,19 @@ export async function GET(req: Request) {
   const mine      = params.get('mine') === '1'
   if (!exhibitId) return NextResponse.json({ error: 'exhibitId が必要です' }, { status: 400 })
 
-  const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
-  const role = (profile as { role: string } | null)?.role
-
   const db = serviceDb()
 
-  if (mine || role === 'student') {
-    // まずコマIDを取得
-    const { data: slotData } = await db
-      .from('shift_slots').select('id').eq('exhibit_id', exhibitId)
-    const slotIds = ((slotData ?? []) as { id: string }[]).map(s => s.id)
-    if (slotIds.length === 0) return NextResponse.json({ preferences: [] })
+  // profiles と shift_slots を並列取得（shift_slots は両分岐で共通）
+  const [{ data: profile }, { data: slotData }] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    db.from('shift_slots').select('id').eq('exhibit_id', exhibitId),
+  ])
+  const role = (profile as { role: string } | null)?.role
+  const slotIds = ((slotData ?? []) as { id: string }[]).map(s => s.id)
 
+  if (slotIds.length === 0) return NextResponse.json({ preferences: [] })
+
+  if (mine || role === 'student') {
     const { data } = await db
       .from('shift_preferences')
       .select('slot_id, type')
@@ -44,12 +44,6 @@ export async function GET(req: Request) {
   }
 
   // editor/admin: 全員分（生徒名付き）
-  const slotsRes = await db
-    .from('shift_slots').select('id').eq('exhibit_id', exhibitId)
-  const slotIds = ((slotsRes.data ?? []) as { id: string }[]).map(s => s.id)
-
-  if (slotIds.length === 0) return NextResponse.json({ preferences: [] })
-
   const { data } = await db
     .from('shift_preferences')
     .select('user_id, slot_id, type, profiles(name)')

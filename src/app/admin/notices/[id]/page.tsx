@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -259,9 +261,7 @@ export default function NoticeEditPage() {
 
   if (loading) {
     return (
-      <div style={{ color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif", fontSize:13, padding:40 }}>
-        読み込み中…
-      </div>
+      <PageLoader />
     )
   }
 

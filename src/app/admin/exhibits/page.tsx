@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Exhibit, ExhibitType, FloorNumber } from '@/types'
@@ -151,7 +153,7 @@ export default function ExhibitsPage() {
 
       {/* ── 一覧 ── */}
       {loading ? (
-        <div style={{ textAlign:'center', padding:'40px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>読み込み中…</div>
+        <PageLoader />
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {visible.map(ex => {

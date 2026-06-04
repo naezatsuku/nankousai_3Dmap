@@ -1,5 +1,7 @@
 'use client'
 
+import PageLoader from '@/components/ui/PageLoader'
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -36,12 +38,11 @@ export default function AdminDashboard() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
 
-      // ロールと担当展示を取得
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
+      // ロールと notices を並列取得（notices はロールに依存しない）
+      const [{ data: profile }, { data: notices }] = await Promise.all([
+        supabase.from('profiles').select('role').eq('id', user.id).single(),
+        supabase.from('notices').select('id').gte('created_at', new Date(Date.now() - 7 * 86400_000).toISOString()),
+      ])
 
       const isEditor = (profile as { role: string } | null)?.role === 'editor'
       setIsEditor(isEditor)
@@ -55,17 +56,14 @@ export default function AdminDashboard() {
           .eq('user_id', user.id)
         const ids = (assignments ?? []).map((a: { exhibit_id: string }) => a.exhibit_id)
         if (ids.length === 0) {
-          setStats({ total:0, active:0, avgWait:0, notices:0 })
+          setStats({ total:0, active:0, avgWait:0, notices: notices?.length ?? 0 })
           setLoading(false)
           return
         }
         exhibitsQuery = exhibitsQuery.in('id', ids)
       }
 
-      const [{ data: exhibits }, { data: notices }] = await Promise.all([
-        exhibitsQuery,
-        supabase.from('notices').select('id').gte('created_at', new Date(Date.now() - 7 * 86400_000).toISOString()),
-      ])
+      const { data: exhibits } = await exhibitsQuery
 
       const exs = (exhibits ?? []) as Exhibit[]
       const activeExs = exs.filter(e => e.is_active)
@@ -164,7 +162,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
           {loading ? (
-            <div style={{ color:'#cbd5e1', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>読み込み中…</div>
+            <PageLoader />
           ) : topWait.length === 0 ? (
             <div style={{ color:'#cbd5e1', fontSize:12, fontFamily:"'Kiwi Maru',serif", textAlign:'center', padding:'20px 0' }}>
               待ち時間のデータがありません
@@ -200,7 +198,7 @@ export default function AdminDashboard() {
             🕐 最近の更新
           </div>
           {loading ? (
-            <div style={{ color:'#cbd5e1', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>読み込み中…</div>
+            <PageLoader />
           ) : recent.length === 0 ? (
             <div style={{ color:'#cbd5e1', fontSize:12, fontFamily:"'Kiwi Maru',serif", textAlign:'center', padding:'20px 0' }}>
               更新履歴がありません
