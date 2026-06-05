@@ -31,12 +31,28 @@ export default function NotifyTestPage() {
   const pad = (n: number) => String(n).padStart(2, '0')
   const defaultTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`
 
-  const [time, setTime]       = useState(defaultTime)
-  const [bypass, setBypass]   = useState(true)
+  const [time,      setTime]      = useState(defaultTime)
+  const [bypass,    setBypass]    = useState(true)
   const [dayChoice, setDayChoice] = useState<'sat'|'sun'>('sat')
-  const [running, setRunning] = useState(false)
-  const [result, setResult]   = useState<TestResult | null>(null)
-  const [showDiag, setShowDiag] = useState(false)
+  const [running,   setRunning]   = useState(false)
+  const [result,    setResult]    = useState<TestResult | null>(null)
+  const [showDiag,  setShowDiag]  = useState(false)
+  const [festDates, setFestDates] = useState({ sat: '9/13', sun: '9/14' })
+
+  useEffect(() => {
+    fetch('/api/admin/settings', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((d: { festival_sat?: string; festival_sun?: string }) => {
+        const fmt = (s?: string) => s ? s.slice(5).replace('-', '/') : ''
+        if (d.festival_sat || d.festival_sun) {
+          setFestDates({
+            sat: fmt(d.festival_sat) || '9/13',
+            sun: fmt(d.festival_sun) || '9/14',
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const run = async () => {
     setRunning(true)
@@ -102,8 +118,8 @@ export default function NotifyTestPage() {
               onChange={e => setDayChoice(e.target.value as 'sat'|'sun')}
               style={{ padding:'8px 12px', borderRadius:10, border:'1px solid #e2e8f0', fontSize:13, fontFamily:"'Kiwi Maru',serif" }}
             >
-              <option value="sat">土曜日（9/13）</option>
-              <option value="sun">日曜日（9/14）</option>
+              <option value="sat">土曜日（{festDates.sat}）</option>
+              <option value="sun">日曜日（{festDates.sun}）</option>
             </select>
           </div>
         </div>

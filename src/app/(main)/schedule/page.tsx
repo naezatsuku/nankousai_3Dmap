@@ -11,7 +11,8 @@ const END_MIN   = 16 * 60 + 30  // 16:30
 const TOTAL_MIN = END_MIN - START_MIN // 480分
 const PX_PER_MIN = 2            // 1分 = 2px
 const TIMELINE_H = TOTAL_MIN * PX_PER_MIN // 960px
-const FESTIVAL_DATES: Record<'sat'|'sun', string> = {
+// デフォルト値（site_settings 取得前のフォールバック）
+const DEFAULT_FESTIVAL_DATES: Record<'sat'|'sun', string> = {
   sat: '2025-09-13',
   sun: '2025-09-14',
 }
@@ -106,9 +107,13 @@ const TYPE_COLOR: Record<string, string> = {
 }
 
 // ── 通知スケジュール ────────────────────────────────────────────
-function scheduleNotifications(items: ScheduleItem[], date: 'sat'|'sun') {
+function scheduleNotifications(
+  items: ScheduleItem[],
+  date: 'sat'|'sun',
+  festivalDates: Record<'sat'|'sun', string> = DEFAULT_FESTIVAL_DATES
+) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
-  const festDate = FESTIVAL_DATES[date]
+  const festDate = festivalDates[date]
   for (const item of items) {
     if (!item.notify_minutes || item.date !== date) continue
     const [h, m] = item.start_time.split(':').map(Number)
@@ -128,13 +133,14 @@ function scheduleNotifications(items: ScheduleItem[], date: 'sat'|'sun') {
 
 // ── メインページ ─────────────────────────────────────────────
 export default function SchedulePage() {
-  const [date,       setDate]       = useState<'sat'|'sun'>('sat')
-  const [items,      setItems]      = useState<ScheduleItem[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [userKey,    setUserKey]    = useState('')
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [role,       setRole]       = useState('')
-  const [myUserId,   setMyUserId]   = useState('')
+  const [date,          setDate]         = useState<'sat'|'sun'>('sat')
+  const [items,         setItems]        = useState<ScheduleItem[]>([])
+  const [loading,       setLoading]      = useState(true)
+  const [userKey,       setUserKey]      = useState('')
+  const [isLoggedIn,    setIsLoggedIn]   = useState(false)
+  const [role,          setRole]         = useState('')
+  const [myUserId,      setMyUserId]     = useState('')
+  const [festivalDates, setFestivalDates]= useState(DEFAULT_FESTIVAL_DATES)
 
   // 新規追加モーダル
   const [showAdd,  setShowAdd]  = useState(false)
@@ -159,6 +165,19 @@ export default function SchedulePage() {
 
   // 初期化
   useEffect(() => {
+    // 文化祭日程を site_settings から取得
+    fetch('/api/admin/settings', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((d: { festival_sat?: string; festival_sun?: string }) => {
+        if (d.festival_sat || d.festival_sun) {
+          setFestivalDates({
+            sat: d.festival_sat ?? DEFAULT_FESTIVAL_DATES.sat,
+            sun: d.festival_sun ?? DEFAULT_FESTIVAL_DATES.sun,
+          })
+        }
+      })
+      .catch(() => {})
+
     const key = (() => {
       let k = localStorage.getItem('stamp_user_id')
       if (!k) { k = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2); localStorage.setItem('stamp_user_id', k) }
@@ -239,7 +258,7 @@ export default function SchedulePage() {
 
     setItems(all)
     setLoading(false)
-    scheduleNotifications(all, date)
+    scheduleNotifications(all, date, festivalDates)
   }, [userKey, isLoggedIn, myUserId, role, date])
 
   useEffect(() => {

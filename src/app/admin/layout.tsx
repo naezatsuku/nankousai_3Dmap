@@ -100,6 +100,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             setProfile(p)
             if (!p.name && pathname !== '/admin/profile') {
               router.push('/admin/profile?welcome=1')
+              return
+            }
+            // student は許可されたパス以外にアクセスできない
+            if (p.role === 'student') {
+              const studentAllowed = ['/admin/profile', '/admin/shift/survey', '/admin/shift/view']
+              const allowed = studentAllowed.some(allowed => pathname === allowed || pathname.startsWith(allowed + '/'))
+              if (!allowed) router.replace('/admin/shift/survey')
             }
           }
         })

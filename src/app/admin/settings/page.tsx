@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react'
 export default function SettingsPage() {
   const [mapEnabled,       setMapEnabled]       = useState<boolean | null>(null)
   const [likeCountVisible, setLikeCountVisible] = useState<boolean | null>(null)
+  const [festivalSat,      setFestivalSat]      = useState<string>('2025-09-13')
+  const [festivalSun,      setFestivalSun]      = useState<string>('2025-09-14')
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
   const [error,  setError]  = useState('')
@@ -14,9 +16,11 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch('/api/admin/settings')
       .then(r => r.json())
-      .then((d: { map_enabled: boolean; like_count_visible: boolean }) => {
+      .then((d: { map_enabled: boolean; like_count_visible: boolean; festival_sat: string; festival_sun: string }) => {
         setMapEnabled(d.map_enabled)
         setLikeCountVisible(d.like_count_visible)
+        setFestivalSat(d.festival_sat ?? '2025-09-13')
+        setFestivalSun(d.festival_sun ?? '2025-09-14')
       })
   }, [])
 
@@ -28,7 +32,7 @@ export default function SettingsPage() {
     const res = await fetch('/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ map_enabled: mapEnabled, like_count_visible: likeCountVisible }),
+      body: JSON.stringify({ map_enabled: mapEnabled, like_count_visible: likeCountVisible, festival_sat: festivalSat, festival_sun: festivalSun }),
     })
     const json = await res.json() as { ok?: boolean; error?: string }
     setSaving(false)
@@ -154,6 +158,40 @@ export default function SettingsPage() {
                 </button>
               )
             })}
+          </div>
+
+          {/* ── 文化祭日程設定 ── */}
+          <div style={{
+            fontFamily: "'Kaisei Decol',serif", fontSize: 15, fontWeight: 700,
+            color: '#1e293b', marginBottom: 16, marginTop: 28,
+          }}>
+            📅 文化祭日程
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginBottom: 14 }}>
+            スケジュール通知の日付判定に使用されます。
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+            {[
+              { label: '土曜日', value: festivalSat, onChange: setFestivalSat },
+              { label: '日曜日', value: festivalSun, onChange: setFestivalSun },
+            ].map(({ label, value, onChange }) => (
+              <div key={label} style={{ flex: 1, minWidth: 180 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 5, fontFamily: "'Kiwi Maru',serif" }}>
+                  {label}
+                </label>
+                <input
+                  type="date"
+                  value={value}
+                  onChange={e => onChange(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 10,
+                    border: '1.5px solid #e2e8f0', fontSize: 13, color: '#1e293b',
+                    fontFamily: "'Kiwi Maru',serif", boxSizing: 'border-box',
+                    background: '#f8fafc',
+                  }}
+                />
+              </div>
+            ))}
           </div>
 
           {error && (

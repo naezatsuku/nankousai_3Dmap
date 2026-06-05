@@ -77,8 +77,21 @@ export function isGlobalOn(): boolean {
 export async function subscribeToGlobal(): Promise<void> {
   localStorage.removeItem(GLOBAL_OPT_OUT)
   const token = getStoredToken() ?? await getFCMToken()
-  const supabase = createClient()
-  await supabase.from('push_subscriptions').upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
+
+  // ログイン済みなら user_id を紐付ける API を優先して呼ぶ
+  const linked = await fetch('/api/link-fcm-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fcm_token: token }),
+  }).then(r => r.ok).catch(() => false)
+
+  // 未ログイン（401）の場合のみ直接 upsert（user_id なし）
+  if (!linked) {
+    const supabase = createClient()
+    await supabase
+      .from('push_subscriptions')
+      .upsert({ fcm_token: token }, { onConflict: 'fcm_token' })
+  }
 }
 
 export async function unsubscribeFromGlobal(): Promise<void> {

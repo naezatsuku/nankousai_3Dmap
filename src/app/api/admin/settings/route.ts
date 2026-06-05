@@ -25,11 +25,13 @@ async function requireAdmin(): Promise<boolean> {
 export async function GET() {
   const { data } = await serviceDb()
     .from('site_settings')
-    .select('map_enabled, like_count_visible')
+    .select('map_enabled, like_count_visible, festival_sat, festival_sun')
     .single()
   return NextResponse.json({
     map_enabled:        data?.map_enabled        ?? true,
     like_count_visible: data?.like_count_visible ?? true,
+    festival_sat:       data?.festival_sat       ?? '2025-09-13',
+    festival_sun:       data?.festival_sun       ?? '2025-09-14',
   })
 }
 
@@ -38,11 +40,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const body = await req.json() as { map_enabled?: boolean; like_count_visible?: boolean }
-  const patch: Record<string, boolean> = {}
+  const body = await req.json() as {
+    map_enabled?: boolean; like_count_visible?: boolean
+    festival_sat?: string; festival_sun?: string
+  }
+  const patch: Record<string, boolean | string> = {}
 
   if (typeof body.map_enabled        === 'boolean') patch.map_enabled        = body.map_enabled
   if (typeof body.like_count_visible === 'boolean') patch.like_count_visible = body.like_count_visible
+  if (typeof body.festival_sat       === 'string')  patch.festival_sat       = body.festival_sat
+  if (typeof body.festival_sun       === 'string')  patch.festival_sun       = body.festival_sun
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 })
