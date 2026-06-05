@@ -300,6 +300,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
 function TopPage({ onNavigate }: TopPageProps) {
   const router = useRouter();
   const [nanpenTap, setNanpenTap] = useState<boolean>(false);
+  const [footerBounce, setFooterBounce] = useState<number>(0);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const sitemapRef    = useRef<HTMLDivElement>(null);
   const tapCountRef   = useRef<number>(0);
@@ -311,6 +312,7 @@ function TopPage({ onNavigate }: TopPageProps) {
   };
 
   const handleFooterNanpenTap = () => {
+    setFooterBounce(n => n + 1);
     tapCountRef.current += 1;
     if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
 
@@ -688,12 +690,14 @@ function TopPage({ onNavigate }: TopPageProps) {
           <div onClick={handleFooterNanpenTap} style={{ display: "inline-block", cursor: "pointer" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              key={footerBounce}
               src="/nanpen.png"
               alt="なんぺん"
               style={{
                 width: 52, height: "auto", opacity: 0.65, marginBottom: 10,
                 filter: "drop-shadow(0 4px 8px rgba(255,140,0,0.2))",
                 display: "block",
+                animation: footerBounce > 0 ? "nanpenJump 0.65s cubic-bezier(0.34,1.2,0.64,1)" : undefined,
               }}
             />
           </div>

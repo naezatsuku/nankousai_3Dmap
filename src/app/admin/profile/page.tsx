@@ -164,7 +164,11 @@ function ProfileContent() {
           {/* ロール（変更不可） */}
           <Field label="ロール">
             <input
-              value={profile?.role === 'admin' ? '管理者 (admin)' : '編集者 (editor)'}
+              value={
+                profile?.role === 'admin'   ? '管理者 (admin)' :
+                profile?.role === 'student' ? '生徒 (student)' :
+                                              '編集者 (editor)'
+              }
               disabled
               style={{ ...inputStyle, background:'#f8fafc', color:'#94a3b8', cursor:'not-allowed' }}
             />
