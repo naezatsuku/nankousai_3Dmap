@@ -103,25 +103,31 @@ export default function ShiftViewPage() {
 
   // 自分が担当するコマに通知を一括設定
   const handleSaveNotify = async () => {
+    if (!myUserId) return // ユーザー未取得なら何もしない
     setNotifySaving(true)
 
-    // localStorage に保存
-    if (notifyMinutes !== null) {
-      localStorage.setItem('shift_notify_minutes', String(notifyMinutes))
-    } else {
-      localStorage.removeItem('shift_notify_minutes')
-    }
-
-    // DB に保存（FCM サーバー側で参照）
     const supabase = createClient()
+    let saveErr: string | null = null
+
     if (notifyMinutes !== null) {
-      await supabase.from('shift_notification_prefs')
+      const { error } = await supabase
+        .from('shift_notification_prefs')
         .upsert({ user_id: myUserId, notify_minutes: notifyMinutes }, { onConflict: 'user_id' })
+      if (error) saveErr = error.message
     } else {
-      await supabase.from('shift_notification_prefs').delete().eq('user_id', myUserId)
+      const { error } = await supabase
+        .from('shift_notification_prefs')
+        .delete()
+        .eq('user_id', myUserId)
+      if (error) saveErr = error.message
     }
 
-    setNotifySaving(false); setNotifySaved(true); setNotifyModal(false)
+    setNotifySaving(false)
+    if (saveErr) {
+      alert(`保存エラー: ${saveErr}`)
+      return
+    }
+    setNotifySaved(true); setNotifyModal(false)
     setTimeout(() => setNotifySaved(false), 3000)
   }
 
