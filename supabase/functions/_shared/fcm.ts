@@ -72,13 +72,8 @@ export async function sendFCM(
       body: JSON.stringify({
         message: {
           token: fcmToken,
-          webpush: {
-            notification: {
-              title, body,
-              icon:  '/nanpen.png',
-              badge: '/nanpen.png',
-            },
-          },
+          data: { title, body, icon: '/nanpen.png' },
+          webpush: { headers: { TTL: '3600' } },
         },
       }),
     },

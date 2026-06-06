@@ -24,7 +24,7 @@ interface SectionMediaItem  { id:string; url:string; type:'image'|'video'; capti
 interface Section          { id:string; heading:string; body:BodySegment[]; order:number; media:SectionMediaItem[] }
 interface MenuItem         { id:string; name:string; price:number; description:string; image_url:string; stock:number; is_selling:boolean; sold_count:number }
 interface BandScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; stage:string }
-interface BandItem         { id:string; name:string; members:string[]; instagram:string; thumbnail_url:string; schedules:BandScheduleItem[] }
+interface BandItem         { id:string; name:string; members:string[]; instagram:string; thumbnail_url:string; schedules:BandScheduleItem[]; enable_announcement:boolean; announcement_color:string }
 interface SpecialScheduleItem { id:string; day:'sat'|'sun'; start_at:string; end_at:string; location:string; note:string }
 interface Comment           { id:string; user_id:string; body:string; author_name?:string|null; is_approved:boolean; created_at:string }
 
@@ -38,13 +38,29 @@ interface ExhibitFormState {
   queue_count:number
   type:'class'|'food'|'band'|'special'|'cafeteria'
   is_stamp_target:boolean
+  enable_announcement:boolean
+  announcement_color:string
 }
+
+const PRESET_COLORS = [
+  { name:'レッド',    hex:'#FF4444' },
+  { name:'オレンジ',  hex:'#FF8C00' },
+  { name:'ゴールド',  hex:'#F59E0B' },
+  { name:'グリーン',  hex:'#10B981' },
+  { name:'シアン',   hex:'#38BDF8' },
+  { name:'ブルー',   hex:'#3B82F6' },
+  { name:'パープル', hex:'#A855F7' },
+  { name:'ピンク',   hex:'#EC4899' },
+  { name:'ホワイト', hex:'#F0F0F0' },
+  { name:'ブラック', hex:'#1A1A1A' },
+] as const
 
 const INIT: ExhibitFormState = {
   name:'', catch_copy:'', description:'',
   cover_url:'', thumbnail_url:'', room_display:'', floor:1,
   sections:[], has_wait_time:true, time_per_group:5, queue_count:0, type:'class',
   is_stamp_target:false,
+  enable_announcement:false, announcement_color:'#FF8C00',
 }
 
 const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
@@ -115,11 +131,13 @@ export default function ExhibitEditPage() {
                   .sort((a,b) => a.order_index - b.order_index)
                   .map(m => ({ id:m.id, url:m.url, type:m.type as 'image'|'video', caption:m.caption ?? '', order_index:m.order_index })),
               })),
-            has_wait_time:   data.has_wait_time ?? true,
-            time_per_group:  tpg,
-            queue_count:     Math.round(waitMin / tpg),
-            type:            data.type,
-            is_stamp_target: data.is_stamp_target ?? false,
+            has_wait_time:        data.has_wait_time ?? true,
+            time_per_group:       tpg,
+            queue_count:          Math.round(waitMin / tpg),
+            type:                 data.type,
+            is_stamp_target:      data.is_stamp_target ?? false,
+            enable_announcement:  data.enable_announcement ?? false,
+            announcement_color:   data.announcement_color ?? '#FF8C00',
           })
 
           if (data.type === 'food' || data.type === 'cafeteria') {
@@ -137,13 +155,15 @@ export default function ExhibitEditPage() {
               .eq('exhibit_id', id)
               .order('name')
             if (bandData) {
-              type RawB = { id:string; name:string; members:string[]; instagram:string|null; thumbnail_url:string|null; band_schedules:{id:string;day:'sat'|'sun';start_at:string;end_at:string;stage:string|null}[] }
+              type RawB = { id:string; name:string; members:string[]; instagram:string|null; thumbnail_url:string|null; enable_announcement:boolean|null; announcement_color:string|null; band_schedules:{id:string;day:'sat'|'sun';start_at:string;end_at:string;stage:string|null}[] }
               setBands((bandData as unknown as RawB[]).map(b => ({
-                id:            b.id,
-                name:          b.name,
-                members:       b.members ?? [],
-                instagram:     b.instagram ?? '',
-                thumbnail_url: b.thumbnail_url ?? '',
+                id:                   b.id,
+                name:                 b.name,
+                members:              b.members ?? [],
+                instagram:            b.instagram ?? '',
+                thumbnail_url:        b.thumbnail_url ?? '',
+                enable_announcement:  b.enable_announcement ?? false,
+                announcement_color:   b.announcement_color ?? '#A855F7',
                 schedules:     (b.band_schedules ?? []).map(s => ({
                   id:       s.id,
                   day:      s.day,
@@ -219,9 +239,11 @@ export default function ExhibitEditPage() {
       thumbnail_url: form.thumbnail_url,
       room_display:  form.room_display,
       floor:         form.floor,
-      has_wait_time:   form.has_wait_time,
-      wait_minutes:    waitMin,
-      is_stamp_target: form.is_stamp_target,
+      has_wait_time:        form.has_wait_time,
+      wait_minutes:         waitMin,
+      is_stamp_target:      form.is_stamp_target,
+      enable_announcement:  form.enable_announcement,
+      announcement_color:   form.enable_announcement ? form.announcement_color : null,
       ...(currentSecret && !stampSecret ? { stamp_secret: currentSecret } : {}),
     }).eq('id', id)
 
@@ -302,6 +324,8 @@ export default function ExhibitEditPage() {
         await supabase.from('bands').upsert(existingBands.map(b => ({
           id: b.id, exhibit_id: id, name: b.name,
           members: b.members, instagram: b.instagram || null, thumbnail_url: b.thumbnail_url || null,
+          enable_announcement: b.enable_announcement,
+          announcement_color: b.enable_announcement ? b.announcement_color || null : null,
         })))
         await supabase.from('band_schedules').delete().in('band_id', existingBands.map(b => b.id))
         const scheds = existingBands.flatMap(b => b.schedules.map(s => ({
@@ -313,6 +337,8 @@ export default function ExhibitEditPage() {
         const { data: ins } = await supabase.from('bands').insert({
           exhibit_id: id, name: band.name, members: band.members,
           instagram: band.instagram || null, thumbnail_url: band.thumbnail_url || null,
+          enable_announcement: band.enable_announcement,
+          announcement_color: band.enable_announcement ? band.announcement_color || null : null,
         }).select('id').single()
         if (ins && band.schedules.length > 0) {
           await supabase.from('band_schedules').insert(band.schedules.map(s => ({
@@ -342,10 +368,12 @@ export default function ExhibitEditPage() {
     if (form.type === 'band') {
       const { data: bd } = await supabase.from('bands').select('*, band_schedules(*)').eq('exhibit_id', id).order('name')
       if (bd) {
-        type RawB = { id:string; name:string; members:string[]; instagram:string|null; thumbnail_url:string|null; band_schedules:{id:string;day:'sat'|'sun';start_at:string;end_at:string;stage:string|null}[] }
+        type RawB = { id:string; name:string; members:string[]; instagram:string|null; thumbnail_url:string|null; enable_announcement:boolean|null; announcement_color:string|null; band_schedules:{id:string;day:'sat'|'sun';start_at:string;end_at:string;stage:string|null}[] }
         setBands((bd as unknown as RawB[]).map(b => ({
           id: b.id, name: b.name, members: b.members ?? [],
           instagram: b.instagram ?? '', thumbnail_url: b.thumbnail_url ?? '',
+          enable_announcement: b.enable_announcement ?? false,
+          announcement_color:  b.announcement_color  ?? '#A855F7',
           schedules: (b.band_schedules ?? []).map(s => ({
             id: s.id, day: s.day,
             start_at: s.start_at.slice(0,5), end_at: s.end_at.slice(0,5), stage: s.stage ?? '',
@@ -535,6 +563,74 @@ export default function ExhibitEditPage() {
 
               {/* 催しタブ */}
               <div className="sec-special" style={{ marginTop:16, display: tab !== 'special' ? 'none' : undefined }}>
+
+                {/* ── 特殊演出設定カード ── */}
+                <Card title="特殊演出設定" icon="🎬" style={{ marginBottom:16 }}>
+                  <p style={{ fontSize:12, color:'#94a3b8', marginBottom:14, fontFamily:"'Kiwi Maru',serif", lineHeight:1.7 }}>
+                    公演開始N分前にマップ画面へシネマティック演出を表示します（PCのみ）。
+                  </p>
+
+                  {/* ON/OFF トグル */}
+                  <button
+                    onClick={() => set('enable_announcement', !form.enable_announcement)}
+                    style={{
+                      width:'100%', padding:'10px 14px', borderRadius:10, border:'none',
+                      cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                      background: form.enable_announcement ? '#fff8f4' : '#f8fafc',
+                      boxShadow: form.enable_announcement ? 'inset 0 0 0 1.5px #FF8C00' : 'inset 0 0 0 1.5px #e2e8f0',
+                      marginBottom:16, transition:'all 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width:36, height:20, borderRadius:99, flexShrink:0, position:'relative',
+                      background: form.enable_announcement ? '#FF8C00' : '#cbd5e1', transition:'background 0.2s',
+                    }}>
+                      <div style={{
+                        position:'absolute', top:2, borderRadius:'50%', width:16, height:16, background:'#fff',
+                        left: form.enable_announcement ? 18 : 2, transition:'left 0.2s',
+                        boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
+                      }} />
+                    </div>
+                    <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", color: form.enable_announcement ? '#FF6B00' : '#94a3b8' }}>
+                      {form.enable_announcement ? '特殊演出 有効' : '特殊演出 無効'}
+                    </span>
+                  </button>
+
+                  {/* グローカラー選択（有効時のみ）*/}
+                  {form.enable_announcement && (
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:8, fontFamily:"'Kiwi Maru',serif" }}>
+                        グローカラー
+                      </div>
+                      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                        {PRESET_COLORS.map(({ name, hex }) => (
+                          <button
+                            key={hex}
+                            title={name}
+                            onClick={() => set('announcement_color', hex)}
+                            style={{
+                              width:32, height:32, borderRadius:'50%', border:'none',
+                              background: hex, cursor:'pointer', flexShrink:0,
+                              outline: form.announcement_color === hex
+                                ? `3px solid ${hex === '#F0F0F0' ? '#94a3b8' : hex}`
+                                : '2px solid transparent',
+                              outlineOffset: 2,
+                              boxShadow: form.announcement_color === hex
+                                ? `0 0 0 4px white, 0 0 0 6px ${hex === '#F0F0F0' ? '#94a3b8' : hex}`
+                                : '0 1px 3px rgba(0,0,0,0.15)',
+                              transition:'all 0.15s',
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div style={{ fontSize:10, color:'#94a3b8', marginTop:8, fontFamily:"'Kiwi Maru',serif" }}>
+                        選択中: {PRESET_COLORS.find(c => c.hex === form.announcement_color)?.name ?? 'カスタム'}
+                        <span style={{ marginLeft:8, display:'inline-block', width:10, height:10, borderRadius:'50%', background: form.announcement_color, verticalAlign:'middle', border:'1px solid #e2e8f0' }} />
+                      </div>
+                    </div>
+                  )}
+                </Card>
+
                 <Card title="催し・特別スケジュール" icon="🎪">
                   <p style={{ fontSize:12, color:'#94a3b8', marginBottom:16, fontFamily:"'Kiwi Maru',serif", lineHeight:1.7 }}>
                     イベント・公演・実演など、時間帯で区切られた催しを登録できます。全団体共通で利用できます。
@@ -1023,6 +1119,7 @@ function BandEditor({ exhibitId, bands, onChange, onRemove }: {
 }) {
   const addBand = () => onChange([...bands, {
     id: `new_${Date.now()}`, name: '', members: [], instagram: '', thumbnail_url: '', schedules: [],
+    enable_announcement: false, announcement_color: '#A855F7',
   }])
 
   const update = (id: string, patch: Partial<BandItem>) =>
@@ -1075,6 +1172,61 @@ function BandEditor({ exhibitId, bands, onChange, onRemove }: {
             schedules={band.schedules}
             onChange={scheds => update(band.id, { schedules: scheds })}
           />
+
+          {/* 特殊演出設定 */}
+          <div style={{ marginTop:14, padding:'12px 14px', background:'#fafafa', borderRadius:10, border:'1px solid #f1f5f9' }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:10, fontFamily:"'Kiwi Maru',serif" }}>
+              🎬 特殊演出
+            </div>
+            <button
+              type="button"
+              onClick={() => update(band.id, { enable_announcement: !band.enable_announcement })}
+              style={{
+                display:'flex', alignItems:'center', gap:10, width:'100%',
+                padding:'10px 12px', borderRadius:10, border:'none', cursor:'pointer',
+                background: band.enable_announcement ? '#fff8f4' : '#f8fafc',
+                boxShadow: band.enable_announcement ? 'inset 0 0 0 1.5px #A855F7' : 'inset 0 0 0 1.5px #e2e8f0',
+              }}
+            >
+              <div style={{
+                width:36, height:20, borderRadius:10, flexShrink:0, position:'relative',
+                background: band.enable_announcement ? '#A855F7' : '#cbd5e1', transition:'background 0.2s',
+              }}>
+                <div style={{
+                  position:'absolute', top:2, width:16, height:16, borderRadius:'50%', background:'#fff',
+                  left: band.enable_announcement ? 18 : 2, transition:'left 0.2s',
+                  boxShadow:'0 1px 3px rgba(0,0,0,0.25)',
+                }} />
+              </div>
+              <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", color: band.enable_announcement ? '#7c3aed' : '#94a3b8' }}>
+                {band.enable_announcement ? '特殊演出 有効' : '特殊演出 無効'}
+              </span>
+            </button>
+            {band.enable_announcement && (
+              <div style={{ marginTop:10 }}>
+                <div style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:7 }}>演出カラー</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                  {PRESET_COLORS.map(({ name, hex }) => (
+                    <button key={hex} type="button"
+                      onClick={() => update(band.id, { announcement_color: hex })}
+                      title={name}
+                      style={{
+                        width:24, height:24, borderRadius:'50%', border:'none', cursor:'pointer',
+                        background: hex, flexShrink:0,
+                        outline: band.announcement_color === hex ? `2.5px solid ${hex}` : '2.5px solid transparent',
+                        outlineOffset: 2,
+                        boxShadow: band.announcement_color === hex ? `0 0 0 4px ${hex}30` : 'none',
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ fontSize:10, color:'#94a3b8', marginTop:6, fontFamily:"'Kiwi Maru',serif" }}>
+                  選択中: {PRESET_COLORS.find(c => c.hex === band.announcement_color)?.name ?? 'カスタム'}
+                  <span style={{ marginLeft:8, display:'inline-block', width:10, height:10, borderRadius:'50%', background: band.announcement_color, verticalAlign:'middle', border:'1px solid #e2e8f0' }} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       ))}
 

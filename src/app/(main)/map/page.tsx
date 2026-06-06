@@ -12,6 +12,7 @@ import SearchBar       from '@/components/map/SearchBar'
 import RoomSheet       from '@/components/map/RoomSheet'
 import SideButtons     from '@/components/ui/SideButtons'
 import InstallBanner   from '@/components/ui/InstallBanner'
+import CinematicStageCall from '@/components/map/CinematicStageCall'
 
 // Three.js は SSR 不可
 const MapCanvas = dynamic(() => import('@/components/map/MapCanvas'), {
@@ -178,6 +179,8 @@ export default function MapPage() {
       <div style={{ position: 'absolute', top: 56, left: 0, right: 0, zIndex: 30, pointerEvents: 'auto' }}>
         <InstallBanner />
       </div>
+
+      <CinematicStageCall />
 
       <RoomSheet
         exhibits={sheetExhibits}

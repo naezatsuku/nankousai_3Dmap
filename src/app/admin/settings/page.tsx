@@ -2,13 +2,14 @@
 
 import PageLoader from '@/components/ui/PageLoader'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 
 export default function SettingsPage() {
   const [mapEnabled,       setMapEnabled]       = useState<boolean | null>(null)
   const [likeCountVisible, setLikeCountVisible] = useState<boolean | null>(null)
   const [festivalSat,      setFestivalSat]      = useState<string>('2025-09-13')
   const [festivalSun,      setFestivalSun]      = useState<string>('2025-09-14')
+  const [triggerMin,       setTriggerMin]       = useState<number>(5)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
   const [error,  setError]  = useState('')
@@ -16,11 +17,12 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch('/api/admin/settings')
       .then(r => r.json())
-      .then((d: { map_enabled: boolean; like_count_visible: boolean; festival_sat: string; festival_sun: string }) => {
+      .then((d: { map_enabled: boolean; like_count_visible: boolean; festival_sat: string; festival_sun: string; announcement_trigger_minutes?: number }) => {
         setMapEnabled(d.map_enabled)
         setLikeCountVisible(d.like_count_visible)
         setFestivalSat(d.festival_sat ?? '2025-09-13')
         setFestivalSun(d.festival_sun ?? '2025-09-14')
+        setTriggerMin(d.announcement_trigger_minutes ?? 5)
       })
   }, [])
 
@@ -32,7 +34,7 @@ export default function SettingsPage() {
     const res = await fetch('/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ map_enabled: mapEnabled, like_count_visible: likeCountVisible, festival_sat: festivalSat, festival_sun: festivalSun }),
+      body: JSON.stringify({ map_enabled: mapEnabled, like_count_visible: likeCountVisible, festival_sat: festivalSat, festival_sun: festivalSun, announcement_trigger_minutes: triggerMin }),
     })
     const json = await res.json() as { ok?: boolean; error?: string }
     setSaving(false)
@@ -194,6 +196,36 @@ export default function SettingsPage() {
             ))}
           </div>
 
+          {/* ── 特殊演出トリガー設定 ── */}
+          <div style={{
+            fontFamily: "'Kaisei Decol',serif", fontSize: 15, fontWeight: 700,
+            color: '#1e293b', marginBottom: 12, marginTop: 28,
+          }}>
+            🎬 特殊演出トリガー
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginBottom: 14 }}>
+            公演開始の何分前に演出を表示するか設定します。
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: '#f8fafc', borderRadius: 12, padding: '14px 16px', marginBottom: 24,
+          }}>
+            <button
+              onClick={() => setTriggerMin(m => Math.max(1, m - 1))}
+              style={stepBtnStyle}
+            >−</button>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <span style={{ fontFamily: "'Kaisei Decol',serif", fontSize: 32, fontWeight: 700, color: '#1e293b' }}>
+                {triggerMin}
+              </span>
+              <span style={{ fontSize: 13, color: '#94a3b8', marginLeft: 6, fontFamily: "'Kiwi Maru',serif" }}>分前</span>
+            </div>
+            <button
+              onClick={() => setTriggerMin(m => Math.min(30, m + 1))}
+              style={stepBtnStyle}
+            >＋</button>
+          </div>
+
           {error && (
             <div style={{
               padding: '10px 14px', borderRadius: 10, background: '#fef2f2', marginBottom: 12,
@@ -225,4 +257,12 @@ export default function SettingsPage() {
       </div>
     </div>
   )
+}
+
+const stepBtnStyle: React.CSSProperties = {
+  width: 40, height: 40, borderRadius: 10,
+  border: '1px solid #e2e8f0', background: '#fff',
+  cursor: 'pointer', fontSize: 18, color: '#64748b',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  flexShrink: 0,
 }
