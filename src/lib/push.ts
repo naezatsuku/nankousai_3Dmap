@@ -2,10 +2,11 @@ import { getMessaging, getToken, isSupported } from 'firebase/messaging'
 import { firebaseApp } from './firebase'
 import { createClient } from './supabase/client'
 
-const VAPID_KEY      = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!
-const TOKEN_KEY      = 'fcm_token'
-const SUBS_KEY       = 'push_subs'
-const GLOBAL_OPT_OUT = 'push_global_off'
+const VAPID_KEY       = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!
+const TOKEN_KEY       = 'fcm_token'
+const SUBS_KEY        = 'push_subs'
+const SUBS_META_KEY   = 'push_subs_meta'
+const GLOBAL_OPT_OUT  = 'push_global_off'
 
 // ── FCM トークン取得 ─────────────────────────────────────────────
 // エラーは呼び出し元に伝える（return null ではなく throw）
@@ -40,9 +41,27 @@ export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
 
+// ── 購読メタ（展示タイプ）管理 ────────────────────────────────
+function getSubsMeta(): Record<string, string> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem(SUBS_META_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {}
+  } catch { return {} }
+}
+
+export function hasSubsOfType(type: string): boolean {
+  const subs = getLocalSubs()
+  const meta = getSubsMeta()
+  for (const id of subs) {
+    if (meta[id] === type) return true
+  }
+  return false
+}
+
 // ── 団体購読 ────────────────────────────────────────────────────
 // throws if token cannot be obtained
-export async function subscribeToExhibit(exhibitId: string): Promise<void> {
+export async function subscribeToExhibit(exhibitId: string, exhibitType?: string): Promise<void> {
   const token = getStoredToken() ?? await getFCMToken()
 
   const supabase = createClient()
@@ -54,6 +73,14 @@ export async function subscribeToExhibit(exhibitId: string): Promise<void> {
   const subs = getLocalSubs()
   subs.add(exhibitId)
   localStorage.setItem(SUBS_KEY, JSON.stringify([...subs]))
+
+  if (exhibitType) {
+    const meta = getSubsMeta()
+    meta[exhibitId] = exhibitType
+    localStorage.setItem(SUBS_META_KEY, JSON.stringify(meta))
+  }
+
+  await syncSubscriptionSchedule()
 }
 
 export async function unsubscribeFromExhibit(exhibitId: string): Promise<void> {
@@ -66,6 +93,12 @@ export async function unsubscribeFromExhibit(exhibitId: string): Promise<void> {
   const subs = getLocalSubs()
   subs.delete(exhibitId)
   localStorage.setItem(SUBS_KEY, JSON.stringify([...subs]))
+
+  const meta = getSubsMeta()
+  delete meta[exhibitId]
+  localStorage.setItem(SUBS_META_KEY, JSON.stringify(meta))
+
+  await syncSubscriptionSchedule()
 }
 
 // ── グローバルアナウンス購読 ─────────────────────────────────────
@@ -100,6 +133,20 @@ export async function unsubscribeFromGlobal(): Promise<void> {
   if (!token) return
   const supabase = createClient()
   await supabase.from('push_subscriptions').delete().eq('fcm_token', token)
+}
+
+// ── 購読予定の同期 ───────────────────────────────────────────────
+// 現在の購読リストを /api/schedule (PUT) に送って visit アイテムを同期する
+export async function syncSubscriptionSchedule(): Promise<void> {
+  if (typeof window === 'undefined') return
+  const userKey = localStorage.getItem('stamp_user_id')
+  if (!userKey) return
+  const exhibitIds = [...getLocalSubs()]
+  await fetch('/api/schedule', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
+    body: JSON.stringify({ exhibitIds }),
+  }).catch(() => {})
 }
 
 // ── ローカル購読状態 ─────────────────────────────────────────────

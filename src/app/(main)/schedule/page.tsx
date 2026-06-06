@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import PageLoader from '@/components/ui/PageLoader'
+import { getLocalSubs, syncSubscriptionSchedule } from '@/lib/push'
 
 // ── 定数 ────────────────────────────────────────────────────────
 const START_MIN = 8 * 60 + 30   // 8:30
@@ -136,6 +137,7 @@ export default function SchedulePage() {
   const [date,          setDate]         = useState<'sat'|'sun'>('sat')
   const [items,         setItems]        = useState<ScheduleItem[]>([])
   const [loading,       setLoading]      = useState(true)
+  const [shiftLoading,  setShiftLoading] = useState(false)
   const [userKey,       setUserKey]      = useState('')
   const [isLoggedIn,    setIsLoggedIn]   = useState(false)
   const [role,          setRole]         = useState('')
@@ -154,7 +156,7 @@ export default function SchedulePage() {
 
   // シフト通知モーダル
   const [shiftNotifyItem,   setShiftNotifyItem]   = useState<ScheduleItem | null>(null)
-  const [shiftNotifyMin,    setShiftNotifyMin]     = useState<number | null>(15)
+  const [shiftNotifyMin,    setShiftNotifyMin]     = useState<number | null>(null)
   const [shiftNotifySaving, setShiftNotifySaving] = useState(false)
   const [shiftNotifySaved,  setShiftNotifySaved]  = useState(false)
 
@@ -207,58 +209,70 @@ export default function SchedulePage() {
 
   const fetchItems = useCallback(async () => {
     if (!userKey) return
+    // 購読展示の visit アイテムを同期してからフェッチ
+    await syncSubscriptionSchedule()
     setLoading(true)
     const res = await fetch(`/api/schedule`, {
       headers: { 'x-user-key': userKey },
       cache: 'no-store',
     })
     const { items: raw } = await res.json() as { items: ScheduleItem[] }
-    let all = raw ?? []
+    const baseItems = raw ?? []
 
-    // ログイン済みユーザーのシフトを取得してマージ
+    // 基本アイテムを先に表示
+    setItems(baseItems)
+    setLoading(false)
+
+    // ログイン済みユーザーのシフトを別途取得してマージ
     if (isLoggedIn && myUserId && role && role !== '') {
+      setShiftLoading(true)
       const table = role === 'editor' ? 'exhibit_editors' : 'student_exhibits'
       const supabase = createClient()
       const { data: links } = await supabase
         .from(table).select('exhibit_id').eq('user_id', myUserId)
       const eids = ((links ?? []) as { exhibit_id: string }[]).map(l => l.exhibit_id)
 
-      // localStorage からシフト通知設定を読み込む（全シフトに一括適用）
       const stored = localStorage.getItem('shift_notify_minutes')
       const savedShiftNotifyMin = stored !== null ? parseInt(stored) : null
 
-      for (const eid of eids) {
-        for (const d of ['sat', 'sun'] as const) {
-          const sr = await fetch(`/api/shift/assignments?exhibitId=${eid}&date=${d}`, { cache: 'no-store' })
-          if (!sr.ok) continue
-          const { slots, assignments } = await sr.json() as {
-            slots: { id: string; start_at: string; end_at: string }[]
-            assignments: { slot_id: string; user_id: string }[]
-          }
-          const mySlotIds = new Set(
-            assignments.filter(a => a.user_id === myUserId).map(a => a.slot_id)
-          )
-          for (const slot of slots) {
-            if (!mySlotIds.has(slot.id)) continue
-            all.push({
-              id:             `shift-${slot.id}`,
-              title:          'シフト当番',
-              date:           d,
-              start_time:     slot.start_at.slice(0,5),
-              end_time:       slot.end_at.slice(0,5),
-              color:          TYPE_COLOR.shift,
-              type:           'shift',
-              exhibit_id:     eid,
-              notify_minutes: savedShiftNotifyMin,
-            })
-          }
-        }
-      }
-    }
+      const shiftItems: ScheduleItem[] = []
+      await Promise.all(
+        eids.flatMap(eid =>
+          (['sat', 'sun'] as const).map(async d => {
+            const sr = await fetch(`/api/shift/assignments?exhibitId=${eid}&date=${d}`, { cache: 'no-store' })
+            if (!sr.ok) return
+            const { slots, assignments } = await sr.json() as {
+              slots: { id: string; start_at: string; end_at: string }[]
+              assignments: { slot_id: string; user_id: string }[]
+            }
+            const mySlotIds = new Set(
+              assignments.filter(a => a.user_id === myUserId).map(a => a.slot_id)
+            )
+            for (const slot of slots) {
+              if (!mySlotIds.has(slot.id)) continue
+              shiftItems.push({
+                id:             `shift-${slot.id}`,
+                title:          'シフト当番',
+                date:           d,
+                start_time:     slot.start_at.slice(0,5),
+                end_time:       slot.end_at.slice(0,5),
+                color:          TYPE_COLOR.shift,
+                type:           'shift',
+                exhibit_id:     eid,
+                notify_minutes: savedShiftNotifyMin,
+              })
+            }
+          })
+        )
+      )
 
-    setItems(all)
-    setLoading(false)
-    scheduleNotifications(all, date, festivalDates)
+      const all = [...baseItems, ...shiftItems]
+      setItems(all)
+      setShiftLoading(false)
+      scheduleNotifications(all, date, festivalDates)
+    } else {
+      scheduleNotifications(baseItems, date, festivalDates)
+    }
   }, [userKey, isLoggedIn, myUserId, role, date])
 
   useEffect(() => {
@@ -371,6 +385,7 @@ export default function SchedulePage() {
     <>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .sch-item { transition: opacity 0.2s; }
         .sch-item:active { opacity: 0.75; }
       `}</style>
@@ -429,6 +444,24 @@ export default function SchedulePage() {
           ))}
         </div>
 
+        {/* シフト取得中インジケータ */}
+        {shiftLoading && (
+          <div style={{
+            padding:'5px 16px', background:'#eef2ff', flexShrink:0,
+            display:'flex', alignItems:'center', gap:6,
+            borderBottom:'1px solid #e0e7ff',
+          }}>
+            <div style={{
+              width:10, height:10, borderRadius:'50%',
+              background:'#6366f1', flexShrink:0,
+              animation:'pulse 1s ease-in-out infinite',
+            }} />
+            <span style={{ fontSize:11, color:'#6366f1', fontFamily:"'Kiwi Maru',serif" }}>
+              シフトを取得中…
+            </span>
+          </div>
+        )}
+
         {/* ── タイムライン ── */}
         {loading ? (
           <div style={{ flex:1 }}><PageLoader /></div>
@@ -478,8 +511,10 @@ export default function SchedulePage() {
                       className="sch-item"
                       onClick={() => {
                         if (item.type === 'shift') {
-                          setShiftNotifyMin(item.notify_minutes ?? 15)
+                          setShiftNotifyMin(item.notify_minutes ?? shiftNotifyMin)
                           setShiftNotifyItem(item)
+                        } else if (item.type === 'visit' && item.exhibit_id) {
+                          // 購読由来の予定は編集不可（何もしない）
                         } else {
                           setEditNotify(item.notify_minutes ?? null)
                           setEditItem(item)
@@ -490,7 +525,7 @@ export default function SchedulePage() {
                         borderRadius:8, padding:'4px 7px', overflow:'hidden',
                         background:`${item.color}22`,
                         borderLeft:`3px solid ${item.color}`,
-                        cursor: 'pointer',
+                        cursor: (item.type === 'visit' && item.exhibit_id) ? 'default' : 'pointer',
                         boxSizing:'border-box',
                         animation:'fadeUp 0.2s ease',
                       }}
@@ -508,9 +543,10 @@ export default function SchedulePage() {
                           {fmtTime(item.start_time)}{item.end_time ? `〜${fmtTime(item.end_time)}` : ''}
                         </div>
                       )}
-                      {/* シフトは常に🔔を表示（設定済み=色あり、未設定=薄い） */}
                       {item.type === 'shift' ? (
                         <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color: item.notify_minutes ? item.color : '#cbd5e1' }}>🔔</div>
+                      ) : (item.type === 'visit' && item.exhibit_id) ? (
+                        <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color:'#94a3b8' }}>📅</div>
                       ) : item.notify_minutes ? (
                         <div style={{ fontSize:9, color: item.color, position:'absolute', bottom:3, right:5 }}>🔔</div>
                       ) : null}

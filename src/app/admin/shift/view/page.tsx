@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PageLoader from '@/components/ui/PageLoader'
@@ -31,7 +31,6 @@ export default function ShiftViewPage() {
   const [members,     setMembers]     = useState<Member[]>([])
   const [assigns,     setAssigns]     = useState<Assign[]>([])
   const [loading,     setLoading]     = useState(true)
-  const [dataLoading, setDataLoading] = useState(false)
   const [noExhibit,   setNoExhibit]   = useState(false)
 
   // モーダル用
@@ -40,23 +39,6 @@ export default function ShiftViewPage() {
   const [notifyMinutes,  setNotifyMinutes]  = useState<number|null>(15)
   const [notifySaving,   setNotifySaving]   = useState(false)
   const [notifySaved,    setNotifySaved]    = useState(false)
-  const [userKey,        setUserKey]        = useState('')
-
-  useEffect(() => {
-    let k = localStorage.getItem('stamp_user_id')
-    if (!k) { k = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2); localStorage.setItem('stamp_user_id', k) }
-    setUserKey(k)
-  }, [])
-
-  const fetchAll = useCallback(async (eid: string, d: 'sat'|'sun') => {
-    setDataLoading(true)
-    const res  = await fetch(`/api/shift/assignments?exhibitId=${eid}&date=${d}`, { cache: 'no-store' })
-    const data = await res.json() as { slots: Slot[]; members: Member[]; assignments: Assign[] }
-    setSlots(data.slots ?? [])
-    setMembers(data.members ?? [])
-    setAssigns(data.assignments ?? [])
-    setDataLoading(false)
-  }, [])
 
   useEffect(() => {
     const init = async () => {
@@ -70,15 +52,24 @@ export default function ShiftViewPage() {
       const r = (profile as { role: string } | null)?.role ?? ''
       setRole(r)
 
-      const table = r === 'editor' ? 'exhibit_editors' : 'student_exhibits'
-      const { data: links } = await supabase
-        .from(table)
-        .select('exhibit_id, exhibits(id, name, class_label)')
-        .eq('user_id', user.id)
-
       type LinkRow = { exhibit_id: string; exhibits: Exhibit | null }
-      const exs = ((links ?? []) as unknown as LinkRow[])
-        .map(l => l.exhibits).filter(Boolean) as Exhibit[]
+      let exs: Exhibit[] = []
+
+      if (r === 'admin') {
+        const { data: allEx } = await supabase
+          .from('exhibits')
+          .select('id, name, class_label')
+          .order('class_label', { nullsFirst: false })
+        exs = (allEx ?? []) as Exhibit[]
+      } else {
+        const table = r === 'editor' ? 'exhibit_editors' : 'student_exhibits'
+        const { data: links } = await supabase
+          .from(table)
+          .select('exhibit_id, exhibits(id, name, class_label)')
+          .eq('user_id', user.id)
+        exs = ((links ?? []) as unknown as LinkRow[])
+          .map(l => l.exhibits).filter(Boolean) as Exhibit[]
+      }
 
       if (exs.length === 0) { setNoExhibit(true); setLoading(false); return }
       setExhibits(exs)
@@ -89,8 +80,18 @@ export default function ShiftViewPage() {
   }, [router])
 
   useEffect(() => {
-    if (exhibitId) fetchAll(exhibitId, date)
-  }, [exhibitId, date, fetchAll])
+    if (!exhibitId) return
+    let active = true
+    fetch(`/api/shift/assignments?exhibitId=${exhibitId}&date=${date}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then((data: { slots: Slot[]; members: Member[]; assignments: Assign[] }) => {
+        if (!active) return
+        setSlots(data.slots ?? [])
+        setMembers(data.members ?? [])
+        setAssigns(data.assignments ?? [])
+      })
+    return () => { active = false }
+  }, [exhibitId, date])
 
   // コマ→割当ユーザーIDセット
   const assignMap = new Map<string, Set<string>>()
@@ -197,9 +198,7 @@ export default function ShiftViewPage() {
         </div>
       )}
 
-      {dataLoading ? (
-        <PageLoader />
-      ) : slots.length === 0 ? (
+      {slots.length === 0 ? (
         <div style={{ color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13, padding:'20px 0' }}>
           この日のシフトはまだ設定されていません。
         </div>

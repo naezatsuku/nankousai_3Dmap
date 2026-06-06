@@ -8,7 +8,10 @@ const CORS = {
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }
-function toHHMMSS(d: Date) { return `${pad(d.getHours())}:${pad(d.getMinutes())}:00` }
+function toHHMMSS(d: Date) {
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return `${pad(jst.getUTCHours())}:${pad(jst.getUTCMinutes())}:00`
+}
 function addMin(d: Date, min: number) { return new Date(d.getTime() + min * 60 * 1000) }
 
 serve(async (_req) => {
@@ -16,14 +19,30 @@ serve(async (_req) => {
     const now = new Date()
     const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000) // UTC→JST
 
+    const sa: ServiceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON')!)
+    const accessToken = await getAccessToken(sa)
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
+
+    // site_settings から文化祭日程を取得
+    const { data: siteSettings } = await supabase
+      .from('site_settings')
+      .select('festival_sat, festival_sun')
+      .single()
+    const satDate = (siteSettings?.festival_sat as string | null) ?? '2025-09-13'
+    const sunDate = (siteSettings?.festival_sun as string | null) ?? '2025-09-14'
+
     // 日付チェック（文化祭当日のみ）
     const dateStr = `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, '0')}-${String(jst.getUTCDate()).padStart(2, '0')}`
     const today =
-      dateStr === '2025-09-13' ? 'sat' :
-      dateStr === '2025-09-14' ? 'sun' : null
+      dateStr === satDate ? 'sat' :
+      dateStr === sunDate ? 'sun' : null
 
     if (!today) {
-      return new Response(JSON.stringify({ skipped: 'not a festival day' }), {
+      return new Response(JSON.stringify({ skipped: 'not a festival day', dateStr, satDate, sunDate }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
@@ -43,13 +62,15 @@ serve(async (_req) => {
     const w0from  = toHHMMSS(addMin(now, -2))
     const w0to    = toHHMMSS(addMin(now,  3))
 
-    const sa: ServiceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON')!)
-    const accessToken = await getAccessToken(sa)
+    // 2日以上前の dedup レコードを削除（テーブルが肥大化しないよう）
+    await supabase.from('sent_notifications')
+      .delete().lt('created_at', new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString())
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    )
+    // dedup キーを INSERT し、成功（＝未送信）なら true を返す
+    async function tryMark(key: string): Promise<boolean> {
+      const { error } = await supabase.from('sent_notifications').insert({ key })
+      return !error
+    }
 
     let sent = 0
 
@@ -63,6 +84,9 @@ serve(async (_req) => {
         .lte('start_at', to)
 
       for (const s of (specials ?? []) as any[]) {
+        const dedupKey = `ss:${today}:${s.exhibit_id}:${s.start_at}:${phase}`
+        if (!await tryMark(dedupKey)) continue
+
         const { data: subs } = await supabase
           .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', s.exhibit_id)
 
@@ -87,6 +111,9 @@ serve(async (_req) => {
 
       for (const b of (bands ?? []) as any[]) {
         const band = b.band as { name: string; exhibit_id: string }
+        const dedupKey = `bs:${today}:${band.exhibit_id}:${b.start_at}:${phase}`
+        if (!await tryMark(dedupKey)) continue
+
         const { data: subs } = await supabase
           .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', band.exhibit_id)
 

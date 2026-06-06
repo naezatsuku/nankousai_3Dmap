@@ -92,7 +92,21 @@ export default function AddToScheduleButton({
     setItemId(null)
   }
 
-  // 登録済みの場合
+  // 購読由来で登録済み（手動削除不可）
+  if (alreadySubbed && !registered) {
+    return (
+      <span style={{
+        display:'inline-flex', alignItems:'center', gap:5,
+        padding:'6px 12px', borderRadius:99,
+        background:'#f0fdf4', boxShadow:'inset 0 0 0 1.5px #86efac',
+        fontSize:12, fontWeight:700, color:'#16a34a', fontFamily:"'Kiwi Maru',serif",
+      }}>
+        📅 予定に追加済み
+      </span>
+    )
+  }
+
+  // 手動登録済みの場合
   if (registered) {
     return (
       <div style={{ display:'inline-flex', alignItems:'center', gap:4 }}>

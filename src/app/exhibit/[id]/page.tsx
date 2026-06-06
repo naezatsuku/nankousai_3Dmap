@@ -159,7 +159,7 @@ function Hero({ exhibit }: { exhibit: ExhibitDetail }) {
       }}>←</Link>
       {/* 🔔 通知ボタン */}
       <div style={{ position:'absolute', top:12, right:12 }}>
-        <NotifyButton exhibitId={exhibit.id} variant="icon" />
+        <NotifyButton exhibitId={exhibit.id} exhibitType={exhibit.type} variant="icon" />
       </div>
       {/* タイトルオーバーレイ */}
       <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'16px 16px 20px' }}>

@@ -5,10 +5,11 @@ import { isSubscribed, subscribeToExhibit, unsubscribeFromExhibit, getFCMToken }
 
 interface Props {
   exhibitId: string
+  exhibitType?: string
   variant?: 'icon' | 'pill'
 }
 
-export default function NotifyButton({ exhibitId, variant = 'icon' }: Props) {
+export default function NotifyButton({ exhibitId, exhibitType, variant = 'icon' }: Props) {
   const [on, setOn]           = useState(() => isSubscribed(exhibitId))
   const [loading, setLoading] = useState(false)
   const [prevId, setPrevId]   = useState(exhibitId)
@@ -43,7 +44,7 @@ export default function NotifyButton({ exhibitId, variant = 'icon' }: Props) {
         await unsubscribeFromExhibit(exhibitId)
         setOn(false)
       } else {
-        await subscribeToExhibit(exhibitId)
+        await subscribeToExhibit(exhibitId, exhibitType)
         setOn(true)
       }
     } catch (err) {
@@ -67,8 +68,8 @@ export default function NotifyButton({ exhibitId, variant = 'icon' }: Props) {
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: 15 }}>{loading ? '⏳' : on ? '🔔' : '🔕'}</span>
-        <span>{on ? '通知ON' : '通知OFF'}</span>
+        <span style={{ fontSize: 15 }}>{loading ? '⏳' : on ? '📅' : '🔕'}</span>
+        <span>{on ? '予定に登録済み' : '通知OFF'}</span>
       </button>
     )
   }

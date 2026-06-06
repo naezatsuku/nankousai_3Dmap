@@ -159,6 +159,22 @@ CREATE POLICY "shift_notification_prefs: self rw"
 -- ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
 -- CREATE INDEX IF NOT EXISTS push_subscriptions_user_id_idx ON public.push_subscriptions(user_id);
 
+-- ─── sent_shift_notifications ─────────────────────────────────
+-- シフト通知の重複送信防止テーブル
+CREATE TABLE IF NOT EXISTS public.sent_shift_notifications (
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  slot_id UUID NOT NULL REFERENCES public.shift_slots(id) ON DELETE CASCADE,
+  sent_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (user_id, slot_id)
+);
+
+-- ─── sent_notifications ───────────────────────────────────────
+-- special_schedules / band_schedules 通知の重複送信防止テーブル
+CREATE TABLE IF NOT EXISTS public.sent_notifications (
+  key        TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- ─── schedule_items ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.schedule_items (
   id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),

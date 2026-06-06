@@ -6,6 +6,7 @@ import { DUMMY_BANDS, fetchBands } from '@/lib/bands'
 import type { BandWithSchedules } from '@/types'
 import BackButton from '@/components/ui/BackButton'
 import AddToScheduleButton from '@/components/ui/AddToScheduleButton'
+import MarqueeText from '@/components/ui/MarqueeText'
 
 // ─── ユーティリティ ───────────────────────────────────────────
 const toMin = (t: string) => {
@@ -230,7 +231,7 @@ export default function BandPage() {
         @keyframes shimmer { 0%{background-position:0%} 100%{background-position:200%} }
       `}</style>
 
-      <div style={{ minHeight: '100%', background: '#f5f3ef', overflowY: 'auto', paddingBottom: 32 }}>
+      <div style={{ minHeight: '100%', background: '#f5f3ef', overflowY: 'auto', overflowX: 'hidden', paddingBottom: 32 }}>
 
         {/* ── ページヘッダー ── */}
         <div style={{
@@ -351,68 +352,75 @@ function Timeline({
             </div>
 
             {/* 右: カード */}
-            <div style={{ flex: 1, paddingBottom: 10, paddingTop: 4 }}>
+            <div style={{ flex: 1, minWidth: 0, paddingBottom: 10, paddingTop: 4 }}>
               <div style={{
                 background: isLive ? 'linear-gradient(135deg,#fff8f4,#fff)' : '#fff',
                 borderRadius: 14, padding: '10px 12px',
                 border: isLive ? '1.5px solid rgba(255,107,0,0.3)' : '1px solid #f0f0f0',
                 opacity: isDone ? 0.55 : 1,
                 transition: 'opacity 0.3s',
+                overflow: 'hidden',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* アイコン */}
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-                    background: `${bandColor}22`,
-                    border: `1.5px solid ${bandColor}44`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18, overflow: 'hidden',
-                  }}>
-                    {band.thumbnail_url
-                      ? <img src={band.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : '🎸'}
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* タイトル行 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {/* アイコン */}
+                    <div style={{
+                      width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                      background: `${bandColor}22`,
+                      border: `1.5px solid ${bandColor}44`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 18, overflow: 'hidden',
+                    }}>
+                      {band.thumbnail_url
+                        ? <img src={band.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : '🎸'}
+                    </div>
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: "'Kaisei Decol', serif", fontSize: 14, fontWeight: 700,
-                      color: isDone ? '#bbb' : '#1a1a1a',
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                      {band.name}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <MarqueeText style={{
+                        fontFamily: "'Kaisei Decol', serif", fontSize: 14, fontWeight: 700,
+                        color: isDone ? '#bbb' : '#1a1a1a',
+                      }}>
+                        {band.name}
+                      </MarqueeText>
+                      <div style={{ fontSize: 10, color: '#bbb', fontFamily: "'Kiwi Maru', serif" }}>
+                        {sch.start_at} – {sch.end_at}（{duration(sch)}分）
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, color: '#bbb', fontFamily: "'Kiwi Maru', serif" }}>
-                      {sch.start_at} – {sch.end_at}（{duration(sch)}分）
-                    </div>
-                  </div>
 
-                  {/* ステータスバッジ */}
-                  {isLive && (
-                    <div style={{
-                      background: '#FF6B00', color: '#fff',
-                      fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
-                      flexShrink: 0, animation: 'livePulse 1s infinite',
-                      fontFamily: "'Kiwi Maru', serif",
-                    }}>
-                      LIVE
-                    </div>
-                  )}
-                  {isDone && (
-                    <div style={{
-                      color: '#d1d5db', fontSize: 10, fontWeight: 700, flexShrink: 0,
-                      fontFamily: "'Kiwi Maru', serif",
-                    }}>
-                      終了
-                    </div>
-                  )}
-                  <AddToScheduleButton
-                    title={band.name}
-                    date={sch.day}
-                    startTime={sch.start_at}
-                    endTime={sch.end_at}
-                    location={sch.stage ? `${sch.stage}` : undefined}
-                    color="#a855f7"
-                  />
+                    {/* ステータスバッジ */}
+                    {isLive && (
+                      <div style={{
+                        background: '#FF6B00', color: '#fff',
+                        fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                        flexShrink: 0, animation: 'livePulse 1s infinite',
+                        fontFamily: "'Kiwi Maru', serif",
+                      }}>
+                        LIVE
+                      </div>
+                    )}
+                    {isDone && (
+                      <div style={{
+                        color: '#d1d5db', fontSize: 10, fontWeight: 700, flexShrink: 0,
+                        fontFamily: "'Kiwi Maru', serif",
+                      }}>
+                        終了
+                      </div>
+                    )}
+                  </div>
+                  {/* ボタン行 */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <AddToScheduleButton
+                      title={band.name}
+                      date={sch.day}
+                      startTime={sch.start_at}
+                      endTime={sch.end_at}
+                      location={sch.stage ? `${sch.stage}` : undefined}
+                      exhibitId={band.exhibit_id}
+                      color="#a855f7"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -474,11 +482,9 @@ function BandList({
               <div style={{ flex: 1, minWidth: 0 }}>
                 {/* バンド名 + ステータス */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 }}>
-                  <span style={{
-                    fontFamily: "'Kaisei Decol', serif", fontSize: 17, fontWeight: 700, color: '#1a1a1a',
-                  }}>
+                  <MarqueeText style={{ fontFamily: "'Kaisei Decol', serif", fontSize: 17, fontWeight: 700, color: '#1a1a1a', minWidth: 0, maxWidth: '100%' }}>
                     {band.name}
-                  </span>
+                  </MarqueeText>
                   {isLive && (
                     <span style={{
                       background: '#FF6B00', color: '#fff',

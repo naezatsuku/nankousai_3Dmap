@@ -312,7 +312,7 @@ function SingleExhibitView({ exhibit, feedback, onLike }: {
         }}>
           展示の詳細を見る →
         </Link>
-        <NotifyButton exhibitId={exhibit.id} variant="pill" />
+        <NotifyButton exhibitId={exhibit.id} exhibitType={exhibit.type} variant="pill" />
       </div>
     </>
   )

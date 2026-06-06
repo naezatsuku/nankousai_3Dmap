@@ -96,6 +96,99 @@ export async function DELETE(req: Request) {
   return NextResponse.json({ error: 'id または slotId が必要です' }, { status: 400 })
 }
 
+// PUT /api/schedule  — 購読展示の visit アイテムを同期
+export async function PUT(req: Request) {
+  const userKey = await resolveUserKey(req)
+  if (!userKey) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+
+  const { exhibitIds } = await req.json() as { exhibitIds: string[] }
+  const db = serviceDb()
+
+  // 購読解除された展示の visit アイテムを削除
+  if (exhibitIds.length > 0) {
+    await db.from('schedule_items')
+      .delete()
+      .eq('user_key', userKey)
+      .eq('type', 'visit')
+      .not('exhibit_id', 'is', null)
+      .not('exhibit_id', 'in', `(${exhibitIds.join(',')})`)
+  } else {
+    await db.from('schedule_items')
+      .delete()
+      .eq('user_key', userKey)
+      .eq('type', 'visit')
+      .not('exhibit_id', 'is', null)
+  }
+
+  if (exhibitIds.length === 0) return NextResponse.json({ ok: true })
+
+  // 既存の visit アイテムを一旦削除して再挿入（スケジュール変更に追従）
+  await db.from('schedule_items')
+    .delete()
+    .eq('user_key', userKey)
+    .eq('type', 'visit')
+    .in('exhibit_id', exhibitIds)
+
+  // special_schedules を取得
+  const { data: specials } = await db
+    .from('special_schedules')
+    .select('exhibit_id, day, start_at, end_at, location, exhibit:exhibits(name)')
+    .in('exhibit_id', exhibitIds)
+
+  // bands + band_schedules を取得
+  const { data: bands } = await db
+    .from('bands')
+    .select('id, name, exhibit_id')
+    .in('exhibit_id', exhibitIds)
+
+  const bandIds = (bands ?? []).map((b: any) => b.id)
+  const { data: bandSchedules } = bandIds.length > 0
+    ? await db.from('band_schedules').select('band_id, day, start_at, end_at, stage').in('band_id', bandIds)
+    : { data: [] }
+
+  const bandMap = new Map((bands ?? []).map((b: any) => [b.id, b]))
+
+  const toInsert: object[] = []
+
+  for (const s of (specials ?? []) as any[]) {
+    toInsert.push({
+      user_key:       userKey,
+      title:          s.exhibit?.name ?? '催し物',
+      date:           s.day,
+      start_time:     (s.start_at as string).slice(0, 5),
+      end_time:       s.end_at ? (s.end_at as string).slice(0, 5) : null,
+      location:       s.location ?? null,
+      exhibit_id:     s.exhibit_id,
+      type:           'visit',
+      color:          '#FF6B00',
+      notify_minutes: null,
+    })
+  }
+
+  for (const bs of (bandSchedules ?? []) as any[]) {
+    const band = bandMap.get(bs.band_id) as any
+    if (!band) continue
+    toInsert.push({
+      user_key:       userKey,
+      title:          `${band.name}のライブ`,
+      date:           bs.day,
+      start_time:     (bs.start_at as string).slice(0, 5),
+      end_time:       bs.end_at ? (bs.end_at as string).slice(0, 5) : null,
+      location:       bs.stage ?? null,
+      exhibit_id:     band.exhibit_id,
+      type:           'visit',
+      color:          '#FF6B00',
+      notify_minutes: null,
+    })
+  }
+
+  if (toInsert.length > 0) {
+    await db.from('schedule_items').insert(toInsert)
+  }
+
+  return NextResponse.json({ ok: true })
+}
+
 // PATCH /api/schedule  — notify_minutes 更新
 export async function PATCH(req: Request) {
   const userKey = await resolveUserKey(req)

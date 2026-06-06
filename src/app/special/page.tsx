@@ -6,6 +6,7 @@ import { DUMMY_GROUPS, fetchSpecialGroups } from '@/lib/special'
 import type { SpecialGroup, SpecialSched } from '@/lib/special'
 import BackButton from '@/components/ui/BackButton'
 import AddToScheduleButton from '@/components/ui/AddToScheduleButton'
+import MarqueeText from '@/components/ui/MarqueeText'
 
 // ─── カテゴリー絵文字 ─────────────────────────────────────────
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -76,7 +77,7 @@ export default function SpecialPage() {
         .expand-enter { animation: fadeUp 0.2s ease both; }
       `}</style>
 
-      <div style={{ height: '100%', overflowY: 'auto', background: '#f5f3ef', paddingBottom: 32 }}>
+      <div style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: '#f5f3ef', paddingBottom: 32 }}>
 
         {/* ── ページヘッダー ── */}
         <div style={{
@@ -217,10 +218,10 @@ export default function SpecialPage() {
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* 名前 + ライブバッジ */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 3 }}>
-                        <span style={{ fontFamily: "'Kaisei Decol', serif", fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 3, minWidth: 0 }}>
+                        <MarqueeText style={{ fontFamily: "'Kaisei Decol', serif", fontSize: 16, fontWeight: 700, color: '#1a1a1a', minWidth: 0, maxWidth: '100%' }}>
                           {group.name}
-                        </span>
+                        </MarqueeText>
                         {anyLive && (
                           <span style={{
                             background: '#FF6B00', color: '#fff',
@@ -288,37 +289,41 @@ export default function SpecialPage() {
                         const cfg = STATUS_CONFIG[st]
                         return (
                           <div key={s.id} style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
                             padding: '9px 12px', borderRadius: 12,
                             background: cfg.bg, marginBottom: 6,
                           }}>
-                            <div style={{
-                              width: 8, height: 8, borderRadius: '50%',
-                              background: cfg.color, flexShrink: 0,
-                              ...(st === 'live' ? { animation: 'livePulse 1s infinite' } : {}),
-                            }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontFamily: "'Kaisei Decol', serif", fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
-                                {s.start_at} – {s.end_at}
-                                <span style={{ fontSize: 10, color: '#aaa', fontWeight: 400, marginLeft: 6, fontFamily: "'Kiwi Maru', serif" }}>
-                                  ({timeToMin(s.end_at) - timeToMin(s.start_at)}分)
-                                </span>
+                            {/* 時刻・場所行 */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                              <div style={{
+                                width: 8, height: 8, borderRadius: '50%',
+                                background: cfg.color, flexShrink: 0,
+                                ...(st === 'live' ? { animation: 'livePulse 1s infinite' } : {}),
+                              }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontFamily: "'Kaisei Decol', serif", fontSize: 14, fontWeight: 700, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {s.start_at} – {s.end_at}
+                                  <span style={{ fontSize: 10, color: '#aaa', fontWeight: 400, marginLeft: 6, fontFamily: "'Kiwi Maru', serif" }}>
+                                    ({timeToMin(s.end_at) - timeToMin(s.start_at)}分)
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 11, color: '#888', marginTop: 1, fontFamily: "'Kiwi Maru', serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  📍 {s.location}
+                                  {s.note && <span style={{ marginLeft: 6, color: '#aaa' }}>· {s.note}</span>}
+                                </div>
                               </div>
-                              <div style={{ fontSize: 11, color: '#888', marginTop: 1, fontFamily: "'Kiwi Maru', serif" }}>
-                                📍 {s.location}
-                                {s.note && <span style={{ marginLeft: 6, color: '#aaa' }}>· {s.note}</span>}
-                              </div>
-                            </div>
-                            <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4, flexShrink:0 }}>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color, fontFamily: "'Kiwi Maru', serif" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color, fontFamily: "'Kiwi Maru', serif", flexShrink: 0 }}>
                                 {cfg.label}
                               </span>
+                            </div>
+                            {/* ボタン行 */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                               <AddToScheduleButton
                                 title={`${group.name}${s.note ? ` (${s.note})` : ''}`}
                                 date={s.day}
                                 startTime={s.start_at}
                                 endTime={s.end_at}
                                 location={s.location}
+                                exhibitId={group.id}
                                 color="#f59e0b"
                               />
                             </div>
@@ -392,67 +397,74 @@ function Timeline({
             </div>
 
             {/* カード */}
-            <div style={{ flex: 1, paddingBottom: 10, paddingTop: 4 }}>
+            <div style={{ flex: 1, minWidth: 0, paddingBottom: 10, paddingTop: 4 }}>
               <div style={{
                 background: isLive ? 'linear-gradient(135deg,#fff8f4,#fff)' : '#fff',
                 borderRadius: 14, padding: '10px 12px',
                 border: isLive ? '1.5px solid rgba(255,107,0,0.3)' : '1px solid #f0f0f0',
                 opacity: isDone ? 0.55 : 1,
+                overflow: 'hidden',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* アイコン */}
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                    background: isLive ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f5f5f5',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-                    overflow: 'hidden',
-                  }}>
-                    {group.thumbnail_url
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={group.thumbnail_url} alt={group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : emoji
-                    }
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* タイトル行 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {/* アイコン */}
                     <div style={{
-                      fontFamily: "'Kaisei Decol', serif", fontSize: 14, fontWeight: 700,
-                      color: isDone ? '#bbb' : '#1a1a1a',
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                      background: isLive ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f5f5f5',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                      overflow: 'hidden',
                     }}>
-                      {group.name}
-                      {sched.note && (
-                        <span style={{ fontSize: 10, color: '#aaa', fontWeight: 400, marginLeft: 5, fontFamily: "'Kiwi Maru', serif" }}>
-                          {sched.note}
-                        </span>
-                      )}
+                      {group.thumbnail_url
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={group.thumbnail_url} alt={group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : emoji
+                      }
                     </div>
-                    <div style={{ fontSize: 10, color: '#bbb', fontFamily: "'Kiwi Maru', serif" }}>
-                      {sched.start_at}–{sched.end_at} · 📍 {sched.location}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <MarqueeText style={{
+                        fontFamily: "'Kaisei Decol', serif", fontSize: 14, fontWeight: 700,
+                        color: isDone ? '#bbb' : '#1a1a1a',
+                      }}>
+                        {group.name}
+                        {sched.note && (
+                          <span style={{ fontSize: 10, color: '#aaa', fontWeight: 400, marginLeft: 5, fontFamily: "'Kiwi Maru', serif" }}>
+                            {sched.note}
+                          </span>
+                        )}
+                      </MarqueeText>
+                      <div style={{ fontSize: 10, color: '#bbb', fontFamily: "'Kiwi Maru', serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {sched.start_at}–{sched.end_at} · 📍 {sched.location}
+                      </div>
                     </div>
+                    {/* ステータス */}
+                    {isLive && (
+                      <div style={{
+                        background: '#FF6B00', color: '#fff',
+                        fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                        flexShrink: 0, animation: 'livePulse 1s infinite',
+                        fontFamily: "'Kiwi Maru', serif",
+                      }}>LIVE</div>
+                    )}
+                    {isDone && (
+                      <div style={{ color: '#d1d5db', fontSize: 10, fontWeight: 700, flexShrink: 0, fontFamily: "'Kiwi Maru', serif" }}>
+                        終了
+                      </div>
+                    )}
                   </div>
-                  {/* ステータス */}
-                  {isLive && (
-                    <div style={{
-                      background: '#FF6B00', color: '#fff',
-                      fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
-                      flexShrink: 0, animation: 'livePulse 1s infinite',
-                      fontFamily: "'Kiwi Maru', serif",
-                    }}>LIVE</div>
-                  )}
-                  {isDone && (
-                    <div style={{ color: '#d1d5db', fontSize: 10, fontWeight: 700, flexShrink: 0, fontFamily: "'Kiwi Maru', serif" }}>
-                      終了
-                    </div>
-                  )}
+                  {/* ボタン行 */}
                   {!isDone && (
-                    <AddToScheduleButton
-                      title={`${group.name}${sched.note ? ` (${sched.note})` : ''}`}
-                      date={sched.day}
-                      startTime={sched.start_at}
-                      endTime={sched.end_at}
-                      location={sched.location}
-                      color="#f59e0b"
-                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <AddToScheduleButton
+                        title={`${group.name}${sched.note ? ` (${sched.note})` : ''}`}
+                        date={sched.day}
+                        startTime={sched.start_at}
+                        endTime={sched.end_at}
+                        location={sched.location}
+                        exhibitId={group.id}
+                        color="#f59e0b"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
