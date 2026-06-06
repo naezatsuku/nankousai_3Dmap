@@ -137,16 +137,26 @@ export async function unsubscribeFromGlobal(): Promise<void> {
 
 // ── 購読予定の同期 ───────────────────────────────────────────────
 // 現在の購読リストを /api/schedule (PUT) に送って visit アイテムを同期する
+// 並列呼び出し時は進行中の Promise を共有し、重複 DELETE+INSERT を防ぐ
+let _syncPromise: Promise<void> | null = null
+
 export async function syncSubscriptionSchedule(): Promise<void> {
   if (typeof window === 'undefined') return
   const userKey = localStorage.getItem('stamp_user_id')
   if (!userKey) return
-  const exhibitIds = [...getLocalSubs()]
-  await fetch('/api/schedule', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
-    body: JSON.stringify({ exhibitIds }),
-  }).catch(() => {})
+
+  if (_syncPromise) return _syncPromise
+
+  _syncPromise = (async () => {
+    const exhibitIds = [...getLocalSubs()]
+    await fetch('/api/schedule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
+      body: JSON.stringify({ exhibitIds }),
+    }).catch(() => {})
+  })().finally(() => { _syncPromise = null })
+
+  return _syncPromise
 }
 
 // ── ローカル購読状態 ─────────────────────────────────────────────

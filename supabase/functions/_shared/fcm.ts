@@ -72,7 +72,6 @@ export async function sendFCM(
       body: JSON.stringify({
         message: {
           token: fcmToken,
-          notification: { title, body },
           webpush: {
             notification: {
               title, body,

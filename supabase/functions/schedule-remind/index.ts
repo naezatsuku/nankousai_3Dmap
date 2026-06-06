@@ -66,10 +66,27 @@ serve(async (_req) => {
     await supabase.from('sent_notifications')
       .delete().lt('created_at', new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString())
 
-    // dedup キーを INSERT し、成功（＝未送信）なら true を返す
+    // ── グローバル実行ロック ──────────────────────────────────────
+    // pg_cron が同一ウィンドウで2回起動した場合に即リターンする
+    const bucketMin = Math.floor(jst.getUTCMinutes() / 5) * 5
+    const invKey = `inv:${today}:${pad(jst.getUTCHours())}:${pad(bucketMin)}`
+    const { count: invCount, error: invErr } = await supabase
+      .from('sent_notifications')
+      .insert({ key: invKey }, { count: 'exact', ignoreDuplicates: true } as any)
+
+    if (invErr || invCount === 0) {
+      return new Response(JSON.stringify({ skipped: 'duplicate_invocation', invKey }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // dedup キーを INSERT し、新規挿入できた（＝未送信）なら true を返す
+    // ignoreDuplicates:true = INSERT ... ON CONFLICT DO NOTHING
     async function tryMark(key: string): Promise<boolean> {
-      const { error } = await supabase.from('sent_notifications').insert({ key })
-      return !error
+      const { count, error } = await supabase
+        .from('sent_notifications')
+        .insert({ key }, { count: 'exact', ignoreDuplicates: true } as any)
+      return !error && count === 1
     }
 
     let sent = 0
@@ -84,7 +101,8 @@ serve(async (_req) => {
         .lte('start_at', to)
 
       for (const s of (specials ?? []) as any[]) {
-        const dedupKey = `ss:${today}:${s.exhibit_id}:${s.start_at}:${phase}`
+        const startKey = (s.start_at as string).slice(0, 8)  // HH:MM:SS に正規化
+        const dedupKey = `ss:${today}:${s.exhibit_id}:${startKey}:${phase}`
         if (!await tryMark(dedupKey)) continue
 
         const { data: subs } = await supabase
@@ -111,7 +129,8 @@ serve(async (_req) => {
 
       for (const b of (bands ?? []) as any[]) {
         const band = b.band as { name: string; exhibit_id: string }
-        const dedupKey = `bs:${today}:${band.exhibit_id}:${b.start_at}:${phase}`
+        const startKey = (b.start_at as string).slice(0, 8)  // HH:MM:SS に正規化
+        const dedupKey = `bs:${today}:${band.exhibit_id}:${startKey}:${phase}`
         if (!await tryMark(dedupKey)) continue
 
         const { data: subs } = await supabase
@@ -135,8 +154,8 @@ serve(async (_req) => {
       .select('user_id, notify_minutes')
 
     for (const pref of (prefs ?? []) as { user_id: string; notify_minutes: number }[]) {
-      const winFrom = toHHMMSS(addMin(now, pref.notify_minutes - 2))
-      const winTo   = toHHMMSS(addMin(now, pref.notify_minutes + 2))
+      const winFrom = toHHMMSS(addMin(now, pref.notify_minutes - 4))
+      const winTo   = toHHMMSS(addMin(now, pref.notify_minutes + 1))
 
       // このユーザーの割り当てコマ ID を取得
       const { data: assignments } = await supabase
@@ -173,11 +192,11 @@ serve(async (_req) => {
       if (!subs?.length) continue
 
       for (const slot of (rawSlots as any[])) {
-        // 送信済みチェック（毎分 cron の重複送信防止）
-        const { error: dupErr } = await supabase
+        // 送信済みチェック（重複送信防止）
+        const { count: shiftCount, error: dupErr } = await supabase
           .from('sent_shift_notifications')
-          .insert({ user_id: pref.user_id, slot_id: slot.id })
-        if (dupErr) continue // すでに送信済みならスキップ
+          .insert({ user_id: pref.user_id, slot_id: slot.id }, { count: 'exact', ignoreDuplicates: true } as any)
+        if (dupErr || shiftCount === 0) continue
 
         const exhibitName = nameMap.get(slot.exhibit_id) ?? 'クラス'
         const start = (slot.start_at as string).slice(0, 5)
