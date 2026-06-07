@@ -22,7 +22,8 @@ messaging.onBackgroundMessage(payload => {
   const title = payload.notification?.title ?? payload.data?.title ?? '南高祭'
   const body  = payload.notification?.body  ?? payload.data?.body  ?? ''
   const icon  = payload.data?.icon || '/nanpen.png'
-  self.registration.showNotification(title, {
+  // Promise を return することで SDK 側の waitUntil に渡し、SW が途中終了するのを防ぐ
+  return self.registration.showNotification(title, {
     body,
     icon,
     badge: '/nanpen.png',
