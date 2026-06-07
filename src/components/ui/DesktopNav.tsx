@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 const TABS = [
   { id: 'map'           as const, href: '/map',           label: 'マップ' },
   { id: 'notifications' as const, href: '/notifications', label: '通知' },
-  { id: 'news'          as const, href: '/news',           label: 'お知らせ', badge: true },
+  { id: 'news'          as const, href: '/timeline',       label: 'お知らせ', badge: true },
   { id: 'stamp'         as const, href: '/stamp',          label: 'スタンプ' },
 ]
 

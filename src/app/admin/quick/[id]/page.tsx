@@ -10,6 +10,7 @@ import Link from 'next/link'
 // ── 型 ────────────────────────────────────────────────────────
 interface MenuItem { id:string; name:string; price:number; stock:number; is_selling:boolean; sold_count:number }
 interface Comment  { id:string; user_id:string; body:string; author_name?:string|null; is_approved:boolean; created_at:string }
+interface NoticeLikeInfo { id:string; title:string; created_at:string; likeCount:number }
 
 type ExhibitType = 'class'|'food'|'band'|'special'|'cafeteria'
 
@@ -39,12 +40,15 @@ export default function QuickPage() {
   const [queueCount,    setQueueCount]    = useState(0)
   const [menus,         setMenus]         = useState<MenuItem[]>([])
   const [comments,      setComments]      = useState<Comment[]>([])
+  const [noticeLikes,   setNoticeLikes]   = useState<NoticeLikeInfo[]>([])
+  const [likesLoading,  setLikesLoading]  = useState(true)
 
   const [stampSecret,  setStampSecret]  = useState<string | null>(null)
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
   const [loading,      setLoading]      = useState(true)
   const [commentsOpen, setCommentsOpen] = useState(true)
+  const [qTab,         setQTab]         = useState<'wait'|'qr'|'menu'|'comments'>('wait')
 
   const isFood  = type === 'food' || type === 'cafeteria'
   const waitMin = Math.max(0, tpg * queueCount)
@@ -98,6 +102,33 @@ export default function QuickPage() {
     return () => clearInterval(t)
   }, [fetchComments])
 
+  // ── 自分の団体のお知らせ いいね数取得 ────────────────────────
+  const fetchNoticeLikes = useCallback(async () => {
+    const { data: notices } = await createClient()
+      .from('notices')
+      .select('id, title, created_at')
+      .eq('exhibit_id', id)
+      .order('created_at', { ascending: false })
+
+    if (!notices || notices.length === 0) {
+      setNoticeLikes([])
+      setLikesLoading(false)
+      return
+    }
+
+    const ids = notices.map(n => n.id)
+    try {
+      const res  = await fetch(`/api/notice-like?ids=${ids.join(',')}`)
+      const json = await res.json() as { counts: Record<string, number> }
+      setNoticeLikes(notices.map(n => ({ id: n.id, title: n.title, created_at: n.created_at, likeCount: json.counts[n.id] ?? 0 })))
+    } catch {
+      setNoticeLikes(notices.map(n => ({ id: n.id, title: n.title, created_at: n.created_at, likeCount: 0 })))
+    }
+    setLikesLoading(false)
+  }, [id])
+
+  useEffect(() => { fetchNoticeLikes() }, [fetchNoticeLikes])
+
   const flashSaved = useCallback(() => {
     setSaved(true); setTimeout(() => setSaved(false), 2000)
   }, [])
@@ -148,12 +179,24 @@ export default function QuickPage() {
 
   const pendingCount = comments.filter(c => !c.is_approved).length
 
+  const quickTabs = [
+    { id:'wait'     as const, icon:'⏱', label:'待ち時間' },
+    { id:'qr'       as const, icon:'🎯', label:'QR' },
+    ...(isFood ? [{ id:'menu' as const, icon:'🍽', label:'メニュー' }] : []),
+    { id:'comments' as const, icon:'💬', label:'コメント', badge: pendingCount },
+  ]
+  const qTabIndex = Math.max(0, quickTabs.findIndex(t => t.id === qTab))
+
   return (
     <div style={{ height:'100dvh', display:'flex', flexDirection:'column', background:'#f8fafc', overflow:'hidden' }}>
       <style>{`
-        .qp-body { flex:1; overflow-y:auto; padding:16px; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        .qp-body { flex:1; overflow-y:auto; padding:16px 16px 78px; }
         .qp-wrap { max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
         .qp-col  { display:contents; }
+        .qp-pane { display:none; }
+        .qp-pane[data-active="true"] { display:block; }
+        .qp-pane--fill[data-active="true"] { display:flex; flex-direction:column; gap:16px; }
         @media (min-width:900px) {
           .qp-body { overflow:hidden; padding:20px 24px; }
           .qp-wrap {
@@ -165,6 +208,9 @@ export default function QuickPage() {
           .qp-col { display:flex; flex-direction:column; gap:16px; overflow-y:auto; padding-bottom:16px; min-width:0; }
           .qp-col-comments { overflow:hidden; padding-bottom:0; }
           .qp-col-comments.closed { overflow:visible; }
+          .qp-pane { display:block !important; }
+          .qp-pane--fill { display:flex !important; flex-direction:column; gap:16px; flex:1; min-height:0; overflow:hidden; }
+          .qp-mobile-tabs { display:none !important; }
         }
       `}</style>
 
@@ -197,6 +243,7 @@ export default function QuickPage() {
 
           {/* ── 列1：待ち時間 ── */}
           <div className="qp-col">
+          <div className="qp-pane" data-active={qTab === 'wait'}>
 
             <Section label="⏱ 待ち時間">
               <button onClick={() => setHasWait(v => !v)} style={{
@@ -257,9 +304,11 @@ export default function QuickPage() {
             </Section>
 
           </div>
+          </div>
 
-          {/* ── 列2：スタンプ QR ＋ いいね数 ＋ メニュー ── */}
+          {/* ── 列2：スタンプ QR ＋ メニュー ── */}
           <div className="qp-col">
+          <div className="qp-pane" data-active={qTab === 'qr'}>
 
             <Section label="🎯 スタンプ QR">
               <button onClick={() => setIsTarget(v => !v)} style={{
@@ -287,8 +336,11 @@ export default function QuickPage() {
               {isTarget && <QrDisplay exhibitId={id} />}
             </Section>
 
-            {/* メニュー（フードのみ） */}
-            {isFood && (
+          </div>
+
+          {/* メニュー（フードのみ） */}
+          {isFood && (
+          <div className="qp-pane" data-active={qTab === 'menu'}>
               <Section label="🍽 メニュー">
                 {menus.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
@@ -341,13 +393,56 @@ export default function QuickPage() {
                 )}
                 <SaveBtn onClick={saveMenu} saving={saving} saved={saved} label="メニューを更新する" disabled={menus.length===0} />
               </Section>
-            )}
-
+          </div>
+          )}
 
           </div>
 
           {/* ── 列3（1fr）：コメント承認 ── */}
           <div className={`qp-col qp-col-comments${commentsOpen ? '' : ' closed'}`}>
+          <div className="qp-pane qp-pane--fill" data-active={qTab === 'comments'}>
+
+            <Section label="❤️ お知らせの反応（いいね数）">
+              {likesLoading ? (
+                <div style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
+                  読み込み中…
+                </div>
+              ) : noticeLikes.length === 0 ? (
+                <div style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
+                  まだお知らせを投稿していません
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {noticeLikes.map(n => (
+                    <div key={n.id} style={{
+                      display:'flex', alignItems:'center', gap:10,
+                      background:'#fff8f4', borderRadius:12, padding:'10px 14px',
+                      border:'1px solid rgba(255,107,0,0.12)',
+                    }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{
+                          fontSize:13, fontWeight:700, color:'#1e293b', fontFamily:"'Kaisei Decol',serif",
+                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                        }}>
+                          {n.title}
+                        </div>
+                        <div style={{ fontSize:10, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>
+                          {fmtTime(n.created_at)}
+                        </div>
+                      </div>
+                      <div style={{
+                        display:'flex', alignItems:'center', gap:5, flexShrink:0,
+                        color:'#FF6B00', fontFamily:"'Kiwi Maru',serif", fontWeight:700, fontSize:14,
+                      }}>
+                        <span style={{ fontSize:17, lineHeight:1 }}>♥</span>
+                        <span>{n.likeCount}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
             <Section
               label={`💬 コメント${pendingCount > 0 ? `（承認待ち ${pendingCount} 件）` : ''}`}
               accent={pendingCount > 0}
@@ -365,35 +460,47 @@ export default function QuickPage() {
                 </div>
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {comments.map(c => (
+                  {comments.map((c, i) => (
                     <div key={c.id} style={{
-                      borderRadius:12, padding:'13px 14px',
+                      display:'flex', gap:10, borderRadius:14, padding:'13px 14px',
                       border: c.is_approved ? '1px solid #f1f5f9' : '1px solid #fde68a',
                       background: c.is_approved ? '#fff' : '#fffbeb',
+                      animation: `fadeUp ${Math.min(0.05 + i * 0.04, 0.4)}s ease both`,
                     }}>
-                      {c.author_name && (
-                        <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:3 }}>
-                          {c.author_name}
-                        </div>
-                      )}
-                      <div style={{ fontSize:13, color:'#374151', fontFamily:"'Kiwi Maru',serif", lineHeight:1.6, marginBottom:8 }}>
-                        {c.body}
+                      {/* アバター（承認状態を視覚化） */}
+                      <div style={{
+                        width:36, height:36, borderRadius:'50%', flexShrink:0,
+                        background: c.is_approved
+                          ? 'linear-gradient(135deg,#dcfce7,#bbf7d0)'
+                          : 'linear-gradient(135deg,#fef3c7,#fde68a)',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:15,
+                      }}>
+                        {c.is_approved ? '✓' : '⏳'}
                       </div>
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, flexWrap:'wrap' }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:'#475569', fontFamily:"'Kiwi Maru',serif" }}>
+                            {c.author_name?.trim() || 'ゲスト'}
+                          </span>
                           <span style={{
-                            fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:99,
-                            fontFamily:"'Kiwi Maru',serif",
-                            background: c.is_approved ? '#f0fdf4' : '#fef9c3',
-                            color: c.is_approved ? '#16a34a' : '#92400e',
+                            fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:99,
+                            fontFamily:"'Kiwi Maru',serif", letterSpacing:'0.05em',
+                            background: c.is_approved ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#fef9c3',
+                            color: c.is_approved ? '#fff' : '#92400e',
                           }}>
                             {c.is_approved ? '✓ 承認済み' : '⏳ 承認待ち'}
                           </span>
-                          <span style={{ fontSize:10, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>
+                          <span style={{ fontSize:10, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif", marginLeft:'auto' }}>
                             {fmtTime(c.created_at)}
                           </span>
                         </div>
-                        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+
+                        <p style={{ fontSize:13, color:'#374151', fontFamily:"'Kiwi Maru',serif", lineHeight:1.6, margin:'0 0 8px' }}>
+                          {c.body}
+                        </p>
+
+                        <div style={{ display:'flex', gap:6 }}>
                           {!c.is_approved && (
                             <button onClick={() => approveComment(c.id)} style={{
                               padding:'6px 14px', borderRadius:8, border:'none', cursor:'pointer',
@@ -414,9 +521,67 @@ export default function QuickPage() {
               )}
             </Section>
           </div>
+          </div>
 
         </div>
       </div>
+
+      {/* ── モバイル用タブ（下部固定バー / main の TabBar 準拠） ── */}
+      <nav className="qp-mobile-tabs" style={{
+        position:'fixed', left:0, right:0, bottom:0, zIndex:50,
+        display:'flex', alignItems:'center',
+        background:'rgba(255,255,255,0.97)',
+        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+        borderTop:'1px solid rgba(255,140,0,0.10)',
+        padding:'6px 0 max(6px, env(safe-area-inset-bottom))',
+      }}>
+        {/* スライドインジケーター */}
+        <div style={{
+          position:'absolute', top:0, height:2.5,
+          width:`${100 / quickTabs.length}%`,
+          background:'linear-gradient(90deg,#FF6B00,#FFB347)',
+          borderRadius:'0 0 4px 4px',
+          left:`${qTabIndex * (100 / quickTabs.length)}%`,
+          transition:'left 0.32s cubic-bezier(0.34,1.3,0.64,1)',
+        }} />
+
+        {quickTabs.map(({ id, icon, label, badge }) => {
+          const active = qTab === id
+          return (
+            <button key={id} onClick={() => setQTab(id)} style={{
+              flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+              background:'none', border:'none', cursor:'pointer', padding:'4px 0',
+              transition:'transform 0.15s ease',
+              transform: active ? 'translateY(-1px)' : 'translateY(0)',
+            }} aria-label={label}>
+              <div style={{ position:'relative', display:'inline-flex' }}>
+                <span style={{ fontSize:20, filter: active ? 'none' : 'grayscale(1) opacity(0.55)', transition:'filter 0.2s' }}>
+                  {icon}
+                </span>
+                {!!badge && badge > 0 && (
+                  <div style={{
+                    position:'absolute', top:-4, right:-7,
+                    background:'#F44336', color:'#fff',
+                    fontSize:9, fontWeight:'bold', width:16, height:16, borderRadius:'50%',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    border:'2px solid #fff', fontFamily:'sans-serif', lineHeight:1,
+                  }}>
+                    {badge > 9 ? '9+' : badge}
+                  </div>
+                )}
+              </div>
+              <span style={{
+                fontSize:10, fontFamily:"'Kiwi Maru',serif",
+                color: active ? '#FF6B00' : '#bbb',
+                fontWeight: active ? 'bold' : 'normal',
+                transition:'color 0.2s',
+              }}>
+                {label}
+              </span>
+            </button>
+          )
+        })}
+      </nav>
     </div>
   )
 }

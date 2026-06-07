@@ -4,11 +4,19 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 
 const THRESHOLD = 72
-const NO_PULL_PATHS = ['/stamp', '/schedule', '/map']
+// '/timeline' はヘッダー（タブバー）とカード一覧でこのコンポーネントを使い分けるため、
+// ここでは無効化し、カード一覧側のインスタンスを disabled={false} で明示的に有効化する
+const NO_PULL_PATHS = ['/stamp', '/schedule', '/map', '/timeline']
 
-export default function PullToRefresh({ children }: { children: React.ReactNode }) {
+interface PullToRefreshProps {
+  children: React.ReactNode
+  /** 省略時はパス名から自動判定。明示的に渡すとパス判定より優先される */
+  disabled?: boolean
+}
+
+export default function PullToRefresh({ children, disabled: disabledOverride }: PullToRefreshProps) {
   const pathname  = usePathname()
-  const disabled  = NO_PULL_PATHS.some(p => pathname.startsWith(p))
+  const disabled  = disabledOverride ?? NO_PULL_PATHS.some(p => pathname.startsWith(p))
   const [pullY, setPullYState] = useState(0)
   const [loading, setLoading]  = useState(false)
   const outerRef   = useRef<HTMLDivElement>(null)

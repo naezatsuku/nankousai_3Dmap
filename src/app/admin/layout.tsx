@@ -23,9 +23,9 @@ type NavGroup = {
 const NAV_GROUPS: NavGroup[] = [
   {
     id:'dashboard', label:null,
-    editorOk:true,
+    adminOnly:true,
     items:[
-      { href:'/admin', icon:'⊞', label:'ダッシュボード', editorOk:true },
+      { href:'/admin', icon:'⊞', label:'ダッシュボード', adminOnly:true },
     ],
   },
   {
@@ -107,6 +107,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               const studentAllowed = ['/admin/profile', '/admin/shift/survey', '/admin/shift/view']
               const allowed = studentAllowed.some(allowed => pathname === allowed || pathname.startsWith(allowed + '/'))
               if (!allowed) router.replace('/admin/shift/survey')
+            }
+            // editor にはダッシュボードを見せない
+            if (p.role === 'editor' && pathname === '/admin') {
+              router.replace('/admin/edit')
             }
           }
         })

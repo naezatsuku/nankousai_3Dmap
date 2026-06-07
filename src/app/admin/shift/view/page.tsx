@@ -36,7 +36,7 @@ export default function ShiftViewPage() {
   // モーダル用
   const [modalSlot,      setModalSlot]      = useState<Slot | null>(null)
   const [notifyModal,    setNotifyModal]    = useState(false)
-  const [notifyMinutes,  setNotifyMinutes]  = useState<number|null>(15)
+  const [notifyMinutes,  setNotifyMinutes]  = useState<number|null>(null)
   const [notifySaving,   setNotifySaving]   = useState(false)
   const [notifySaved,    setNotifySaved]    = useState(false)
 
@@ -46,6 +46,13 @@ export default function ShiftViewPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/admin/login'); return }
       setMyUserId(user.id)
+
+      const { data: pref } = await supabase
+        .from('shift_notification_prefs')
+        .select('notify_minutes')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      setNotifyMinutes((pref as { notify_minutes: number } | null)?.notify_minutes ?? null)
 
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()

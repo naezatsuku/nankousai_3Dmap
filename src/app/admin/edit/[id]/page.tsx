@@ -65,12 +65,20 @@ const INIT: ExhibitFormState = {
 
 const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
 
+const EDIT_TABS = [
+  { id:'basic',   icon:'📝', label:'基本' },
+  { id:'content', icon:'📖', label:'詳細' },
+  { id:'special', icon:'🎪', label:'催し' },
+  { id:'quick',   icon:'⚡', label:'更新' },
+] as const
+
 // ── メインページ ───────────────────────────────────────────────
 export default function ExhibitEditPage() {
   const { id } = useParams<{ id:string }>()
   const router  = useRouter()
   const [form, setForm]         = useState<ExhibitFormState>(INIT)
   const [tab, setTab]           = useState<'basic'|'content'|'special'|'quick'>('basic')
+  const [deskTab, setDeskTab]   = useState<'basic'|'content'|'special'>('basic')
   const [quickTab, setQuickTab] = useState<'wait'|'qr'|'menu'|'comments'>('wait')
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -411,29 +419,42 @@ export default function ExhibitEditPage() {
   return (
     <>
       <style>{`
+        .edit-mobile-page{ padding-bottom:78px; }
+        .edit-header{ display:flex; flex-direction:column; gap:12px; }
+        .edit-header-actions .edit-header-btn{ flex:1; text-align:center; }
+        .edit-desktop-tabs{ display:none; }
         @media (min-width:900px){
           .edit-mobile-tabs{display:none!important;}
+          .edit-mobile-page{ padding-bottom:0; }
           .edit-grid{display:grid!important;}
-          .sec-basic,.sec-content,.sec-special,.sec-quick{display:block!important;}
+          .edit-desktop-tabs{ display:flex!important; }
+          .sec-basic,.sec-content,.sec-special{display:none!important;}
+          .sec-basic[data-active="true"],.sec-content[data-active="true"],.sec-special[data-active="true"]{display:block!important;margin-top:0!important;}
+          .sec-quick{display:block!important;}
+          .edit-header{ flex-direction:row; align-items:center; }
+          .edit-header-actions{ margin-left:auto; }
+          .edit-header-actions .edit-header-btn{ flex:initial; }
         }
         .field-input:focus{outline:2px solid #FF8C00;outline-offset:0;border-color:#FF8C00!important;}
         textarea.field-input:focus{outline:2px solid #FF8C00;}
       `}</style>
 
-      <div style={{ maxWidth:1200 }}>
+      <div className="edit-mobile-page" style={{ maxWidth:1200 }}>
         {/* ── ページヘッダー ── */}
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
-          <Link href="/admin/edit" style={{ color:'#94a3b8', textDecoration:'none', fontSize:20 }}>←</Link>
-          <div>
-            <h2 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', marginBottom:2 }}>
-              {form.name || '（名前未設定）'}
-              <span style={{ fontSize:13, fontWeight:400, color:'#94a3b8', marginLeft:10, fontFamily:"'Kiwi Maru',serif" }}>
-                {form.room_display}{form.floor ? ` · ${form.floor}F` : ''}
-              </span>
-            </h2>
+        <div className="edit-header" style={{ marginBottom:20 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
+            <Link href="/admin/edit" style={{ color:'#94a3b8', textDecoration:'none', fontSize:20, flexShrink:0 }}>←</Link>
+            <div style={{ minWidth:0 }}>
+              <h2 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', marginBottom:2, overflowWrap:'break-word' }}>
+                {form.name || '（名前未設定）'}
+                <span style={{ fontSize:13, fontWeight:400, color:'#94a3b8', marginLeft:10, fontFamily:"'Kiwi Maru',serif" }}>
+                  {form.room_display}{form.floor ? ` · ${form.floor}F` : ''}
+                </span>
+              </h2>
+            </div>
           </div>
-          <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
-            <Link href={`/admin/quick/${id}`} style={{
+          <div className="edit-header-actions" style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <Link href={`/admin/quick/${id}`} className="edit-header-btn" style={{
               padding:'9px 16px', borderRadius:10, border:'1px solid #e2e8f0',
               background:'#f8fafc', color:'#64748b',
               fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
@@ -441,31 +462,59 @@ export default function ExhibitEditPage() {
             }}>
               ⚡ かんたん表示
             </Link>
-            <button onClick={handleSave} disabled={saving} style={{
+            <button onClick={handleSave} disabled={saving} className="edit-header-btn" style={{
               padding:'9px 22px', borderRadius:10, border:'none', cursor:'pointer',
               background: saved ? '#10b981' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
               color:'#fff', fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
               transition:'background 0.3s',
             }}>
-              {saving ? '保存中…' : saved ? '✓ 保存しました' : '保存する'}
+              {saving ? '保存中…' : saved ? '✓ 保存しました' : '保存'}
             </button>
           </div>
         </div>
 
-        {/* ── モバイル用タブ ── */}
-        <div className="edit-mobile-tabs" style={{ display:'flex', gap:0, marginBottom:20, background:'#f1f5f9', borderRadius:12, padding:4 }}>
-          {([['basic','📝 基本'],['content','📖 詳細'],['special','🎪 催し'],['quick','⚡ 更新']] as const).map(([t,label])=>(
-            <button key={t} onClick={()=>setTab(t)} style={{
-              flex:1, padding:'9px 0', borderRadius:9, border:'none', cursor:'pointer',
-              background: tab===t ? '#fff' : 'transparent',
-              color: tab===t ? '#1e293b' : '#94a3b8',
-              fontWeight: tab===t ? 700 : 400, fontSize:12,
-              fontFamily:"'Kiwi Maru',serif",
-              boxShadow: tab===t ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-              transition:'all 0.15s',
-            }}>{label}</button>
-          ))}
-        </div>
+        {/* ── モバイル用タブ（下部固定バー / main の TabBar 準拠） ── */}
+        <nav className="edit-mobile-tabs" style={{
+          position:'fixed', left:0, right:0, bottom:0, zIndex:50,
+          display:'flex', alignItems:'center',
+          background:'rgba(255,255,255,0.97)',
+          backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+          borderTop:'1px solid rgba(255,140,0,0.10)',
+          padding:'6px 0 max(6px, env(safe-area-inset-bottom))',
+        }}>
+          {/* スライドインジケーター */}
+          <div style={{
+            position:'absolute', top:0, height:2.5, width:'19%',
+            background:'linear-gradient(90deg,#FF6B00,#FFB347)',
+            borderRadius:'0 0 4px 4px',
+            left:`${EDIT_TABS.findIndex(t=>t.id===tab) * 25 + 3}%`,
+            transition:'left 0.32s cubic-bezier(0.34,1.3,0.64,1)',
+          }} />
+
+          {EDIT_TABS.map(({ id, icon, label })=>{
+            const active = tab === id
+            return (
+              <button key={id} onClick={()=>setTab(id)} style={{
+                flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+                background:'none', border:'none', cursor:'pointer', padding:'4px 0',
+                transition:'transform 0.15s ease',
+                transform: active ? 'translateY(-1px)' : 'translateY(0)',
+              }} aria-label={label}>
+                <span style={{ fontSize:20, filter: active ? 'none' : 'grayscale(1) opacity(0.55)', transition:'filter 0.2s' }}>
+                  {icon}
+                </span>
+                <span style={{
+                  fontSize:10, fontFamily:"'Kiwi Maru',serif",
+                  color: active ? '#FF6B00' : '#bbb',
+                  fontWeight: active ? 'bold' : 'normal',
+                  transition:'color 0.2s',
+                }}>
+                  {label}
+                </span>
+              </button>
+            )
+          })}
+        </nav>
 
         {/* ── レイアウト ── */}
         <div>
@@ -474,8 +523,29 @@ export default function ExhibitEditPage() {
             {/* ─── 左エリア ─── */}
             <div>
 
+              {/* ── PC用タブバー ── */}
+              <div className="edit-desktop-tabs" style={{ gap:4, borderBottom:'2px solid #f1f5f9', marginBottom:20 }}>
+                {EDIT_TABS.filter(t => t.id !== 'quick').map(({ id, icon, label }) => {
+                  const active = deskTab === id
+                  return (
+                    <button key={id} onClick={() => setDeskTab(id)} style={{
+                      display:'flex', alignItems:'center', gap:6,
+                      padding:'10px 20px', marginBottom:-2,
+                      border:'none', borderBottom: active ? '2px solid #FF6B00' : '2px solid transparent',
+                      background:'none', cursor:'pointer',
+                      color: active ? '#FF6B00' : '#94a3b8',
+                      fontWeight: active ? 700 : 400, fontSize:14,
+                      fontFamily:"'Kiwi Maru',serif",
+                      transition:'all 0.15s',
+                    }}>
+                      <span>{icon}</span>{label}
+                    </button>
+                  )
+                })}
+              </div>
+
               {/* 基本情報タブ */}
-              <div className="sec-basic" style={{ display: tab !== 'basic' ? 'none' : undefined }}>
+              <div className="sec-basic" data-active={deskTab === 'basic'} style={{ display: tab !== 'basic' ? 'none' : undefined }}>
                 <Card title="基本情報" icon="📋">
                   <FormField label="展示名">
                     <Input value={form.name} onChange={v=>set('name',v)} />
@@ -520,7 +590,7 @@ export default function ExhibitEditPage() {
               </div>
 
               {/* 詳細タブ */}
-              <div className="sec-content" style={{ marginTop:16, display: tab !== 'content' ? 'none' : undefined }}>
+              <div className="sec-content" data-active={deskTab === 'content'} style={{ marginTop:16, display: tab !== 'content' ? 'none' : undefined }}>
                 <Card title="本文セクション" icon="📖">
                   <SectionsEditor
                     sections={form.sections}
@@ -562,7 +632,7 @@ export default function ExhibitEditPage() {
               </div>
 
               {/* 催しタブ */}
-              <div className="sec-special" style={{ marginTop:16, display: tab !== 'special' ? 'none' : undefined }}>
+              <div className="sec-special" data-active={deskTab === 'special'} style={{ marginTop:16, display: tab !== 'special' ? 'none' : undefined }}>
 
                 {/* ── 特殊演出設定カード ── */}
                 <Card title="特殊演出設定" icon="🎬" style={{ marginBottom:16 }}>

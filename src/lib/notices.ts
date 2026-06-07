@@ -69,10 +69,17 @@ function rawToNoticeItem(raw: RawNotice): NoticeItem {
   }
 }
 
-export async function fetchNotices(): Promise<NoticeItem[]> {
+export interface FetchNoticesOptions {
+  /** 取得件数の上限（省略時は全件） */
+  limit?:  number
+  /** この日時より古い（created_at < before）お知らせのみ取得するカーソル */
+  before?: string
+}
+
+export async function fetchNotices(options?: FetchNoticesOptions): Promise<NoticeItem[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('notices')
     .select(`
       id, exhibit_id, title, body, sender_name, is_urgent, created_at,
@@ -81,7 +88,12 @@ export async function fetchNotices(): Promise<NoticeItem[]> {
     `)
     .order('created_at', { ascending: false })
 
-  if (error || !data) return DUMMY_NOTICES
+  if (options?.limit)  query = query.limit(options.limit)
+  if (options?.before) query = query.lt('created_at', options.before)
+
+  const { data, error } = await query
+
+  if (error || !data) return options ? [] : DUMMY_NOTICES
 
   return (data as unknown as RawNotice[]).map(rawToNoticeItem)
 }

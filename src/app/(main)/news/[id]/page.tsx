@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import BackButton from '@/components/ui/BackButton'
 import {
   DUMMY_NOTICES, markAsRead, getReadIds,
   formatDate, BodySegment, NoticeMedia, NoticeItem, fetchNotice,
@@ -53,14 +54,7 @@ export default function NoticeDetailPage() {
           position:'sticky', top:0, zIndex:40,
           display:'flex', alignItems:'center', gap:10,
         }}>
-          <Link href="/news" style={{
-            width:34, height:34, borderRadius:'50%',
-            background:'#f5f5f5', border:'none',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:16, color:'#555', textDecoration:'none', flexShrink:0,
-          }}>
-            ←
-          </Link>
+          <BackButton fallbackHref="/timeline" />
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{
               fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
