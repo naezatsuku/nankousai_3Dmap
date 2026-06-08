@@ -153,7 +153,8 @@ export default function ExhibitEditPage() {
               .from('food_menus')
               .select('id, name, price, description, image_url, stock, is_selling, sold_count')
               .eq('exhibit_id', id)
-            if (menuData) setMenus(menuData as MenuItem[])
+            if (menuData) setMenus((menuData as Array<MenuItem & { description: string|null; image_url: string|null }>)
+              .map(m => ({ ...m, description: m.description ?? '', image_url: m.image_url ?? '' })))
           }
 
           if (data.type === 'band') {
@@ -391,7 +392,8 @@ export default function ExhibitEditPage() {
     }
     if (form.type === 'food' || form.type === 'cafeteria') {
       const { data: md } = await supabase.from('food_menus').select('id, name, price, description, image_url, stock, is_selling, sold_count').eq('exhibit_id', id)
-      if (md) setMenus(md as MenuItem[])
+      if (md) setMenus((md as Array<MenuItem & { description: string|null; image_url: string|null }>)
+        .map(m => ({ ...m, description: m.description ?? '', image_url: m.image_url ?? '' })))
     }
     const { data: spd } = await supabase.from('special_schedules').select('*').eq('exhibit_id', id)
     if (spd) {
@@ -518,7 +520,7 @@ export default function ExhibitEditPage() {
 
         {/* ── レイアウト ── */}
         <div>
-          <div className="edit-grid" style={{ gridTemplateColumns:'1fr 340px', gap:20, alignItems:'start' }}>
+          <div className="edit-grid" style={{ gridTemplateColumns:'minmax(0,1fr) 340px', gap:20, alignItems:'start' }}>
 
             {/* ─── 左エリア ─── */}
             <div>

@@ -539,9 +539,9 @@ function FoodMenuCard({ menu }: { menu: FoodMenu }) {
           }}>
             {statusConfig.label}
           </span>
-          {isSelling && menu.stock > 0 && menu.stock <= 10 && (
+          {isSelling && menu.stock - menu.sold_count > 0 && menu.stock - menu.sold_count <= 10 && (
             <span style={{ fontSize:10, fontWeight:700, color:'#f59e0b', fontFamily:"'Kiwi Maru',serif" }}>
-              残り{menu.stock}個！
+              残り{menu.stock - menu.sold_count}個！
             </span>
           )}
         </div>

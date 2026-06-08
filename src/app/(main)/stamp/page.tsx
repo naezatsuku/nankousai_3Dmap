@@ -385,6 +385,7 @@ export default function StampPage() {
           padding: '8px 16px 16px', flexShrink: 0,
           background: '#fff', borderTop: '1px solid #e2e8f0',
         }}>
+          <div style={{ maxWidth: 480, margin: '0 auto' }}>
           <button
             onClick={() => setScanning(true)}
             disabled={total === 0}
@@ -404,6 +405,7 @@ export default function StampPage() {
             </svg>
             QR をスキャン
           </button>
+          </div>
         </div>
       </div>
 

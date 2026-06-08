@@ -390,7 +390,8 @@ export default function SchedulePage() {
         .sch-item:active { opacity: 0.75; }
       `}</style>
 
-      <div style={{ height:'100%', display:'flex', flexDirection:'column', background:'#fff', overflow:'hidden' }}>
+      <div style={{ height:'100%', display:'flex', flexDirection:'column', background:'#f5f3ef', overflow:'hidden' }}>
+      <div style={{ width:'100%', maxWidth:720, margin:'0 auto', display:'flex', flexDirection:'column', height:'100%', background:'#fff', overflow:'hidden', boxShadow:'0 0 24px rgba(0,0,0,0.04)' }}>
 
         {/* ── ヘッダー ── */}
         <div style={{
@@ -557,6 +558,7 @@ export default function SchedulePage() {
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* ── 予定編集モーダル（シフト以外） ── */}

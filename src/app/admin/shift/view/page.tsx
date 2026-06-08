@@ -9,8 +9,12 @@ interface Slot    { id: string; date: string; start_at: string; end_at: string; 
 interface Member  { user_id: string; profiles: { id: string; name: string } | null }
 interface Assign  { slot_id: string; user_id: string }
 interface Exhibit { id: string; name: string; class_label: string | null }
+interface DayData  { slots: Slot[]; members: Member[]; assigns: Assign[] }
+
+const DATES = ['sat', 'sun'] as const
 
 const MAX_AVATARS = 4 // これを超えたら +N 表示
+const MAX_PRINT_COLS = 6 // 印刷時、1段あたりの名前セル数の上限（縦型A4の幅に収まる目安）
 
 function sortMembers(members: Member[], myUserId: string) {
   return [...members].sort((a, b) => {
@@ -20,6 +24,26 @@ function sortMembers(members: Member[], myUserId: string) {
   })
 }
 
+// 印刷表のレイアウト計算：列数はその日の最大必要人数に揃え、
+// ページ幅に収まらない場合は均等な段数に分割する
+function buildPrintLayout(slots: Slot[]) {
+  const totalCols = slots.length ? Math.max(1, ...slots.map(s => s.required_count)) : 1
+  const rowsPerSlot = Math.max(1, Math.ceil(totalCols / MAX_PRINT_COLS))
+  const colsPerRow = Math.ceil(totalCols / rowsPerSlot)
+  return { rowsPerSlot, colsPerRow }
+}
+
+// 名前セルの文字サイズ：セルの大きさは名前の長さに関係なく一定にしたいので、
+// 基準サイズに収まる長さまでは全員同じサイズ。それを超える名前だけ、
+// セルに収まるように縮小する（できるだけ縮小しないことを優先）
+const PRINT_NAME_BASE_SIZE = 12 // px
+const PRINT_NAME_FIT_CHARS = 6  // この文字数までは基準サイズのまま
+
+function printNameFontSize(name: string) {
+  if (name.length <= PRINT_NAME_FIT_CHARS) return PRINT_NAME_BASE_SIZE
+  return Math.round(PRINT_NAME_BASE_SIZE * PRINT_NAME_FIT_CHARS / name.length)
+}
+
 export default function ShiftViewPage() {
   const router = useRouter()
   const [exhibits,    setExhibits]    = useState<Exhibit[]>([])
@@ -27,9 +51,10 @@ export default function ShiftViewPage() {
   const [myUserId,    setMyUserId]    = useState('')
   const [role,        setRole]        = useState('')
   const [date,        setDate]        = useState<'sat'|'sun'>('sat')
-  const [slots,       setSlots]       = useState<Slot[]>([])
-  const [members,     setMembers]     = useState<Member[]>([])
-  const [assigns,     setAssigns]     = useState<Assign[]>([])
+  const [dayData,     setDayData]     = useState<Record<'sat'|'sun', DayData>>({
+    sat: { slots: [], members: [], assigns: [] },
+    sun: { slots: [], members: [], assigns: [] },
+  })
   const [loading,     setLoading]     = useState(true)
   const [noExhibit,   setNoExhibit]   = useState(false)
 
@@ -86,26 +111,38 @@ export default function ShiftViewPage() {
     init()
   }, [router])
 
+  // 印刷で土日両方を出力できるよう、両日分のデータをまとめて取得
   useEffect(() => {
     if (!exhibitId) return
     let active = true
-    fetch(`/api/shift/assignments?exhibitId=${exhibitId}&date=${date}`, { cache: 'no-store' })
-      .then(r => r.json())
-      .then((data: { slots: Slot[]; members: Member[]; assignments: Assign[] }) => {
-        if (!active) return
-        setSlots(data.slots ?? [])
-        setMembers(data.members ?? [])
-        setAssigns(data.assignments ?? [])
+    Promise.all(DATES.map(d =>
+      fetch(`/api/shift/assignments?exhibitId=${exhibitId}&date=${d}`, { cache: 'no-store' })
+        .then(r => r.json())
+        .then((data: { slots: Slot[]; members: Member[]; assignments: Assign[] }) =>
+          [d, { slots: data.slots ?? [], members: data.members ?? [], assigns: data.assignments ?? [] }] as const)
+    )).then(results => {
+      if (!active) return
+      setDayData(prev => {
+        const next = { ...prev }
+        for (const [d, data] of results) next[d] = data
+        return next
       })
+    })
     return () => { active = false }
-  }, [exhibitId, date])
+  }, [exhibitId])
+
+  const { slots, members, assigns } = dayData[date]
 
   // コマ→割当ユーザーIDセット
-  const assignMap = new Map<string, Set<string>>()
-  for (const a of assigns) {
-    if (!assignMap.has(a.slot_id)) assignMap.set(a.slot_id, new Set())
-    assignMap.get(a.slot_id)!.add(a.user_id)
+  const buildAssignMap = (assigns: Assign[]) => {
+    const map = new Map<string, Set<string>>()
+    for (const a of assigns) {
+      if (!map.has(a.slot_id)) map.set(a.slot_id, new Set())
+      map.get(a.slot_id)!.add(a.user_id)
+    }
+    return map
   }
+  const assignMap = buildAssignMap(assigns)
 
   const currentExhibit = exhibits.find(e => e.id === exhibitId)
 
@@ -150,7 +187,8 @@ export default function ShiftViewPage() {
   )
 
   return (
-    <div style={{ maxWidth:700 }}>
+    <>
+    <div className="shift-screen-view" style={{ maxWidth:700 }}>
       {/* ヘッダー */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div>
@@ -177,6 +215,16 @@ export default function ShiftViewPage() {
               {d === 'sat' ? '土曜日' : '日曜日'}
             </button>
           ))}
+          {/* PDF出力ボタン */}
+          <button onClick={() => window.print()} title="PDFとして保存する" style={{
+            height:36, padding:'0 16px', borderRadius:99, border:'none', cursor:'pointer',
+            background:'#f1f5f9', color:'#64748b',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", whiteSpace:'nowrap',
+          }}>
+            <span style={{ fontSize:16 }}>📄</span>
+            PDFとして保存
+          </button>
           {/* 通知設定ボタン */}
           <button onClick={() => setNotifyModal(true)} title="シフト通知を設定" style={{
             width:36, height:36, borderRadius:'50%', border:'none', cursor:'pointer',
@@ -417,6 +465,120 @@ export default function ShiftViewPage() {
         </div>
       )}
     </div>
+
+    {/* 印刷用シフト表（画面には表示されず、印刷/PDF出力時のみ表示。土日それぞれ別ページに出力） */}
+    <div className="shift-print-view">
+      {DATES.map((d, i) => {
+        const { slots: dSlots, members: dMembers, assigns: dAssigns } = dayData[d]
+        const dAssignMap = buildAssignMap(dAssigns)
+        const { rowsPerSlot, colsPerRow } = buildPrintLayout(dSlots)
+        const totalCols = rowsPerSlot * colsPerRow
+
+        return (
+          <section key={d} className="shift-print-day" style={i > 0 ? { pageBreakBefore: 'always' } : undefined}>
+            <h1 className="shift-print-title">
+              {currentExhibit?.class_label ?? currentExhibit?.name} シフト表（{d === 'sat' ? '土曜日' : '日曜日'}）
+            </h1>
+            {dSlots.length === 0 ? (
+              <p className="shift-print-empty">この日のシフトは設定されていません。</p>
+            ) : (
+              <table className="shift-print-table">
+                <thead>
+                  <tr>
+                    <th>時間</th>
+                    <th colSpan={colsPerRow}>担当者</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dSlots.map(slot => {
+                    const slotAssigns = dAssignMap.get(slot.id) ?? new Set()
+                    const assigned = dMembers.filter(m => slotAssigns.has(m.user_id))
+                    const names = sortMembers(assigned, '').map(m => m.profiles?.name ?? '')
+                    while (names.length < totalCols) names.push('')
+
+                    return Array.from({ length: rowsPerSlot }).map((_, row) => (
+                      <tr key={`${slot.id}-${row}`}>
+                        {row === 0 && (
+                          <td rowSpan={rowsPerSlot} className="shift-print-time">
+                            {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
+                          </td>
+                        )}
+                        {names.slice(row * colsPerRow, (row + 1) * colsPerRow).map((name, i2) => (
+                          <td key={i2} className="shift-print-name">
+                            {name && <span style={{ fontSize: printNameFontSize(name) }}>{name}</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  })}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )
+      })}
+    </div>
+
+    <style>{`
+      .shift-print-view { display: none; }
+      @media print {
+        /* ページ本体以外（管理画面の枠組み）を非表示にし、表だけを出力する */
+        .shift-screen-view { display: none !important; }
+        .admin-sidebar, .desktop-topbar, .mobile-header, .admin-overlay { display: none !important; }
+        .admin-main { margin-left: 0 !important; }
+
+        .shift-print-view { display: block; }
+        @page { size: A4 portrait; margin: 14mm; }
+
+        .shift-print-day { page-break-inside: avoid; }
+        .shift-print-title {
+          font-family: sans-serif;
+          font-size: 16px;
+          font-weight: 700;
+          color: #000;
+          margin-bottom: 12px;
+        }
+        .shift-print-empty {
+          font-family: sans-serif;
+          font-size: 12px;
+          color: #000;
+        }
+        .shift-print-table {
+          width: 100%;
+          table-layout: fixed;
+          border-collapse: collapse;
+          font-family: sans-serif;
+          font-size: 12px;
+          color: #000;
+        }
+        .shift-print-table th,
+        .shift-print-table td {
+          border: 1px solid #000;
+          padding: 6px 8px;
+          text-align: center;
+          overflow: hidden;
+        }
+        .shift-print-table th:first-child,
+        .shift-print-time {
+          width: 28mm;
+          white-space: nowrap;
+          overflow: visible;
+          font-weight: 700;
+          vertical-align: middle;
+        }
+        .shift-print-name {
+          padding: 3px 4px;
+          vertical-align: middle;
+          white-space: nowrap;
+        }
+        .shift-print-name span {
+          display: inline-block;
+          max-width: 100%;
+          overflow: hidden;
+        }
+      }
+    `}</style>
+    </>
   )
 }
 

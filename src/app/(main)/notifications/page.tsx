@@ -118,7 +118,7 @@ export default function NotificationsPage() {
   const permGranted = perm === 'granted'
 
   return (
-    <div style={{ padding: '16px 16px 32px' }}>
+    <div style={{ padding: '16px 16px 32px', maxWidth: 640, margin: '0 auto' }}>
       <InstallBanner />
       <h1 style={{
         fontFamily: "'Kaisei Decol',serif", fontSize: 20, fontWeight: 700,

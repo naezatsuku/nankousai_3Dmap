@@ -42,6 +42,7 @@ export default function NewsPage() {
       `}</style>
 
       <div style={{ height:'100%', overflowY:'auto', background:'#f5f3ef' }}>
+        <div style={{ maxWidth:640, margin:'0 auto', background:'#fff', minHeight:'100%', boxShadow:'0 0 24px rgba(0,0,0,0.04)' }}>
 
         {/* ── ヘッダー ── */}
         <div style={{
@@ -79,7 +80,7 @@ export default function NewsPage() {
         </div>
 
         {/* ── 一覧 ── */}
-        <div style={{ background:'#fff' }}>
+        <div>
           {sorted.map((notice, i) => {
             const isRead  = readIds.has(notice.id)
             const hasMedia = notice.media.length > 0
@@ -183,6 +184,7 @@ export default function NewsPage() {
               </button>
             )
           })}
+        </div>
         </div>
       </div>
     </>

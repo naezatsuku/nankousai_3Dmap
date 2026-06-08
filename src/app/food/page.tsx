@@ -33,17 +33,18 @@ function StatusBadge({ status }: { status: FoodMenuStatus }) {
   )
 }
 
-/** 在庫バー */
-function StockBar({ stock, max = 50 }: { stock: number; max?: number }) {
-  const pct  = Math.min((stock / max) * 100, 100)
-  const color = stock === 0 ? '#fca5a5' : stock <= 10 ? '#fbbf24' : '#86efac'
+/** 残数バー（在庫数 − 販売数） */
+function StockBar({ stock, soldCount, max = 50 }: { stock: number; soldCount: number; max?: number }) {
+  const remaining = Math.max(0, stock - soldCount)
+  const pct  = Math.min((remaining / max) * 100, 100)
+  const color = remaining === 0 ? '#fca5a5' : remaining <= 10 ? '#fbbf24' : '#86efac'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
       <div style={{ flex: 1, height: 4, borderRadius: 99, background: '#f0f0f0', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, background: color, transition: 'width 0.5s ease' }} />
       </div>
       <span style={{ fontSize: 10, color: '#aaa', flexShrink: 0, fontFamily: "'Kiwi Maru', serif" }}>
-        残 {stock}
+        残 {remaining}
       </span>
     </div>
   )
@@ -97,7 +98,7 @@ function MenuCard({ menu }: { menu: FoodMenuEx }) {
         </div>
 
         {/* 在庫バー */}
-        <StockBar stock={menu.stock} />
+        <StockBar stock={menu.stock} soldCount={menu.sold_count} />
       </div>
     </div>
   )

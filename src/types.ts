@@ -285,7 +285,7 @@ export const getPerformanceStatus = (
 
 /** FoodMenu から表示用ステータスを返す */
 export const getFoodMenuStatus = (menu: FoodMenu): FoodMenuStatus => {
-  if (!menu.is_selling)  return 'stopped'
-  if (menu.stock === 0)  return 'soldout'
+  if (!menu.is_selling)            return 'stopped'
+  if (menu.stock - menu.sold_count <= 0) return 'soldout'
   return 'selling'
 }
