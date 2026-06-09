@@ -36,10 +36,10 @@ export default function EditListPage() {
         .single()
 
       const role = (profile as { role: string } | null)?.role ?? 'editor'
-      setIsEditor(role === 'editor')
+      setIsEditor(role === 'editor' || role === 'teacher')
 
-      if (role === 'editor') {
-        // editor: 担当展示のみ
+      if (role === 'editor' || role === 'teacher') {
+        // editor / teacher: 担当展示のみ
         const { data: assignments } = await supabase
           .from('exhibit_editors')
           .select('exhibit_id')

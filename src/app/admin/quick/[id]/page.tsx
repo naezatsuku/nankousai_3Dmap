@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { motion, AnimatePresence, useSpring } from 'framer-motion'
+import { logActivity } from '@/lib/activity-log'
 
 // ── 型 ────────────────────────────────────────────────────────
 interface MenuItem { id:string; name:string; price:number; stock:number; is_selling:boolean; sold_count:number }
@@ -328,7 +329,12 @@ export default function QuickPage() {
   // ── 保存系 ───────────────────────────────────────────────────
   const saveWait = async () => {
     setSaving(true)
-    await createClient().from('exhibits').update({ has_wait_time: hasWait, wait_minutes: waitMin, visitor_count: visitorCount }).eq('id', id)
+    const supabase = createClient()
+    await supabase.from('exhibits').update({ has_wait_time: hasWait, wait_minutes: waitMin, visitor_count: visitorCount }).eq('id', id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      logActivity(id, user.id, 'wait_updated', `待ち時間を ${waitMin}分・来場者 ${visitorCount}人 に更新しました`).catch(() => {})
+    }
     setSaving(false); flashSaved()
   }
   const saveQr = async () => {

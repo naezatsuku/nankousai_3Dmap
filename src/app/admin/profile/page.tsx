@@ -64,14 +64,18 @@ function ProfileContent() {
     setSaving(true)
     setError('')
     const supabase = createClient()
+    const isTeacher = profile.role === 'teacher' || form.school_type === 'teacher'
     const { error: err } = await supabase
       .from('profiles')
       .update({
         name:        form.name.trim(),
         school_type: form.school_type,
-        grade:       form.grade,
-        class_num:   form.class_num,
-        student_num: form.student_num,
+        // 先生は学年・組・出席番号を更新しない
+        ...(isTeacher ? {} : {
+          grade:       form.grade,
+          class_num:   form.class_num,
+          student_num: form.student_num,
+        }),
       })
       .eq('id', profile.id)
 
@@ -165,8 +169,9 @@ function ProfileContent() {
           <Field label="ロール">
             <input
               value={
-                profile?.role === 'admin'   ? '管理者 (admin)' :
-                profile?.role === 'student' ? '生徒 (student)' :
+                profile?.role === 'admin'   ? '管理者 (admin)'   :
+                profile?.role === 'student' ? '生徒 (student)'   :
+                profile?.role === 'teacher' ? '先生 (teacher)'   :
                                               '編集者 (editor)'
               }
               disabled
@@ -196,34 +201,37 @@ function ProfileContent() {
           {/* 学校区分 */}
           <Field label="学校区分">
             <select value={form.school_type} onChange={e => setForm(f => ({ ...f, school_type: e.target.value }))} style={inputStyle}>
-              <option value="middle">中学</option>
-              <option value="high">高校</option>
+              <option value="middle">中学生</option>
+              <option value="high">高校生</option>
+              <option value="teacher">先生</option>
             </select>
           </Field>
 
-          {/* 学年・組・出席番号 */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-            <Field label="学年">
-              <select value={form.grade}
-                onChange={e => setForm(f => ({ ...f, grade: Number(e.target.value) as Profile['grade'] }))}
-                style={inputStyle}>
-                {GRADE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </Field>
-            <Field label="組">
-              <select value={form.class_num}
-                onChange={e => setForm(f => ({ ...f, class_num: Number(e.target.value) as Profile['class_num'] }))}
-                style={inputStyle}>
-                {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}組</option>)}
-              </select>
-            </Field>
-            <Field label="出席番号">
-              <input type="number" min={1} max={50}
-                value={form.student_num}
-                onChange={e => setForm(f => ({ ...f, student_num: Number(e.target.value) }))}
-                style={inputStyle} />
-            </Field>
-          </div>
+          {/* 学年・組・出席番号（先生の場合は不要） */}
+          {form.school_type !== 'teacher' && profile?.role !== 'teacher' && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+              <Field label="学年">
+                <select value={form.grade}
+                  onChange={e => setForm(f => ({ ...f, grade: Number(e.target.value) as Profile['grade'] }))}
+                  style={inputStyle}>
+                  {GRADE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </Field>
+              <Field label="組">
+                <select value={form.class_num}
+                  onChange={e => setForm(f => ({ ...f, class_num: Number(e.target.value) as Profile['class_num'] }))}
+                  style={inputStyle}>
+                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}組</option>)}
+                </select>
+              </Field>
+              <Field label="出席番号">
+                <input type="number" min={1} max={50}
+                  value={form.student_num}
+                  onChange={e => setForm(f => ({ ...f, student_num: Number(e.target.value) }))}
+                  style={inputStyle} />
+              </Field>
+            </div>
+          )}
         </div>
 
         {/* エラー */}

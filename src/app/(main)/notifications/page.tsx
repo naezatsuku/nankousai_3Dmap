@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
-  getFCMToken, subscribeToExhibit, unsubscribeFromExhibit, getLocalSubs,
+  getFCMToken, getStoredToken, subscribeToExhibit, unsubscribeFromExhibit, getLocalSubs,
   isGlobalOn, subscribeToGlobal, unsubscribeFromGlobal,
 } from '@/lib/push'
 import InstallBanner    from '@/components/ui/InstallBanner'
@@ -44,10 +45,28 @@ export default function NotificationsPage() {
   const [subError, setSubError]     = useState<string | null>(null)
   const [filterType, setFilterType] = useState<string>('all')
 
+  // 先生ロール検出
+  const [isTeacher, setIsTeacher]       = useState(false)
+  const [teacherPushOn, setTeacherPushOn] = useState(false)
+  const [teacherBusy, setTeacherBusy]   = useState(false)
+
   useEffect(() => {
     if (typeof window === 'undefined') return
 
     const supabase = createClient()
+
+    // 先生ロール確認
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('role').eq('id', user.id).single()
+        .then(({ data }) => {
+          if ((data as { role: string } | null)?.role === 'teacher') {
+            setIsTeacher(true)
+            setTeacherPushOn(!!getStoredToken())
+          }
+        })
+    })
+
     supabase
       .from('exhibits')
       .select('id, name, class_label, type, thumbnail_url, cover_url')
@@ -143,6 +162,87 @@ export default function NotificationsPage() {
             {subError}
           </p>
           <button onClick={() => setSubError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 16, flexShrink: 0 }}>✕</button>
+        </div>
+      )}
+
+      {/* ── 先生向け：担当クラス変更通知 ── */}
+      {isTeacher && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#0ea5e9', fontFamily: "'Kiwi Maru',serif", marginBottom: 10, letterSpacing: '0.05em' }}>
+            先生向け通知
+          </div>
+          <div style={{
+            padding: '14px 16px', borderRadius: 16,
+            background: teacherPushOn
+              ? 'linear-gradient(135deg,rgba(14,165,233,0.06),rgba(56,189,248,0.06))'
+              : '#f8f9fa',
+            border: teacherPushOn ? '1px solid rgba(14,165,233,0.25)' : '1px solid #e2e8f0',
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+              background: teacherPushOn ? 'linear-gradient(135deg,#0ea5e9,#38bdf8)' : '#e2e8f0',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+            }}>
+              📋
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: teacherPushOn ? '#1a1a1a' : '#94a3b8', fontFamily: "'Kaisei Decol',serif", marginBottom: 2 }}>
+                担当クラスの変更通知
+              </div>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginBottom: 4 }}>
+                {teacherPushOn
+                  ? '設定ONの変更があると通知が届きます'
+                  : '有効にすると担当クラスの変更が通知されます'}
+              </div>
+              <Link href="/admin/teacher/notify-settings" style={{
+                fontSize: 11, color: '#0ea5e9', fontFamily: "'Kiwi Maru',serif",
+                textDecoration: 'none', fontWeight: 700,
+              }}>
+                通知の種類を設定する →
+              </Link>
+            </div>
+            <button
+              disabled={teacherBusy || perm === 'denied'}
+              onClick={async () => {
+                if (teacherBusy) return
+                setTeacherBusy(true)
+                try {
+                  if (teacherPushOn) {
+                    const token = getStoredToken()
+                    if (token) {
+                      const supabase = createClient()
+                      await supabase.from('push_subscriptions').delete().eq('fcm_token', token)
+                      localStorage.removeItem('fcm_token')
+                    }
+                    setTeacherPushOn(false)
+                  } else {
+                    if (perm !== 'granted') {
+                      const p = await Notification.requestPermission()
+                      setPerm(p)
+                      if (p !== 'granted') return
+                    }
+                    await getFCMToken()
+                    setTeacherPushOn(true)
+                  }
+                } catch (err) {
+                  setSubError(err instanceof Error ? err.message : '操作に失敗しました')
+                } finally {
+                  setTeacherBusy(false)
+                }
+              }}
+              style={{
+                flexShrink: 0, padding: '6px 14px', borderRadius: 99, border: 'none',
+                cursor: perm === 'denied' ? 'default' : 'pointer',
+                background: teacherPushOn ? 'linear-gradient(135deg,#0ea5e9,#38bdf8)' : '#f0f0f0',
+                color: teacherPushOn ? '#fff' : '#999',
+                fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+                minWidth: 72, textAlign: 'center',
+              }}
+            >
+              {teacherBusy ? '…' : perm === 'denied' ? 'ブロック中' : teacherPushOn ? '🔔 ON' : '🔕 OFF'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -283,12 +383,17 @@ export default function NotificationsPage() {
         )}
 
         {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[...Array(5)].map((_, i) => (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0', overflow: 'hidden' }}>
+            {[...Array(6)].map((_, i) => (
               <div key={i} style={{
-                height: 64, borderRadius: 14, background: '#f8f8f8',
-                animation: 'pulse 1.5s ease infinite',
-              }} />
+                height: 48, borderBottom: i < 5 ? '1px solid #f5f5f5' : 'none',
+                background: '#fff', padding: '0 14px',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f1f5f9', flexShrink: 0, animation: 'pulse 1.5s ease infinite' }} />
+                <div style={{ flex: 1, height: 12, borderRadius: 6, background: '#f1f5f9', animation: 'pulse 1.5s ease infinite' }} />
+                <div style={{ width: 40, height: 22, borderRadius: 99, background: '#f1f5f9', flexShrink: 0, animation: 'pulse 1.5s ease infinite' }} />
+              </div>
             ))}
           </div>
         ) : (() => {
@@ -296,8 +401,10 @@ export default function NotificationsPage() {
 
           if (filterType !== 'all') {
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filtered.map(ex => <ExhibitRow key={ex.id} ex={ex} on={subs.has(ex.id)} toggling={toggling} perm={perm} onToggle={handleToggle} />)}
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                {filtered.map((ex, i) => (
+                  <ExhibitRow key={ex.id} ex={ex} on={subs.has(ex.id)} toggling={toggling} perm={perm} onToggle={handleToggle} last={i === filtered.length - 1} />
+                ))}
               </div>
             )
           }
@@ -311,28 +418,23 @@ export default function NotificationsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {groups.map(g => (
                 <div key={g.type}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 7,
-                    marginBottom: 10,
-                  }}>
-                    <span style={{ fontSize: 14 }}>{TYPE_ICON[g.type]}</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, color: '#64748b',
-                      fontFamily: "'Kiwi Maru',serif", letterSpacing: '0.05em',
-                    }}>
+                  {/* グループヘッダー */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: 13 }}>{TYPE_ICON[g.type]}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', fontFamily: "'Kiwi Maru',serif", letterSpacing: '0.05em' }}>
                       {TYPE_LABEL[g.type] ?? g.type}
                     </span>
-                    <span style={{
-                      fontSize: 10, padding: '1px 7px', borderRadius: 99,
-                      background: '#f1f5f9', color: '#94a3b8',
-                      fontFamily: "'Kiwi Maru',serif",
-                    }}>
-                      {g.items.length}
+                    <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 99, background: '#f1f5f9', color: '#94a3b8', fontFamily: "'Kiwi Maru',serif" }}>
+                      {g.items.filter(e => subs.has(e.id)).length > 0
+                        ? `${g.items.filter(e => subs.has(e.id)).length}/${g.items.length}`
+                        : g.items.length}
                     </span>
-                    <div style={{ flex: 1, height: 1, background: '#f1f5f9', marginLeft: 4 }} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {g.items.map(ex => <ExhibitRow key={ex.id} ex={ex} on={subs.has(ex.id)} toggling={toggling} perm={perm} onToggle={handleToggle} />)}
+                  {/* グループをまとめて1枚のカードに */}
+                  <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    {g.items.map((ex, i) => (
+                      <ExhibitRow key={ex.id} ex={ex} on={subs.has(ex.id)} toggling={toggling} perm={perm} onToggle={handleToggle} last={i === g.items.length - 1} />
+                    ))}
                   </div>
                 </div>
               ))}
@@ -346,22 +448,31 @@ export default function NotificationsPage() {
   )
 }
 
-function ExhibitRow({ ex, on, toggling, perm, onToggle }: {
+function ExhibitRow({ ex, on, toggling, perm, onToggle, last }: {
   ex: ExhibitItem; on: boolean; toggling: string | null
-  perm: string; onToggle: (id: string) => void
+  perm: string; onToggle: (id: string) => void; last?: boolean
 }) {
+  const disabled = toggling === ex.id || perm === 'denied' || perm === 'unsupported'
+  const busy     = toggling === ex.id
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '12px 14px', borderRadius: 14, background: '#fff',
-      border: on ? '1px solid rgba(255,140,0,0.3)' : '1px solid #f0f0f0',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-      transition: 'border-color 0.2s',
-    }}>
+    <div
+      onClick={() => !disabled && onToggle(ex.id)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px',
+        borderBottom: last ? 'none' : '1px solid #f5f5f5',
+        cursor: disabled ? 'default' : 'pointer',
+        transition: 'background 0.12s',
+      }}
+    >
+      {/* サムネイル */}
       <div style={{
-        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-        overflow: 'hidden', background: 'linear-gradient(135deg,#FFD166,#FF8C00)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+        width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+        overflow: 'hidden',
+        background: on ? 'linear-gradient(135deg,#FFD166,#FF8C00)' : '#f1f5f9',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 16,
       }}>
         {(ex.thumbnail_url ?? ex.cover_url)
           // eslint-disable-next-line @next/next/no-img-element
@@ -369,38 +480,39 @@ function ExhibitRow({ ex, on, toggling, perm, onToggle }: {
           : (TYPE_ICON[ex.type] ?? '🎨')}
       </div>
 
+      {/* テキスト */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+          fontSize: 13,
+          fontWeight: on ? 600 : 400,
+          color: on ? '#1a1a1a' : '#64748b',
           fontFamily: "'Kaisei Decol',serif",
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          marginBottom: 2,
+          transition: 'color 0.2s',
         }}>
           {ex.class_label && (
-            <span style={{ fontSize: 11, color: '#aaa', marginRight: 6 }}>{ex.class_label}</span>
+            <span style={{ fontSize: 11, color: '#bbb', marginRight: 5, fontWeight: 400 }}>{ex.class_label}</span>
           )}
           {ex.name}
         </div>
-        <div style={{ fontSize: 11, color: '#aaa', fontFamily: "'Kiwi Maru',serif" }}>
-          {TYPE_LABEL[ex.type] ?? ex.type}
-        </div>
       </div>
 
-      <button
-        onClick={() => onToggle(ex.id)}
-        disabled={toggling === ex.id || perm === 'denied' || perm === 'unsupported'}
-        style={{
-          flexShrink: 0, padding: '6px 14px', borderRadius: 99, border: 'none',
-          cursor: (perm === 'denied' || perm === 'unsupported') ? 'default' : 'pointer',
-          background: on ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f0f0f0',
-          color: on ? '#fff' : '#999',
-          fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
-          transition: 'background 0.2s',
-          minWidth: 72, textAlign: 'center' as const,
-        }}
-      >
-        {toggling === ex.id ? '…' : on ? '🔔 ON' : '🔕 OFF'}
-      </button>
+      {/* トグルスイッチ */}
+      <div style={{
+        width: 40, height: 22, borderRadius: 99, flexShrink: 0,
+        background: busy ? '#e2e8f0' : on ? '#FF8C00' : '#e2e8f0',
+        position: 'relative', transition: 'background 0.2s',
+        opacity: disabled && !busy ? 0.4 : 1,
+      }}>
+        <div style={{
+          position: 'absolute', top: 2,
+          left: on ? 20 : 2,
+          width: 18, height: 18, borderRadius: '50%',
+          background: '#fff',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+          transition: 'left 0.2s',
+        }} />
+      </div>
     </div>
   )
 }

@@ -73,9 +73,9 @@ export default function UsersPage() {
     setInviting(false)
   }
 
-  // ── ロール切り替え（admin→editor→student→admin） ────────────
+  // ── ロール切り替え（admin→editor→student→teacher→admin） ────
   const cycleRole = async (profile: ProfileRow) => {
-    const cycle: Role[] = ['admin', 'editor', 'student']
+    const cycle: Role[] = ['admin', 'editor', 'student', 'teacher']
     const next = cycle[(cycle.indexOf(profile.role) + 1) % cycle.length]
     const res = await fetch('/api/admin/users/role', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -99,7 +99,7 @@ export default function UsersPage() {
   // ── 割り当てモーダルを開く ─────────────────────────────────
   const openAssign = (p: ProfileRow) => {
     setAssignTarget(p)
-    const ids = p.role === 'editor'
+    const ids = (p.role === 'editor' || p.role === 'teacher')
       ? p.exhibit_editors.map(e => e.exhibit_id)
       : p.student_exhibits.map(e => e.exhibit_id) // student / admin 共通
     setPendingIds(new Set(ids))
@@ -118,6 +118,7 @@ export default function UsersPage() {
     if (!assignTarget) return
     setSaving(true)
     const table = assignTarget.role === 'student' ? 'student_exhibits' : 'exhibit_editors'
+    // teacher は exhibit_editors を使用（editor と同じテーブル）
     await fetch('/api/admin/users/assign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -184,16 +185,23 @@ export default function UsersPage() {
             ).map(e => e.exhibit).filter(Boolean) as ExhibitOption[]
 
             const roleColor = p.role === 'admin' ? '#FF6B00'
-              : p.role === 'editor' ? '#6366f1' : '#10b981'
+              : p.role === 'editor' ? '#6366f1'
+              : p.role === 'teacher' ? '#0ea5e9'
+              : '#10b981'
             const roleBg = p.role === 'admin' ? 'rgba(255,107,0,0.15)'
-              : p.role === 'editor' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)'
+              : p.role === 'editor' ? 'rgba(99,102,241,0.12)'
+              : p.role === 'teacher' ? 'rgba(14,165,233,0.12)'
+              : 'rgba(16,185,129,0.12)'
             const avatarBg = p.role === 'admin'
               ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
               : p.role === 'editor' ? 'linear-gradient(135deg,#6366f1,#818cf8)'
+              : p.role === 'teacher' ? 'linear-gradient(135deg,#0ea5e9,#38bdf8)'
               : 'linear-gradient(135deg,#10b981,#34d399)'
 
             const nextRole: Role = p.role === 'admin' ? 'editor'
-              : p.role === 'editor' ? 'student' : 'admin'
+              : p.role === 'editor' ? 'student'
+              : p.role === 'student' ? 'teacher'
+              : 'admin'
 
             return (
               <div key={p.id} style={{ background:'#fff', borderRadius:16, padding:'18px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid #f1f5f9' }}>
@@ -227,7 +235,7 @@ export default function UsersPage() {
                     </div>
 
                     {/* 担当展示/クラスチップ */}
-                    {(p.role === 'editor' || p.role === 'student') && (
+                    {(p.role === 'editor' || p.role === 'student' || p.role === 'teacher') && (
                       <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:6 }}>
                         {assignedExhibits.length === 0 ? (
                           <span style={{ fontSize:11, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>
@@ -237,9 +245,9 @@ export default function UsersPage() {
                           assignedExhibits.map(ex => (
                             <span key={ex.id} style={{
                               fontSize:10, padding:'2px 8px', borderRadius:99,
-                              background: p.role === 'student' ? '#f0fdf4' : '#f0f9ff',
-                              color: p.role === 'student' ? '#16a34a' : '#0284c7',
-                              border: `1px solid ${p.role === 'student' ? '#86efac' : '#bae6fd'}`,
+                              background: p.role === 'student' ? '#f0fdf4' : p.role === 'teacher' ? '#f0f9ff' : '#f0f9ff',
+                              color: p.role === 'student' ? '#16a34a' : p.role === 'teacher' ? '#0ea5e9' : '#0284c7',
+                              border: `1px solid ${p.role === 'student' ? '#86efac' : p.role === 'teacher' ? '#7dd3fc' : '#bae6fd'}`,
                               fontFamily:"'Kiwi Maru',serif",
                             }}>
                               {ex.class_label ?? ex.name}
@@ -278,12 +286,12 @@ export default function UsersPage() {
 
                 {p.id !== myId && (
                   <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-end', marginTop:12, paddingTop:12, borderTop:'1px solid #f1f5f9' }}>
-                    {(p.role === 'editor' || p.role === 'student') && (
+                    {(p.role === 'editor' || p.role === 'student' || p.role === 'teacher') && (
                       <button onClick={() => openAssign(p)} style={{
                         padding:'6px 12px', borderRadius:8,
-                        border: `1px solid ${p.role === 'student' ? '#86efac' : '#bae6fd'}`,
-                        background: p.role === 'student' ? '#f0fdf4' : '#f0f9ff',
-                        fontSize:11, color: p.role === 'student' ? '#16a34a' : '#0284c7',
+                        border: `1px solid ${p.role === 'student' ? '#86efac' : p.role === 'teacher' ? '#7dd3fc' : '#bae6fd'}`,
+                        background: p.role === 'student' ? '#f0fdf4' : p.role === 'teacher' ? '#f0f9ff' : '#f0f9ff',
+                        fontSize:11, color: p.role === 'student' ? '#16a34a' : p.role === 'teacher' ? '#0ea5e9' : '#0284c7',
                         cursor:'pointer', fontFamily:"'Kiwi Maru',serif", fontWeight:700,
                       }}>
                         {p.role === 'student' ? 'クラスを割り当て' : '展示を割り当て'}

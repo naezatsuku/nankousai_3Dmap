@@ -30,14 +30,15 @@ export default function NoticesPage() {
 
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()
-      const isEditor = (profile as { role: string } | null)?.role === 'editor'
+      const role = (profile as { role: string } | null)?.role
+      const isEditorOrTeacher = role === 'editor' || role === 'teacher'
 
       let query = supabase
         .from('notices')
         .select('id, title, is_urgent, created_at, sender_name, exhibit:exhibits(name, class_label), notice_media(id)')
         .order('created_at', { ascending: false })
 
-      if (isEditor) {
+      if (isEditorOrTeacher) {
         const { data: assignments } = await supabase
           .from('exhibit_editors').select('exhibit_id').eq('user_id', user.id)
         const ids = (assignments ?? []).map((a: { exhibit_id: string }) => a.exhibit_id)

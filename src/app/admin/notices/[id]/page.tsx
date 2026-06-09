@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import MediaUpload, { isVideoUrl } from '@/components/ui/MediaUpload'
+import { logActivity } from '@/lib/activity-log'
 
 // ── 型 ────────────────────────────────────────────────────────
 interface ExhibitOption { id: string; name: string; class_label: string | null }
@@ -71,10 +72,11 @@ export default function NoticeEditPage() {
       if (!user) return
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()
-      const isEditor = (profile as { role: string } | null)?.role === 'editor'
+      const role = (profile as { role: string } | null)?.role
+      const isEditorOrTeacher = role === 'editor' || role === 'teacher'
 
       let query = supabase.from('exhibits').select('id, name, class_label').order('class_label')
-      if (isEditor) {
+      if (isEditorOrTeacher) {
         const { data: assignments } = await supabase
           .from('exhibit_editors').select('exhibit_id').eq('user_id', user.id)
         const ids = (assignments ?? []).map((a: { exhibit_id: string }) => a.exhibit_id)
@@ -96,7 +98,8 @@ export default function NoticeEditPage() {
 
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()
-      const isEditor = (profile as { role: string } | null)?.role === 'editor'
+      const role2 = (profile as { role: string } | null)?.role
+      const isEditor = role2 === 'editor' || role2 === 'teacher'
 
       type NoticeRow = {
         id: string; exhibit_id: string; title: string; body: string
@@ -247,6 +250,14 @@ export default function NoticeEditPage() {
             exhibitId:  form.exhibit_id,
           }),
         }).catch(() => {})
+      }
+
+      // 変更ログを記録（先生への通知用）
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (currentUser) {
+        const actionType = isNew ? 'notice_posted' : 'notice_edited'
+        const label = isNew ? 'お知らせを投稿' : 'お知らせを編集'
+        logActivity(form.exhibit_id, currentUser.id, actionType, `「${form.title.trim()}」を${label}しました`).catch(() => {})
       }
 
       setSaved(true)

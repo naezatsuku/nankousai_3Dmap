@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ui/ImageUpload'
+import { logActivity } from '@/lib/activity-log'
 
 function fmtTime(iso: string) {
   const d = new Date(iso)
@@ -102,7 +103,8 @@ export default function ExhibitEditPage() {
       if (!user) return
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()
-      if ((profile as { role: string } | null)?.role === 'editor') {
+      const role = (profile as { role: string } | null)?.role
+      if (role === 'editor' || role === 'teacher') {
         const { data: assignment } = await supabase
           .from('exhibit_editors')
           .select('exhibit_id')
@@ -403,6 +405,14 @@ export default function ExhibitEditPage() {
         start_at: s.start_at.slice(0,5), end_at: s.end_at.slice(0,5),
         location: s.location ?? '', note: s.note ?? s.description ?? '',
       })))
+    }
+
+    // 変更ログを記録（先生への通知用）
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (currentUser) {
+      const actionType = deskTab === 'content' || deskTab === 'special' ? 'content_edited' : 'basic_edited'
+      const label = actionType === 'content_edited' ? '詳細コンテンツ' : '基本情報'
+      logActivity(id, currentUser.id, actionType, `${form.name} の${label}を編集しました`).catch(() => {})
     }
 
     setSaving(false); setSaved(true)

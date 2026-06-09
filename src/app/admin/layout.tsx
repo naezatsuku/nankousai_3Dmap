@@ -8,7 +8,7 @@ import type { Profile } from '@/types'
 
 type NavItem = {
   href: string; icon: string; label: string
-  adminOnly?: boolean; editorOk?: boolean; studentOk?: boolean
+  adminOnly?: boolean; editorOk?: boolean; studentOk?: boolean; teacherOk?: boolean
 }
 type NavGroup = {
   id:         string
@@ -17,23 +17,24 @@ type NavGroup = {
   adminOnly?: boolean
   editorOk?:  boolean
   studentOk?: boolean
+  teacherOk?: boolean
   items:      NavItem[]
 }
 
 const NAV_GROUPS: NavGroup[] = [
   {
     id:'dashboard', label:null,
-    adminOnly:true,
+    adminOnly:true, teacherOk:true,
     items:[
-      { href:'/admin', icon:'⊞', label:'ダッシュボード', adminOnly:true },
+      { href:'/admin', icon:'⊞', label:'ダッシュボード', adminOnly:true, teacherOk:true },
     ],
   },
   {
     id:'exhibit', label:'展示管理', icon:'🏫',
-    editorOk:true,
+    editorOk:true, teacherOk:true,
     items:[
-      { href:'/admin/edit',     icon:'✏',  label:'展示編集',     editorOk:true },
-      { href:'/admin/notices',  icon:'🔔', label:'お知らせ管理', editorOk:true },
+      { href:'/admin/edit',     icon:'✏',  label:'展示編集',     editorOk:true, teacherOk:true },
+      { href:'/admin/notices',  icon:'🔔', label:'お知らせ管理', editorOk:true, teacherOk:true },
       { href:'/admin/food',     icon:'🍱', label:'販売数管理',   adminOnly:true },
       { href:'/admin/exhibits', icon:'🏫', label:'団体管理',     adminOnly:true },
     ],
@@ -57,10 +58,19 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id:'teacher', label:'先生メニュー', icon:'👩‍🏫',
+    teacherOk:true,
+    items:[
+      { href:'/admin/teacher/logs',            icon:'📋', label:'変更ログ',   teacherOk:true },
+      { href:'/admin/teacher/notify-settings', icon:'🔔', label:'通知設定',   teacherOk:true },
+    ],
+  },
+  {
     id:'system', label:'システム', icon:'⚙',
     adminOnly:true,
     items:[
       { href:'/admin/users',    icon:'👥', label:'権限管理',   adminOnly:true },
+      { href:'/admin/teachers', icon:'👩‍🏫', label:'先生管理',   adminOnly:true },
       { href:'/admin/settings', icon:'⚙',  label:'サイト設定', adminOnly:true },
     ],
   },
@@ -105,8 +115,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             // student は許可されたパス以外にアクセスできない
             if (p.role === 'student') {
               const studentAllowed = ['/admin/profile', '/admin/shift/survey', '/admin/shift/view']
-              const allowed = studentAllowed.some(allowed => pathname === allowed || pathname.startsWith(allowed + '/'))
+              const allowed = studentAllowed.some(a => pathname === a || pathname.startsWith(a + '/'))
               if (!allowed) router.replace('/admin/shift/survey')
+            }
+            // teacher は許可されたパス以外にアクセスできない
+            if (p.role === 'teacher') {
+              const teacherAllowed = ['/admin', '/admin/edit', '/admin/notices', '/admin/teacher', '/admin/profile']
+              const allowed = teacherAllowed.some(a => pathname === a || pathname.startsWith(a + '/'))
+              if (!allowed) router.replace('/admin/edit')
             }
             // editor にはダッシュボードを見せない
             if (p.role === 'editor' && pathname === '/admin') {
@@ -128,17 +144,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isAdmin     = profile?.role === 'admin'
   const isStudent   = profile?.role === 'student'
+  const isTeacher   = profile?.role === 'teacher'
   const displayName = profile?.name || '…'
 
   // アイテムが表示可能か
   const itemVisible = (n: NavItem) => {
     if (isStudent) return !!n.studentOk
-    if (!isAdmin)  return !n.adminOnly
+    if (isTeacher) return !!n.teacherOk
+    if (!isAdmin)  return !n.adminOnly  // editor
     return true
   }
   // グループが表示可能か（1件以上表示できるアイテムがある）
   const groupVisible = (g: NavGroup) => {
     if (isStudent && !g.studentOk) return false
+    if (isTeacher && !g.teacherOk) return false
     return g.items.some(itemVisible)
   }
   const visibleGroups = NAV_GROUPS.filter(groupVisible)
@@ -326,11 +345,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:1 }}>{displayName}</div>
               <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', display:'flex', alignItems:'center', gap:4 }}>
                 <span style={{
-                  background: isAdmin ? 'rgba(255,107,0,0.3)' : 'rgba(255,255,255,0.1)',
-                  color: isAdmin ? '#FF8C00' : 'rgba(255,255,255,0.5)',
+                  background: isAdmin ? 'rgba(255,107,0,0.3)' : isTeacher ? 'rgba(14,165,233,0.3)' : 'rgba(255,255,255,0.1)',
+                  color: isAdmin ? '#FF8C00' : isTeacher ? '#0ea5e9' : 'rgba(255,255,255,0.5)',
                   padding:'1px 6px', borderRadius:99, fontSize:9, fontWeight:700,
                 }}>
-                  {isAdmin ? 'ADMIN' : isStudent ? 'STUDENT' : 'EDITOR'}
+                  {isAdmin ? 'ADMIN' : isTeacher ? 'TEACHER' : isStudent ? 'STUDENT' : 'EDITOR'}
                 </span>
                 <span style={{ color:'rgba(255,255,255,0.25)', fontSize:9 }}>プロフィール編集 ›</span>
               </div>
@@ -406,6 +425,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
     '/admin/notices':       'お知らせ管理',
     '/admin/announcements': 'アナウンス管理',
     '/admin/users':         '権限管理',
+    '/admin/teachers':      '先生管理',
     '/admin/exhibits':      '団体管理',
     '/admin/notify-test':   '通知テスト',
     '/admin/profile':       'プロフィール',

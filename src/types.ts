@@ -13,7 +13,7 @@ export type Day = 'sat' | 'sun' | 'both'
 export type SchoolType = 'middle' | 'high'
 
 /** ロール */
-export type Role = 'admin' | 'editor' | 'student'
+export type Role = 'admin' | 'editor' | 'student' | 'teacher'
 
 /** 展示種別 */
 export type ExhibitType = 'class' | 'food' | 'band' | 'special' | 'cafeteria'
