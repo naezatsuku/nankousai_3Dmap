@@ -71,9 +71,11 @@ function rawToNoticeItem(raw: RawNotice): NoticeItem {
 
 export interface FetchNoticesOptions {
   /** 取得件数の上限（省略時は全件） */
-  limit?:  number
+  limit?:     number
   /** この日時より古い（created_at < before）お知らせのみ取得するカーソル */
-  before?: string
+  before?:    string
+  /** 特定の展示団体に絞る */
+  exhibitId?: string
 }
 
 export async function fetchNotices(options?: FetchNoticesOptions): Promise<NoticeItem[]> {
@@ -88,8 +90,9 @@ export async function fetchNotices(options?: FetchNoticesOptions): Promise<Notic
     `)
     .order('created_at', { ascending: false })
 
-  if (options?.limit)  query = query.limit(options.limit)
-  if (options?.before) query = query.lt('created_at', options.before)
+  if (options?.exhibitId) query = query.eq('exhibit_id', options.exhibitId)
+  if (options?.limit)     query = query.limit(options.limit)
+  if (options?.before)    query = query.lt('created_at', options.before)
 
   const { data, error } = await query
 

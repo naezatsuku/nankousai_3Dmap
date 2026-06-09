@@ -172,7 +172,10 @@ function SingleExhibitView({ exhibit, feedback, onLike }: {
 
   const handleHeartClick = () => {
     if (!feedback) return
-    if (feedback.userLiked) return
+    if (feedback.userLiked) {
+      onLike()
+      return
+    }
     if (!feedback.userHasStamp) {
       setShowHint(true)
       if (hintTimer.current) clearTimeout(hintTimer.current)
@@ -302,15 +305,15 @@ function SingleExhibitView({ exhibit, feedback, onLike }: {
         </div>
       )}
 
-      <div style={{ display:'flex', gap:8, marginTop:16 }}>
+      <div style={{ display:'flex', gap:8, marginTop:14 }}>
         <Link href={`/exhibit/${exhibit.id}`} style={{
-          flex:1, display:'block', padding:'14px 0', borderRadius:16,
+          flex:1, display:'block', padding:'10px 0', borderRadius:12,
           background:'linear-gradient(100deg,#F07818,#FFAA28)',
-          color:'#fff', fontSize:16, fontWeight:700, textAlign:'center',
+          color:'#fff', fontSize:14, fontWeight:700, textAlign:'center',
           textDecoration:'none', fontFamily:"'Kaisei Decol',serif",
-          boxShadow:'0 6px 20px rgba(240,120,24,0.3)',
+          boxShadow:'0 4px 14px rgba(240,120,24,0.25)',
         }}>
-          展示の詳細を見る →
+          詳細を見る →
         </Link>
         <NotifyButton exhibitId={exhibit.id} exhibitType={exhibit.type} variant="pill" />
       </div>

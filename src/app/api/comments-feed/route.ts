@@ -11,6 +11,7 @@ function supabase() {
 export async function GET(req: Request) {
   const searchParams = new URL(req.url).searchParams
   const before       = searchParams.get('before')
+  const exhibitId    = searchParams.get('exhibitId')
   const limitParam   = parseInt(searchParams.get('limit') ?? '20')
   const limit        = Math.min(Math.max(limitParam || 20, 1), 50)
 
@@ -23,7 +24,8 @@ export async function GET(req: Request) {
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (before) query = query.lt('created_at', before)
+  if (exhibitId) query = query.eq('exhibit_id', exhibitId)
+  if (before)    query = query.lt('created_at', before)
 
   const { data, error } = await query
 

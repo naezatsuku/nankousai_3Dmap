@@ -7,19 +7,41 @@ import {
   formatDate, NoticeItem, fetchNotices,
 } from '@/lib/notices'
 
+const LIMIT = 20
+
 export default function NewsPage() {
   const router   = useRouter()
   const [notices, setNotices] = useState<NoticeItem[]>(DUMMY_NOTICES)
   const [readIds, setReadIds] = useState<Set<string>>(() => getReadIds())
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
-    fetchNotices().then(data => {
+    fetchNotices({ limit: LIMIT }).then(data => {
+      if (data.length === 0) return
       setNotices(data)
+      setHasMore(data.length === LIMIT)
       // ページを開いた時点で全件既読にする
       markAllAsRead(data.map(n => n.id))
       setReadIds(new Set(data.map(n => n.id)))
     })
   }, [])
+
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || notices.length === 0) return
+    setLoadingMore(true)
+    const oldest = [...notices].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )[0]
+    const more = await fetchNotices({ limit: LIMIT, before: oldest.created_at })
+    if (more.length > 0) {
+      setNotices(prev => [...prev, ...more])
+      markAllAsRead([...notices, ...more].map(n => n.id))
+      setReadIds(prev => new Set([...prev, ...more.map(n => n.id)]))
+    }
+    setHasMore(more.length === LIMIT)
+    setLoadingMore(false)
+  }, [notices, loadingMore])
 
   const handleMarkAll = useCallback(() => {
     markAllAsRead(notices.map(n => n.id))
@@ -185,6 +207,28 @@ export default function NewsPage() {
             )
           })}
         </div>
+
+        {/* ── もっと見る ── */}
+        {hasMore && (
+          <div style={{ padding:'16px', textAlign:'center' }}>
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              style={{
+                fontSize:13, padding:'10px 28px', borderRadius:99,
+                background: loadingMore ? '#f0f0f0' : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                color: loadingMore ? '#aaa' : '#fff',
+                border:'none', cursor: loadingMore ? 'default' : 'pointer',
+                fontFamily:"'Kiwi Maru',serif", fontWeight:700,
+                boxShadow: loadingMore ? 'none' : '0 2px 8px rgba(255,107,0,0.3)',
+                transition:'all 0.2s',
+              }}
+            >
+              {loadingMore ? '読み込み中…' : 'もっと見る'}
+            </button>
+          </div>
+        )}
+
         </div>
       </div>
     </>

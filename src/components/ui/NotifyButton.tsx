@@ -59,17 +59,18 @@ export default function NotifyButton({ exhibitId, exhibitType, variant = 'icon' 
         onClick={handleClick}
         disabled={loading}
         style={{
-          padding: '8px 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
-          background: on ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f4f4f4',
+          padding: '6px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+          background: on ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f0f0f0',
           color: on ? '#fff' : '#888',
-          fontSize: 13, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
-          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+          display: 'flex', alignItems: 'center', gap: 5,
           transition: 'background 0.2s, color 0.2s',
           flexShrink: 0,
+          whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ fontSize: 15 }}>{loading ? '⏳' : on ? '📅' : '🔕'}</span>
-        <span>{on ? '予定に登録済み' : '通知OFF'}</span>
+        <span style={{ fontSize: 14 }}>{loading ? '⏳' : on ? '📅' : '🔕'}</span>
+        <span>{on ? '通知ON' : '通知OFF'}</span>
       </button>
     )
   }

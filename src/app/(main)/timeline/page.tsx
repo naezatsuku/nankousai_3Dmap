@@ -286,6 +286,7 @@ export default function TimelinePage() {
                     like={likes[item.notice.id]}
                     onToggleLike={handleToggleLike}
                     onOpen={() => router.push(`/news/${item.notice.id}`)}
+                    onAvatarClick={() => router.push(`/exhibit/${item.notice.exhibit_id}/feed`)}
                   />
                 ) : (
                   <CommentCard
@@ -293,6 +294,7 @@ export default function TimelinePage() {
                     item={item}
                     index={i}
                     onOpen={() => router.push(`/exhibit/${item.comment.exhibit_id}`)}
+                    onAvatarClick={() => router.push(`/exhibit/${item.comment.exhibit_id}/feed`)}
                   />
                 )
               )}
@@ -332,13 +334,14 @@ export default function TimelinePage() {
 
 // ─── お知らせカード ────────────────────────────────────────────
 
-function NoticeCard({ item, index, isRead, like, onToggleLike, onOpen }: {
-  item:         NoticeFeedItem
-  index:        number
-  isRead:       boolean
-  like?:        LikeState
-  onToggleLike: (noticeId: string) => void
-  onOpen:       () => void
+function NoticeCard({ item, index, isRead, like, onToggleLike, onOpen, onAvatarClick }: {
+  item:          NoticeFeedItem
+  index:         number
+  isRead:        boolean
+  like?:         LikeState
+  onToggleLike:  (noticeId: string) => void
+  onOpen:        () => void
+  onAvatarClick: () => void
 }) {
   const notice   = item.notice
   const hasMedia = notice.media.length > 0
@@ -357,85 +360,88 @@ function NoticeCard({ item, index, isRead, like, onToggleLike, onOpen }: {
         <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:'linear-gradient(180deg,#FF6B00,#FFAA28)' }} />
       )}
 
-      <button onClick={onOpen} style={{ width:'100%', background:'transparent', border:'none', cursor:'pointer', textAlign:'left', padding:0, display:'block' }}>
-        <div style={{ display:'flex', gap:12, padding:'14px 16px 8px', alignItems:'flex-start' }}>
-          {/* アバター */}
-          <div style={{ position:'relative', flexShrink:0 }}>
-            <div style={{
-              width:42, height:42, borderRadius:'50%',
-              background: notice.is_urgent
-                ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
-                : 'linear-gradient(135deg,#e2e8f0,#cbd5e1)',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:18, overflow:'hidden',
-            }}>
-              {notice.sender_thumbnail
-                ? <img src={notice.sender_thumbnail} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                : <SenderIcon sender={notice.sender} />
-              }
-            </div>
-            {!isRead && (
-              <div style={{ position:'absolute', bottom:1, right:1, width:10, height:10, borderRadius:'50%', background:'#FF6B00', border:'2px solid #fff' }} />
-            )}
+      <div style={{ display:'flex', gap:12, padding:'14px 16px 8px', alignItems:'flex-start' }}>
+        {/* アバター（団体フィードへ） */}
+        <button
+          onClick={onAvatarClick}
+          style={{ position:'relative', flexShrink:0, background:'transparent', border:'none', cursor:'pointer', padding:0 }}
+        >
+          <div style={{
+            width:42, height:42, borderRadius:'50%',
+            background: notice.is_urgent
+              ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
+              : 'linear-gradient(135deg,#e2e8f0,#cbd5e1)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:18, overflow:'hidden',
+          }}>
+            {notice.sender_thumbnail
+              ? <img src={notice.sender_thumbnail} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              : <SenderIcon sender={notice.sender} />
+            }
           </div>
+          {!isRead && (
+            <div style={{ position:'absolute', bottom:1, right:1, width:10, height:10, borderRadius:'50%', background:'#FF6B00', border:'2px solid #fff' }} />
+          )}
+        </button>
 
-          {/* 本文 */}
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
-              <span style={{
-                fontSize:13, fontWeight: isRead ? 500 : 700,
-                color: isRead ? '#555' : '#1a1a1a',
-                fontFamily:"'Kiwi Maru',serif",
-                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
-                maxWidth:'42%',
-              }}>
-                {notice.sender}
-              </span>
-              <span style={{
-                fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:99,
-                background:'linear-gradient(135deg,#FF6B00,#FFAA28)', color:'#fff',
-                flexShrink:0, fontFamily:"'Kiwi Maru',serif", letterSpacing:'0.05em',
-              }}>
-                公式
-              </span>
-              <span style={{ fontSize:11, color:'#bbb', flexShrink:0, fontFamily:"'Kiwi Maru',serif", marginLeft:'auto' }}>
-                {formatDate(notice.created_at)}
-              </span>
-            </div>
-
-            <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:4 }}>
-              {notice.is_urgent && (
-                <span style={{
-                  fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:99,
-                  background:'#FF6B00', color:'#fff', flexShrink:0,
-                  fontFamily:"'Kiwi Maru',serif",
-                }}>重要</span>
-              )}
-              <MarqueeText style={{
-                fontSize:14, fontWeight: isRead ? 500 : 700,
-                color: isRead ? '#555' : '#1a1a1a',
-                fontFamily:"'Kaisei Decol',serif",
-              }}>
-                {notice.title}
-              </MarqueeText>
-            </div>
-
-            <p style={{
-              fontSize:12.5, lineHeight:1.5, color:'#999', margin:'0 0 8px',
+        {/* 本文（お知らせ詳細へ） */}
+        <button onClick={onOpen} style={{ flex:1, minWidth:0, background:'transparent', border:'none', cursor:'pointer', textAlign:'left', padding:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
+            <span style={{
+              fontSize:13, fontWeight: isRead ? 500 : 700,
+              color: isRead ? '#555' : '#1a1a1a',
               fontFamily:"'Kiwi Maru',serif",
-              display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+              whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+              maxWidth:'42%',
             }}>
-              {extractPreview(notice)}
-            </p>
+              {notice.sender}
+            </span>
+            <span style={{
+              fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:99,
+              background:'linear-gradient(135deg,#FF6B00,#FFAA28)', color:'#fff',
+              flexShrink:0, fontFamily:"'Kiwi Maru',serif", letterSpacing:'0.05em',
+            }}>
+              公式
+            </span>
+            <span style={{ fontSize:11, color:'#bbb', flexShrink:0, fontFamily:"'Kiwi Maru',serif", marginLeft:'auto' }}>
+              {formatDate(notice.created_at)}
+            </span>
           </div>
-        </div>
 
-        {hasMedia && (
+          <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:4 }}>
+            {notice.is_urgent && (
+              <span style={{
+                fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:99,
+                background:'#FF6B00', color:'#fff', flexShrink:0,
+                fontFamily:"'Kiwi Maru',serif",
+              }}>重要</span>
+            )}
+            <MarqueeText style={{
+              fontSize:14, fontWeight: isRead ? 500 : 700,
+              color: isRead ? '#555' : '#1a1a1a',
+              fontFamily:"'Kaisei Decol',serif",
+            }}>
+              {notice.title}
+            </MarqueeText>
+          </div>
+
+          <p style={{
+            fontSize:12.5, lineHeight:1.5, color:'#999', margin:'0 0 8px',
+            fontFamily:"'Kiwi Maru',serif",
+            display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+          }}>
+            {extractPreview(notice)}
+          </p>
+        </button>
+      </div>
+
+      {hasMedia && (
+        <button onClick={onOpen} style={{ display:'block', width:'100%', background:'transparent', border:'none', cursor:'pointer', textAlign:'left', padding:0 }}>
           <div style={{ padding:'0 16px 12px', marginLeft:54 }}>
             <MediaCluster media={notice.media} />
           </div>
-        )}
-      </button>
+        </button>
+      )}
 
       {/* いいねアクション */}
       <div style={{ display:'flex', alignItems:'center', padding:'0 16px 12px', marginLeft:54 }}>
@@ -544,36 +550,41 @@ function MediaThumb({ item }: { item: NoticeMedia }) {
 
 // ─── コメントカード（みんなの声） ───────────────────────────────
 
-function CommentCard({ item, index, onOpen }: {
-  item:   CommentFeedItem
-  index:  number
-  onOpen: () => void
+function CommentCard({ item, index, onOpen, onAvatarClick }: {
+  item:          CommentFeedItem
+  index:         number
+  onOpen:        () => void
+  onAvatarClick: () => void
 }) {
   const c = item.comment
   return (
-    <button
-      onClick={onOpen}
+    <div
       className="feed-row comment-row"
       style={{
-        width:'100%', background:'#fafbff', border:'none', cursor:'pointer', textAlign:'left',
-        padding:0, display:'block',
-        borderBottom:'1px solid #f5f5f5',
+        background:'#fafbff', borderBottom:'1px solid #f5f5f5',
         animation: `fadeUp ${Math.min(0.05 + index * 0.04, 0.6)}s ease both`,
       }}
     >
       <div style={{ display:'flex', gap:12, padding:'14px 16px', alignItems:'flex-start' }}>
-        <div style={{
-          width:38, height:38, borderRadius:'50%', flexShrink:0, overflow:'hidden',
-          background:'linear-gradient(135deg,#dbeafe,#e0e7ff)',
-          display:'flex', alignItems:'center', justifyContent:'center', fontSize:16,
-        }}>
-          {c.exhibit_thumbnail
-            ? <img src={c.exhibit_thumbnail} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-            : <span>💬</span>
-          }
-        </div>
+        {/* アバター（団体フィードへ） */}
+        <button
+          onClick={onAvatarClick}
+          style={{ background:'transparent', border:'none', cursor:'pointer', padding:0, flexShrink:0 }}
+        >
+          <div style={{
+            width:38, height:38, borderRadius:'50%', overflow:'hidden',
+            background:'linear-gradient(135deg,#dbeafe,#e0e7ff)',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:16,
+          }}>
+            {c.exhibit_thumbnail
+              ? <img src={c.exhibit_thumbnail} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              : <span>💬</span>
+            }
+          </div>
+        </button>
 
-        <div style={{ flex:1, minWidth:0 }}>
+        {/* 本文（展示詳細へ） */}
+        <button onClick={onOpen} style={{ flex:1, minWidth:0, background:'transparent', border:'none', cursor:'pointer', textAlign:'left', padding:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
             <span style={{ fontSize:13, fontWeight:600, color:'#475569', fontFamily:"'Kiwi Maru',serif" }}>
               {c.author_name?.trim() || 'ゲスト'}
@@ -604,9 +615,9 @@ function CommentCard({ item, index, onOpen }: {
           }}>
             {c.body}
           </p>
-        </div>
+        </button>
       </div>
-    </button>
+    </div>
   )
 }
 

@@ -254,6 +254,7 @@ export default function MapCanvas({
   const hasFocusedRef       = useRef(false)
   const applyRoomColorsRef  = useRef<() => void>(() => {})
   const rebuildMarkersRef   = useRef<(scene: THREE.Scene) => void>(() => {})
+  const panHalfExtRef       = useRef(0)
 
   const [isTopDown, setIsTopDown] = useState(false)
   const [btnFaded,  setBtnFaded]  = useState(false)
@@ -431,8 +432,9 @@ export default function MapCanvas({
           cam.right  =  maxDim * aspect
           cam.top    =  maxDim
           cam.bottom = -maxDim
-          cam.zoom   = 1
+          cam.zoom   = window.innerWidth < 640 ? 1.6 : 1
           cam.updateProjectionMatrix()
+          panHalfExtRef.current = maxDim * 1.1
         }
       },
       undefined,
@@ -504,6 +506,8 @@ export default function MapCanvas({
       ONE: THREE.TOUCH.PAN,
       TWO: THREE.TOUCH.DOLLY_PAN,
     }
+    controls.minZoom = 0.7
+    controls.maxZoom = 5.0
     controlsRef.current = controls
 
     // アニメーションループ
@@ -511,6 +515,21 @@ export default function MapCanvas({
     const animate = () => {
       rafId = requestAnimationFrame(animate)
       controls.update()
+
+      // パン制限（フォーカスアニメ中は適用しない）
+      const halfExt = panHalfExtRef.current
+      if (halfExt > 0 && !focusAnimRef.current?.active) {
+        const tx = Math.max(-halfExt, Math.min(halfExt, controls.target.x))
+        const tz = Math.max(-halfExt, Math.min(halfExt, controls.target.z))
+        if (tx !== controls.target.x || tz !== controls.target.z) {
+          const dx = tx - controls.target.x
+          const dz = tz - controls.target.z
+          controls.target.x = tx
+          controls.target.z = tz
+          camera.position.x += dx
+          camera.position.z += dz
+        }
+      }
 
       // フォーカスアニメーション（target + camera.position を同時に動かして初期角度を維持）
       const fa = focusAnimRef.current

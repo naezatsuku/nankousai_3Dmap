@@ -16,7 +16,7 @@ interface NoticeLikeInfo { id:string; title:string; created_at:string; likeCount
 interface ChartBar { id:string; label:string; value:number; sub?:string; highlight?:boolean }
 
 type ExhibitType = 'class'|'food'|'band'|'special'|'cafeteria'
-type ChartType  = 'food_rate'|'food_items'|'food_revenue'|'visitors'|'comments'|'likes'
+type ChartType  = 'food_rate'|'food_items'|'food_revenue'|'visitors'|'comments'|'likes'|'subscribers'
 type ChartScope = 'all'|'own'
 
 const CHART_TYPES: { id: ChartType; label: string; icon: string }[] = [
@@ -26,6 +26,7 @@ const CHART_TYPES: { id: ChartType; label: string; icon: string }[] = [
   { id:'visitors',     label:'来場者数ランキング', icon:'🚶' },
   { id:'comments',     label:'コメント数ランキング', icon:'💬' },
   { id:'likes',        label:'いいね数ランキング',   icon:'❤️' },
+  { id:'subscribers',  label:'通知購読者数',         icon:'🔔' },
 ]
 
 function fmtTime(iso: string) {
@@ -275,6 +276,24 @@ export default function QuickPage() {
           })
         }
         unit = '件'
+      } else if (chartType === 'subscribers') {
+        if (chartScope === 'own') {
+          const res  = await fetch(`/api/admin/subscriber-count?exhibitId=${encodeURIComponent(id)}`)
+          const json = await res.json() as { count: number }
+          bars.push({ id, label: name || '自分の団体', value: json.count ?? 0, highlight: true })
+        } else {
+          const [res, { data: exs }] = await Promise.all([
+            fetch('/api/admin/subscriber-count'),
+            supabase.from('exhibits').select('id, name, class_label'),
+          ])
+          const { counts: subCounts } = await res.json() as { counts: Record<string, number> }
+          ;(exs ?? []).forEach(e => {
+            const cnt = subCounts[e.id] ?? 0
+            if (!cnt) return
+            bars.push({ id: e.id, label: e.class_label ?? e.name, value: cnt, highlight: e.id === id })
+          })
+        }
+        unit = '人'
       }
     } catch (err) {
       console.error('[quick chart] fetch error:', err)
@@ -301,9 +320,10 @@ export default function QuickPage() {
   // リアルタイム購読：今選択中のグラフが参照するテーブルだけを購読する
   useEffect(() => {
     const tables: string[] =
-      chartType === 'visitors' ? ['exhibits'] :
-      chartType === 'comments' ? ['exhibit_comments'] :
-      chartType === 'likes'    ? ['notice_likes', 'notices'] :
+      chartType === 'visitors'    ? ['exhibits'] :
+      chartType === 'comments'    ? ['exhibit_comments'] :
+      chartType === 'likes'       ? ['notice_likes', 'notices'] :
+      chartType === 'subscribers' ? ['exhibit_push_subs'] :
       /* food_rate / food_items / food_revenue */ ['food_menus']
 
     const supabase = createClient()
