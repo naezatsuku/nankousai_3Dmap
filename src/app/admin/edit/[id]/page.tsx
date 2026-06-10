@@ -80,7 +80,7 @@ export default function ExhibitEditPage() {
   const [form, setForm]         = useState<ExhibitFormState>(INIT)
   const [tab, setTab]           = useState<'basic'|'content'|'special'|'quick'>('basic')
   const [deskTab, setDeskTab]   = useState<'basic'|'content'|'special'>('basic')
-  const [quickTab, setQuickTab] = useState<'wait'|'qr'|'menu'|'comments'>('wait')
+  const [quickTab, setQuickTab] = useState<'wait'|'qr'|'menu'|'comments'|'notices'>('wait')
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
@@ -94,6 +94,8 @@ export default function ExhibitEditPage() {
   const [stampSecret,    setStampSecret]    = useState<string | null>(null)
   const [comments,       setComments]       = useState<Comment[]>([])
   const [commentsLoaded, setCommentsLoaded] = useState(false)
+  const [noticeItems,     setNoticeItems]     = useState<{ id:string; title:string; status:string; created_at:string; review_comment:string|null }[]>([])
+  const [noticesLoaded,   setNoticesLoaded]   = useState(false)
 
   // ── データ読み込み ────────────────────────────────────────────
   useEffect(() => {
@@ -221,6 +223,21 @@ export default function ExhibitEditPage() {
       .order('created_at', { ascending: false })
       .then(({ data }) => { if (data) { setComments(data as Comment[]); setCommentsLoaded(true) } })
   }, [quickTab, tab, id, commentsLoaded])
+
+  useEffect(() => {
+    if (quickTab !== 'notices' || noticesLoaded) return
+    createClient()
+      .from('notices')
+      .select('id, title, status, created_at, review_comment')
+      .eq('exhibit_id', id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          setNoticeItems(data as { id:string; title:string; status:string; created_at:string; review_comment:string|null }[])
+          setNoticesLoaded(true)
+        }
+      })
+  }, [quickTab, id, noticesLoaded])
 
   const approveComment = async (commentId: string) => {
     await createClient().from('exhibit_comments').update({ is_approved: true }).eq('id', commentId)
@@ -741,6 +758,7 @@ export default function ExhibitEditPage() {
                     { key:'qr'       as const, label:'🎯 スタンプ QR' },
                     ...(isFood ? [{ key:'menu' as const, label:'🍽 メニュー' }] : []),
                     { key:'comments' as const, label:'💬 コメント' },
+                    { key:'notices'  as const, label:'🔔 お知らせ' },
                   ]
                   return (
                     <div style={{ display:'flex', gap:0, marginBottom:16, background:'#f1f5f9', borderRadius:12, padding:4 }}>
@@ -934,6 +952,72 @@ export default function ExhibitEditPage() {
                   </Card>
                 )}
 
+                {/* ── お知らせタブ ── */}
+                {quickTab === 'notices' && (
+                  <Card title="" icon="">
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                      <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+                        投稿したお知らせ一覧
+                      </div>
+                      <Link href="/admin/notices/new" style={{
+                        padding:'5px 12px', borderRadius:8,
+                        background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                        color:'#fff', textDecoration:'none',
+                        fontSize:11, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                      }}>
+                        ＋ 新規作成
+                      </Link>
+                    </div>
+
+                    {!noticesLoaded ? (
+                      <div style={{ textAlign:'center', padding:'20px 0', color:'#94a3b8', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>
+                        読み込み中…
+                      </div>
+                    ) : noticeItems.length === 0 ? (
+                      <div style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>
+                        お知らせはまだありません
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                        {noticeItems.map(n => (
+                          <Link key={n.id} href={`/admin/notices/${n.id}`} style={{
+                            display:'block', padding:'10px 12px', borderRadius:10,
+                            textDecoration:'none',
+                            border: n.status === 'rejected' ? '1px solid #fca5a5' :
+                                    n.status === 'pending'  ? '1px solid #fde68a' : '1px solid #f1f5f9',
+                            background: n.status === 'rejected' ? '#fef2f2' :
+                                        n.status === 'pending'  ? '#fffbeb' : '#fff',
+                          }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
+                              <span style={{
+                                fontSize:9, fontWeight:700, padding:'1px 7px', borderRadius:99,
+                                fontFamily:"'Kiwi Maru',serif",
+                                background: n.status === 'approved' ? '#dcfce7' :
+                                            n.status === 'rejected' ? '#fee2e2' : '#fef9c3',
+                                color: n.status === 'approved' ? '#16a34a' :
+                                       n.status === 'rejected' ? '#dc2626' : '#92400e',
+                              }}>
+                                {n.status === 'approved' ? '✓ 承認済み' :
+                                 n.status === 'rejected' ? '✕ 却下' : '⏳ 審査待ち'}
+                              </span>
+                              <span style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+                                {fmtTime(n.created_at)}
+                              </span>
+                            </div>
+                            <div style={{ fontSize:12, fontWeight:700, color:'#1e293b', fontFamily:"'Kiwi Maru',serif" }}>
+                              {n.title}
+                            </div>
+                            {n.status === 'rejected' && n.review_comment && (
+                              <div style={{ fontSize:10, color:'#dc2626', fontFamily:"'Kiwi Maru',serif", marginTop:2 }}>
+                                却下理由: {n.review_comment}
+                              </div>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                )}
 
               </div>
             </div>

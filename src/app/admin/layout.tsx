@@ -33,10 +33,11 @@ const NAV_GROUPS: NavGroup[] = [
     id:'exhibit', label:'展示管理', icon:'🏫',
     editorOk:true, teacherOk:true,
     items:[
-      { href:'/admin/edit',     icon:'✏',  label:'展示編集',     editorOk:true, teacherOk:true },
-      { href:'/admin/notices',  icon:'🔔', label:'お知らせ管理', editorOk:true, teacherOk:true },
-      { href:'/admin/food',     icon:'🍱', label:'販売数管理',   adminOnly:true },
-      { href:'/admin/exhibits', icon:'🏫', label:'団体管理',     adminOnly:true },
+      { href:'/admin/edit',           icon:'✏',  label:'展示編集',     editorOk:true, teacherOk:true },
+      { href:'/admin/notices',        icon:'🔔', label:'お知らせ管理', editorOk:true, teacherOk:true },
+      { href:'/admin/notices/review', icon:'🔍', label:'お知らせ審査', adminOnly:true },
+      { href:'/admin/food',           icon:'🍱', label:'販売数管理',   adminOnly:true },
+      { href:'/admin/exhibits',       icon:'🏫', label:'団体管理',     adminOnly:true },
     ],
   },
   {
@@ -422,8 +423,9 @@ function Breadcrumb({ pathname }: { pathname: string }) {
   const MAP: Record<string, string> = {
     '/admin':               'ダッシュボード',
     '/admin/edit':          '展示編集',
-    '/admin/notices':       'お知らせ管理',
-    '/admin/announcements': 'アナウンス管理',
+    '/admin/notices/review': 'お知らせ審査',
+    '/admin/notices':        'お知らせ管理',
+    '/admin/announcements':  'アナウンス管理',
     '/admin/users':         '権限管理',
     '/admin/teachers':      '先生管理',
     '/admin/exhibits':      '団体管理',

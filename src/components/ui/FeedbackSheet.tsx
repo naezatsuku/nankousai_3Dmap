@@ -4,10 +4,32 @@ import { useState, useEffect } from 'react'
 
 interface Comment { id: string; body: string; author_name?: string | null; created_at: string }
 
-function fmtTime(iso: string) {
+function relTime(iso: string) {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (diff < 60)    return `${diff}秒`
+  if (diff < 3600)  return `${Math.floor(diff / 60)}分`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}時間`
   const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+function Avatar({ name, size = 40 }: { name?: string | null; size?: number }) {
+  const ch = name?.trim().charAt(0) ?? null
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: ch ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#cfd9de',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: Math.round(size * 0.42), fontWeight: 700, color: '#fff',
+      fontFamily: "'Kaisei Decol',serif",
+    }}>
+      {ch ?? (
+        <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+        </svg>
+      )}
+    </div>
+  )
 }
 
 interface Props {
@@ -28,12 +50,13 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
   const [submitting,    setSubmitting]    = useState(false)
   const [submitted,     setSubmitted]     = useState(false)
   const [submitError,   setSubmitError]   = useState('')
+  const [confirming,    setConfirming]    = useState(false)
 
   useEffect(() => {
     let alive = true
     fetch(`/api/exhibit-feedback/${exhibitId}?userId=${userId}&limit=3`)
       .then(r => r.json())
-      .then((d: { likeCount:number; userLiked:boolean; userHasStamp:boolean; showLikeCount:boolean; comments:Comment[] }) => {
+      .then((d: { likeCount: number; userLiked: boolean; userHasStamp: boolean; showLikeCount: boolean; comments: Comment[] }) => {
         if (!alive) return
         setLikeCount(d.likeCount)
         setLiked(d.userLiked)
@@ -45,7 +68,7 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
   }, [exhibitId, userId])
 
   const handleLike = async () => {
-    if (liked) return
+    if (liked || !userHasStamp) return
     const res  = await fetch('/api/exhibit-like', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exhibitId, userId }),
@@ -80,190 +103,265 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
 
   return (
     <>
-      <style>{`@keyframes feedback-up { from { transform:translateY(100%) } to { transform:translateY(0) } }`}</style>
+      <style>{`
+        @keyframes feedback-up { from { transform:translateY(100%) } to { transform:translateY(0) } }
+        @keyframes like-pop { 0%{transform:scale(1)} 40%{transform:scale(1.35)} 70%{transform:scale(0.9)} 100%{transform:scale(1)} }
+        .fb-compose-input::placeholder { color:#536471; }
+        .fb-compose-name::placeholder  { color:#aab8c2; }
+        .fb-compose-input { caret-color:#FF6B00; }
+        .fb-close-btn:hover { background:rgba(15,20,25,0.06) !important; }
+      `}</style>
 
       {/* Overlay */}
-      <div onClick={onClose} style={{
-        position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:250,
-      }} />
+      <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:250 }} />
 
       {/* Sheet */}
       <div style={{
         position:'fixed', bottom:0, left:0, right:0,
-        background:'#fff', borderRadius:'24px 24px 0 0',
-        zIndex:260, maxHeight:'85vh', overflowY:'auto',
-        animation:'feedback-up 0.3s ease-out',
+        background:'#fff', borderRadius:'16px 16px 0 0',
+        zIndex:260, maxHeight:'88vh', display:'flex', flexDirection:'column',
+        animation:'feedback-up 0.3s cubic-bezier(.22,.68,0,1.1)',
       }}>
         {/* Handle */}
-        <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 0' }}>
-          <div style={{ width:36, height:4, borderRadius:2, background:'#e2e8f0' }} />
+        <div style={{ display:'flex', justifyContent:'center', padding:'10px 0 0', flexShrink:0 }}>
+          <div style={{ width:32, height:4, borderRadius:2, background:'#e7e9ea' }} />
         </div>
 
-        <div style={{ padding:'16px 20px 48px' }}>
-
-          {/* Header */}
-          <div style={{ display:'flex', alignItems:'flex-start', marginBottom:20 }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:3 }}>
-                この展示はどうでしたか？
-              </div>
-              <div style={{
-                fontFamily:"'Kaisei Decol',serif", fontSize:18, fontWeight:700, color:'#1a1a1a',
-                lineHeight:1.3,
-              }}>
-                {exhibitName}
-              </div>
+        {/* Header */}
+        <div style={{
+          display:'flex', alignItems:'center', padding:'10px 8px 10px 16px',
+          borderBottom:'1px solid #eff3f4', flexShrink:0,
+        }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:11, color:'#536471', fontFamily:"'Kiwi Maru',serif", marginBottom:1 }}>
+              感想・いいね
             </div>
-            <button onClick={onClose} type="button" style={{
-              width:32, height:32, borderRadius:'50%', border:'none',
-              background:'#f1f5f9', cursor:'pointer', flexShrink:0, marginLeft:12,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:14, color:'#94a3b8',
-            }}>✕</button>
+            <div style={{ fontSize:17, fontWeight:700, color:'#0f1419', fontFamily:"'Kaisei Decol',serif", lineHeight:1.3 }}>
+              {exhibitName}
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            type="button"
+            className="fb-close-btn"
+            style={{
+              width:36, height:36, borderRadius:'50%', border:'none',
+              background:'transparent', cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              transition:'background 0.15s',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#536471">
+              <path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z" />
+            </svg>
+          </button>
+        </div>
 
-          {/* Like button */}
-          {userHasStamp ? (
-            <button
-              type="button"
-              onClick={handleLike}
-              disabled={liked}
-              style={{
-                width:'100%', padding:'14px', borderRadius:14, border:'none',
-                cursor: liked ? 'default' : 'pointer',
-                background: liked ? '#fef2f2' : '#fff',
-                boxShadow: liked ? 'inset 0 0 0 1.5px #fca5a5' : 'inset 0 0 0 1.5px #e2e8f0',
-                display:'flex', alignItems:'center', justifyContent:'center', gap:10,
-                marginBottom:16, transition:'all 0.2s',
-              }}
+        {/* Like row */}
+        <div style={{
+          padding:'10px 16px',
+          borderBottom:'1px solid #eff3f4',
+          display:'flex', alignItems:'center', gap:8, flexShrink:0,
+        }}>
+          <button
+            type="button"
+            onClick={handleLike}
+            disabled={!userHasStamp || liked}
+            style={{
+              display:'flex', alignItems:'center', gap:5,
+              background:'none', border:'none',
+              cursor: (userHasStamp && !liked) ? 'pointer' : 'default',
+              padding:'4px 8px 4px 0',
+              animation: liked ? 'like-pop 0.35s ease' : undefined,
+            }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24"
+              fill={liked ? '#f91880' : 'none'}
+              stroke={liked ? '#f91880' : '#536471'}
+              strokeWidth="1.8"
             >
-              <span style={{ fontSize:22 }}>{liked ? '❤️' : '🤍'}</span>
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+            {showLikeCount && likeCount > 0 && (
               <span style={{
-                fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
-                color: liked ? '#dc2626' : '#64748b',
+                fontSize:14, fontFamily:"'Kiwi Maru',serif",
+                color: liked ? '#f91880' : '#536471',
               }}>
-                {liked ? 'いいね済み！' : 'いいね！'}
-                {showLikeCount && likeCount > 0 && (
-                  <span style={{ marginLeft:6, fontSize:13, opacity:0.8 }}>({likeCount})</span>
-                )}
+                {likeCount}
               </span>
-            </button>
-          ) : (
-            <div style={{ marginBottom:16 }}>
-              <div style={{
-                width:'100%', padding:'14px', borderRadius:14,
-                boxShadow:'inset 0 0 0 1.5px #e2e8f0',
-                display:'flex', alignItems:'center', justifyContent:'center', gap:10,
-                background:'#f8fafc', marginBottom:8,
-              }}>
-                <span style={{ fontSize:22, opacity:0.4 }}>🤍</span>
-                <span style={{ fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700, color:'#cbd5e1' }}>
-                  いいね！
-                </span>
-              </div>
-              <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", textAlign:'center', lineHeight:1.6 }}>
-                この展示を訪れて QR コードを読み込むと<br />いいねができます
-              </div>
-            </div>
-          )}
+            )}
+          </button>
 
-          {/* Comment */}
+          {!userHasStamp && (
+            <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+              QRを読み込むといいねできます
+            </span>
+          )}
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex:1, overflowY:'auto' }}>
+
+          {/* Compose */}
           {!submitted ? (
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:8 }}>
-                コメント（承認後に公開されます）
-              </div>
-              <input
-                type="text"
-                value={authorName}
-                onChange={e => setAuthorName(e.target.value.slice(0, 50))}
-                placeholder="名前（任意）"
-                style={{
-                  width:'100%', padding:'10px 12px', borderRadius:10,
-                  border:'1px solid #e2e8f0', marginBottom:8,
-                  fontSize:14, fontFamily:"'Kiwi Maru',serif",
-                  color:'#1a1a1a', outline:'none', boxSizing:'border-box',
-                  background:'#fafbfc',
-                }}
-              />
-              <textarea
-                value={comment}
-                onChange={e => setComment(e.target.value.slice(0, 200))}
-                placeholder="感想を入力してください…"
-                rows={3}
-                style={{
-                  width:'100%', padding:'12px', borderRadius:12,
-                  border:'1px solid #e2e8f0', resize:'none',
-                  fontSize:14, fontFamily:"'Kiwi Maru',serif",
-                  color:'#1a1a1a', outline:'none', boxSizing:'border-box',
-                  background:'#fafbfc',
-                }}
-              />
-              {submitError && (
-                <div style={{ fontSize:12, color:'#dc2626', fontFamily:"'Kiwi Maru',serif", marginTop:6, padding:'8px 12px', background:'#fef2f2', borderRadius:8 }}>
-                  ⚠ {submitError}
+            <div style={{ padding:'12px 16px', borderBottom:'1px solid #eff3f4' }}>
+              <div style={{ display:'flex', gap:10 }}>
+                <Avatar name={authorName || null} size={40} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  <input
+                    type="text"
+                    value={authorName}
+                    onChange={e => setAuthorName(e.target.value.slice(0, 50))}
+                    placeholder="名前（任意）"
+                    className="fb-compose-name"
+                    style={{
+                      width:'100%', border:'none', outline:'none',
+                      fontSize:13, color:'#536471',
+                      fontFamily:"'Kiwi Maru',serif",
+                      background:'transparent', boxSizing:'border-box',
+                      marginBottom:4,
+                    }}
+                  />
+                  <textarea
+                    value={comment}
+                    onChange={e => setComment(e.target.value.slice(0, 200))}
+                    placeholder="感想を書く..."
+                    rows={3}
+                    className="fb-compose-input"
+                    style={{
+                      width:'100%', border:'none', outline:'none', resize:'none',
+                      fontSize:16, color:'#0f1419', lineHeight:1.55,
+                      fontFamily:"'Kiwi Maru',serif",
+                      background:'transparent', boxSizing:'border-box',
+                    }}
+                  />
+
+                  {submitError && (
+                    <div style={{
+                      fontSize:12, color:'#f4212e', fontFamily:"'Kiwi Maru',serif",
+                      marginBottom:6,
+                    }}>
+                      ⚠ {submitError}
+                    </div>
+                  )}
+
+                  {/* 通常行：文字数 + 投稿ボタン */}
+                  {!confirming && (
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:12, marginTop:4 }}>
+                      {comment.length > 0 && (
+                        <span style={{
+                          fontSize:12, fontFamily:"'Kiwi Maru',serif",
+                          color: comment.length >= 180 ? '#f4212e' : '#536471',
+                        }}>
+                          {200 - comment.length}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { if (comment.trim()) setConfirming(true) }}
+                        disabled={!comment.trim()}
+                        style={{
+                          padding:'7px 18px', borderRadius:99, border:'none', cursor: comment.trim() ? 'pointer' : 'default',
+                          background: comment.trim() ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#e7e9ea',
+                          color: comment.trim() ? '#fff' : '#8b98a5',
+                          fontSize:14, fontWeight:700, fontFamily:"'Kaisei Decol',serif",
+                          transition:'background 0.15s, color 0.15s',
+                        }}
+                      >
+                        投稿
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 確認ステップ */}
+                  {confirming && (
+                    <div style={{
+                      marginTop:10, padding:'12px 14px', borderRadius:12,
+                      background:'#fff8f0', border:'1px solid rgba(255,140,0,0.25)',
+                    }}>
+                      <div style={{
+                        fontSize:12, color:'#374151', fontFamily:"'Kiwi Maru',serif",
+                        lineHeight:1.7, marginBottom:10,
+                      }}>
+                        コメントは運営が内容を確認してから公開されます。不適切な内容は非表示になる場合があります。
+                      </div>
+                      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => setConfirming(false)}
+                          style={{
+                            padding:'6px 16px', borderRadius:99,
+                            border:'1px solid #e2e8f0', background:'#fff',
+                            fontSize:13, fontWeight:700, fontFamily:"'Kaisei Decol',serif",
+                            color:'#536471', cursor:'pointer',
+                          }}
+                        >
+                          キャンセル
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setConfirming(false); handleSubmit() }}
+                          disabled={submitting}
+                          style={{
+                            padding:'6px 18px', borderRadius:99, border:'none',
+                            background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                            color:'#fff', fontSize:13, fontWeight:700,
+                            fontFamily:"'Kaisei Decol',serif", cursor:'pointer',
+                          }}
+                        >
+                          {submitting ? '送信中' : '送信する'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
-                <span style={{
-                  fontSize:11, fontFamily:"'Kiwi Maru',serif",
-                  color: comment.length >= 180 ? '#f59e0b' : '#94a3b8',
-                }}>
-                  {comment.length}/200
-                </span>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!comment.trim() || submitting}
-                  style={{
-                    padding:'10px 24px', borderRadius:10, border:'none', cursor:'pointer',
-                    background: comment.trim() ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#e2e8f0',
-                    color: comment.trim() ? '#fff' : '#94a3b8',
-                    fontSize:13, fontWeight:700, fontFamily:"'Kaisei Decol',serif",
-                    transition:'all 0.15s',
-                  }}
-                >
-                  {submitting ? '送信中…' : '送信'}
-                </button>
               </div>
             </div>
           ) : (
-            <div style={{
-              padding:'14px', borderRadius:12,
-              background:'#f0fdf4', boxShadow:'inset 0 0 0 1.5px #86efac',
-              marginBottom:20, textAlign:'center',
-            }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'#16a34a', fontFamily:"'Kiwi Maru',serif", lineHeight:1.6 }}>
-                ✓ コメントありがとうございます！<br />
-                <span style={{ fontSize:11, fontWeight:400 }}>承認後に公開されます</span>
+            <div style={{ padding:'16px', borderBottom:'1px solid #eff3f4' }}>
+              <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+                <Avatar name={authorName || null} size={40} />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:'#00ba7c', fontFamily:"'Kiwi Maru',serif" }}>
+                    投稿ありがとうございます！
+                  </div>
+                  <div style={{ fontSize:13, color:'#536471', fontFamily:"'Kiwi Maru',serif", marginTop:2 }}>
+                    承認後に公開されます
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Recent comments */}
-          {comments.length > 0 && (
-            <div>
-              <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:10 }}>
-                最近の感想
-              </div>
-              {comments.map(c => (
-                <div key={c.id} style={{
-                  padding:'10px 14px', borderRadius:10,
-                  background:'#f8fafc', marginBottom:8,
-                  fontFamily:"'Kiwi Maru',serif",
-                }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom: c.author_name ? 2 : 4 }}>
-                    {c.author_name
-                      ? <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8' }}>{c.author_name}</span>
-                      : <span />
-                    }
-                    <span style={{ fontSize:10, color:'#cbd5e1' }}>{fmtTime(c.created_at)}</span>
-                  </div>
-                  <div style={{ fontSize:13, color:'#374151', lineHeight:1.6 }}>{c.body}</div>
+          {/* Comments */}
+          {comments.map(c => (
+            <div key={c.id} style={{
+              padding:'12px 16px',
+              borderBottom:'1px solid #eff3f4',
+              display:'flex', gap:10,
+            }}>
+              <Avatar name={c.author_name} size={40} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'baseline', gap:5, marginBottom:3, flexWrap:'wrap' }}>
+                  <span style={{
+                    fontSize:14, fontWeight:700, color:'#0f1419',
+                    fontFamily:"'Kiwi Maru',serif",
+                    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:160,
+                  }}>
+                    {c.author_name?.trim() || '匿名'}
+                  </span>
+                  <span style={{ fontSize:13, color:'#536471', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>
+                    · {relTime(c.created_at)}
+                  </span>
                 </div>
-              ))}
+                <div style={{ fontSize:14, color:'#0f1419', fontFamily:"'Kiwi Maru',serif", lineHeight:1.55 }}>
+                  {c.body}
+                </div>
+              </div>
             </div>
-          )}
+          ))}
+
+          <div style={{ height:40 }} />
         </div>
       </div>
     </>

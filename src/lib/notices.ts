@@ -90,6 +90,7 @@ export async function fetchNotices(options?: FetchNoticesOptions): Promise<Notic
     `)
     .order('created_at', { ascending: false })
 
+  query = query.eq('status', 'approved')
   if (options?.exhibitId) query = query.eq('exhibit_id', options.exhibitId)
   if (options?.limit)     query = query.limit(options.limit)
   if (options?.before)    query = query.lt('created_at', options.before)
@@ -112,6 +113,7 @@ export async function fetchNotice(id: string): Promise<NoticeItem | null> {
       exhibit:exhibits(id, name, thumbnail_url, cover_url)
     `)
     .eq('id', id)
+    .eq('status', 'approved')
     .single()
 
   if (error || !data) return DUMMY_NOTICES.find(n => n.id === id) ?? null

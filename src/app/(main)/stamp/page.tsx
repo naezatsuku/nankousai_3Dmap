@@ -16,15 +16,29 @@ const GAP  = 8   // セル間の隙間 px
 const PAD  = 16  // 外側の余白 px
 
 export default function StampPage() {
-  const [userId] = useState<string>(() => {
-    if (typeof window === 'undefined') return ''
+  const [userId,   setUserId]   = useState<string>('')
+  const [gate,     setGate]     = useState<'blocked' | 'ok'>('ok')
+  const [gateIOS,  setGateIOS]  = useState(false)
+
+  // ブラウザ環境にしか存在しない値は useEffect で初期化してハイドレーションミスマッチを防ぐ
+  useEffect(() => {
+    // userId
     let id = localStorage.getItem('stamp_user_id')
     if (!id) {
       id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
       localStorage.setItem('stamp_user_id', id)
     }
-    return id
-  })
+    setUserId(id)
+
+    // インストールゲート
+    const ua           = navigator.userAgent
+    const isMobile     = /iPhone|iPad|iPod|Android/.test(ua)
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as { standalone?: boolean }).standalone === true
+    setGate((!isMobile || isStandalone) ? 'ok' : 'blocked')
+    setGateIOS(/iPhone|iPad|iPod/.test(ua))
+  }, [])
 
   const [exhibits,      setExhibits]      = useState<StampExhibit[]>([])
   const [stamps,        setStamps]        = useState<StampRecord[]>([])
@@ -32,22 +46,10 @@ export default function StampPage() {
   const [newStampId,    setNewStampId]    = useState<string | null>(null)
   const [toast,         setToast]         = useState<Toast | null>(null)
   const [feedbackSheet, setFeedbackSheet] = useState<{ exhibitId: string; exhibitName: string } | null>(null)
+  const [devPreviewId,  setDevPreviewId]  = useState<string | null>(null)
   const [page,        setPage]        = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(3)
   const [cellSize,    setCellSize]    = useState(56)
-  const [gate] = useState<'blocked' | 'ok'>(() => {
-    if (typeof window === 'undefined') return 'ok'
-    const ua         = navigator.userAgent
-    const isMobile   = /iPhone|iPad|iPod|Android/.test(ua)
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as { standalone?: boolean }).standalone === true
-    return (!isMobile || isStandalone) ? 'ok' : 'blocked'
-  })
-  const [gateIOS] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return /iPhone|iPad|iPod/.test(navigator.userAgent)
-  })
 
   const bodyRef  = useRef<HTMLDivElement>(null)
   const touchX   = useRef(0)
@@ -109,6 +111,20 @@ export default function StampPage() {
     setTimeout(() => setToast(null), 3500)
   }, [])
 
+  const simulateStamp = useCallback(() => {
+    const ex = exhibits[0]
+    if (!ex) return
+    setPage(0)
+    setDevPreviewId(ex.id)
+    setNewStampId(ex.id)
+    setTimeout(() => setNewStampId(null), 1500)
+    showToast(`✓ ${ex.name} のスタンプを押しました！`, 'ok')
+    setTimeout(() => {
+      setDevPreviewId(null)
+      setFeedbackSheet({ exhibitId: ex.id, exhibitName: ex.name })
+    }, 600)
+  }, [exhibits, showToast])
+
   const handleScanResult = useCallback(async (qrText: string) => {
     setScanning(false)
     try {
@@ -132,7 +148,7 @@ export default function StampPage() {
         setTimeout(() => setNewStampId(null), 1500)
         await fetchStamps(userId)
         showToast(`✓ ${json.exhibitName} のスタンプを押しました！`, 'ok')
-        setFeedbackSheet({ exhibitId: e, exhibitName: json.exhibitName ?? '' })
+        setTimeout(() => setFeedbackSheet({ exhibitId: e, exhibitName: json.exhibitName ?? '' }), 600)
         const idx = exhibits.findIndex(ex => ex.id === e)
         if (idx >= 0) setPage(Math.floor(idx / itemsPerPage))
       } else {
@@ -269,7 +285,7 @@ export default function StampPage() {
                 <div key={r} style={{ display: 'flex', gap: GAP }}>
                   {Array.from({ length: COLS }, (_, c) => {
                     const ex      = pageExhibits[r * COLS + c]
-                    const stamped = ex ? stampedIds.has(ex.id) : false
+                    const stamped = ex ? (stampedIds.has(ex.id) || devPreviewId === ex.id) : false
                     const isNew   = ex ? newStampId === ex.id : false
 
                     return (
@@ -289,7 +305,7 @@ export default function StampPage() {
                           {ex && stamped && (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={ex.thumbnail_url ?? '/nanpen.png'}
+                              src={ex.thumbnail_url || '/nanpen.png'}
                               alt={ex.name}
                               onError={e => { (e.target as HTMLImageElement).src = '/nanpen.png' }}
                               style={{
@@ -386,6 +402,21 @@ export default function StampPage() {
           background: '#fff', borderTop: '1px solid #e2e8f0',
         }}>
           <div style={{ maxWidth: 480, margin: '0 auto' }}>
+          {process.env.NODE_ENV === 'development' && (
+            <button
+              onClick={simulateStamp}
+              disabled={exhibits.length === 0}
+              style={{
+                width: '100%', padding: '9px', borderRadius: 10, border: '1.5px dashed #FF8C00',
+                cursor: exhibits.length === 0 ? 'default' : 'pointer',
+                background: '#fff8f0', color: '#FF6B00',
+                fontSize: 12, fontWeight: 700, fontFamily: "'Kiwi Maru',serif",
+                marginBottom: 8,
+              }}
+            >
+              🧪 アニメーション確認（テスト）
+            </button>
+          )}
           <button
             onClick={() => setScanning(true)}
             disabled={total === 0}

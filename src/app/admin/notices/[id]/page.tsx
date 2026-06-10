@@ -21,6 +21,8 @@ interface MediaItem {
   key:         string   // React key（クライアント生成）
 }
 
+type NoticeStatus = 'pending' | 'approved' | 'rejected'
+
 interface NoticeForm {
   exhibit_id:  string
   title:       string
@@ -57,13 +59,16 @@ export default function NoticeEditPage() {
   // 新規作成時は UUID を事前生成（ストレージパスに使用）
   const [noticeId] = useState<string>(() => isNew ? crypto.randomUUID() : id)
 
-  const [exhibits, setExhibits] = useState<ExhibitOption[]>([])
-  const [form, setForm]         = useState<NoticeForm>(EMPTY_FORM)
-  const [media, setMedia]       = useState<MediaItem[]>([])
-  const [loading, setLoading]   = useState(!isNew)
-  const [saving, setSaving]     = useState(false)
-  const [saved, setSaved]       = useState(false)
-  const [error, setError]       = useState('')
+  const [exhibits, setExhibits]     = useState<ExhibitOption[]>([])
+  const [form, setForm]             = useState<NoticeForm>(EMPTY_FORM)
+  const [media, setMedia]           = useState<MediaItem[]>([])
+  const [loading, setLoading]       = useState(!isNew)
+  const [saving, setSaving]         = useState(false)
+  const [saved, setSaved]           = useState(false)
+  const [error, setError]           = useState('')
+  const [userRole, setUserRole]     = useState<string>('')
+  const [status, setStatus]         = useState<NoticeStatus>('pending')
+  const [reviewComment, setReviewComment] = useState<string>('')
 
   // 展示一覧取得（editor は担当展示のみ）
   useEffect(() => {
@@ -73,6 +78,7 @@ export default function NoticeEditPage() {
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()
       const role = (profile as { role: string } | null)?.role
+      setUserRole(role ?? '')
       const isEditorOrTeacher = role === 'editor' || role === 'teacher'
 
       let query = supabase.from('exhibits').select('id, name, class_label').order('class_label')
@@ -104,11 +110,12 @@ export default function NoticeEditPage() {
       type NoticeRow = {
         id: string; exhibit_id: string; title: string; body: string
         sender_name: string; is_urgent: boolean
+        status: NoticeStatus; review_comment: string | null
         notice_media: { id: string; url: string | null; type: 'image' | 'video' | null; caption: string | null; order_index: number }[]
       }
       const { data } = await supabase
         .from('notices')
-        .select('id, exhibit_id, title, body, sender_name, is_urgent, notice_media(id, url, type, caption, order_index)')
+        .select('id, exhibit_id, title, body, sender_name, is_urgent, status, review_comment, notice_media(id, url, type, caption, order_index)')
         .eq('id', id)
         .single()
 
@@ -132,6 +139,8 @@ export default function NoticeEditPage() {
         sender_name: row.sender_name  ?? '',
         is_urgent:   row.is_urgent    ?? false,
       })
+      setStatus((row.status ?? 'approved') as NoticeStatus)
+      setReviewComment(row.review_comment ?? '')
       const raw = row.notice_media ?? []
       setMedia(
         raw
@@ -196,6 +205,13 @@ export default function NoticeEditPage() {
     const nid = noticeId
 
     try {
+      // admin が作成 → 即承認、editor/teacher → 審査待ち
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', currentUser!.id).single()
+      const role = (prof as { role: string } | null)?.role ?? ''
+      const isAdmin = role === 'admin'
+      const newStatus: NoticeStatus = isNew ? (isAdmin ? 'approved' : 'pending') : status
+
       if (isNew) {
         const { error: e } = await supabase.from('notices').insert({
           id:          nid,
@@ -204,6 +220,7 @@ export default function NoticeEditPage() {
           body:        form.body.trim(),
           sender_name: form.sender_name.trim() || null,
           is_urgent:   form.is_urgent,
+          status:      newStatus,
         })
         if (e) throw e
       } else {
@@ -234,8 +251,8 @@ export default function NoticeEditPage() {
         if (e) throw e
       }
 
-      // 新規作成時のみ全購読者に通知を送信（失敗しても保存は成功扱い）
-      if (isNew) {
+      // admin の新規作成時のみ即時通知（審査待ちの場合は承認時に通知）
+      if (isNew && isAdmin) {
         const senderName =
           form.sender_name.trim() ||
           exhibits.find(e => e.id === form.exhibit_id)?.name ||
@@ -252,8 +269,9 @@ export default function NoticeEditPage() {
         }).catch(() => {})
       }
 
+      if (isNew) setStatus(newStatus)
+
       // 変更ログを記録（先生への通知用）
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
       if (currentUser) {
         const actionType = isNew ? 'notice_posted' : 'notice_edited'
         const label = isNew ? 'お知らせを投稿' : 'お知らせを編集'
@@ -291,6 +309,44 @@ export default function NoticeEditPage() {
           </h1>
         </div>
       </div>
+
+      {/* ── ステータスバッジ（新規以外 or 保存後） ── */}
+      {(!isNew || status !== 'pending') && (
+        <div style={{
+          marginBottom:16, padding:'10px 16px', borderRadius:10,
+          display:'flex', alignItems:'center', gap:10,
+          background:
+            status === 'approved' ? '#f0fdf4' :
+            status === 'rejected' ? '#fef2f2' : '#fffbeb',
+          border:`1px solid ${
+            status === 'approved' ? '#86efac' :
+            status === 'rejected' ? '#fca5a5' : '#fde68a'}`,
+        }}>
+          <span style={{
+            fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:99,
+            fontFamily:"'Kiwi Maru',serif",
+            background:
+              status === 'approved' ? '#dcfce7' :
+              status === 'rejected' ? '#fee2e2' : '#fef9c3',
+            color:
+              status === 'approved' ? '#16a34a' :
+              status === 'rejected' ? '#dc2626' : '#92400e',
+          }}>
+            {status === 'approved' ? '✓ 承認済み' :
+             status === 'rejected' ? '✕ 却下' : '⏳ 審査待ち'}
+          </span>
+          {status === 'rejected' && reviewComment && (
+            <span style={{ fontSize:12, color:'#dc2626', fontFamily:"'Kiwi Maru',serif" }}>
+              理由: {reviewComment}
+            </span>
+          )}
+          {status === 'pending' && (
+            <span style={{ fontSize:11, color:'#92400e', fontFamily:"'Kiwi Maru',serif" }}>
+              管理者が審査中です。承認されるまで一般公開されません。
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ── 基本情報カード ── */}
       <div style={cardStyle}>

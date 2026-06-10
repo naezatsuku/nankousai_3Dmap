@@ -3,6 +3,8 @@ import Script from 'next/script'
 import './globals.css'
 import ErudaLoader   from '@/components/ui/ErudaLoader'
 import TokenLinker   from '@/components/ui/TokenLinker'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 // ── 本番URLをここに設定（OGP・canonical に使用）──────────────────
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nankousai-3d-map.vercel.app'
@@ -115,6 +117,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TokenLinker />
         {children}
         {process.env.NODE_ENV === 'development' && <ErudaLoader />}
+        <Analytics />
+        <SpeedInsights />
         <Script id="prevent-save" strategy="afterInteractive">{`
           document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
           document.addEventListener('dragstart', function(e) { if (e.target.tagName === 'IMG') e.preventDefault(); });

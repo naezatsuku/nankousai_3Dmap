@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/client'
 export type ActionType =
   | 'notice_posted'
   | 'notice_edited'
+  | 'notice_rejected'
   | 'content_edited'
   | 'basic_edited'
   | 'wait_updated'
@@ -10,23 +11,25 @@ export type ActionType =
   | 'sales_updated'
 
 export const ACTION_LABELS: Record<ActionType, string> = {
-  notice_posted:  'お知らせを投稿',
-  notice_edited:  'お知らせを編集',
-  content_edited: '詳細コンテンツを編集',
-  basic_edited:   '基本情報を編集',
-  wait_updated:   '待ち時間・来場者数を更新',
-  status_changed: '公開状態を変更',
-  sales_updated:  '販売数を更新',
+  notice_posted:    'お知らせを投稿',
+  notice_edited:    'お知らせを編集',
+  notice_rejected:  'お知らせが却下',
+  content_edited:   '詳細コンテンツを編集',
+  basic_edited:     '基本情報を編集',
+  wait_updated:     '待ち時間・来場者数を更新',
+  status_changed:   '公開状態を変更',
+  sales_updated:    '販売数を更新',
 }
 
 export const ACTION_ICONS: Record<ActionType, string> = {
-  notice_posted:  '🔔',
-  notice_edited:  '🔔',
-  content_edited: '📖',
-  basic_edited:   '📝',
-  wait_updated:   '⏱',
-  status_changed: '🔄',
-  sales_updated:  '🍱',
+  notice_posted:    '🔔',
+  notice_edited:    '🔔',
+  notice_rejected:  '❌',
+  content_edited:   '📖',
+  basic_edited:     '📝',
+  wait_updated:     '⏱',
+  status_changed:   '🔄',
+  sales_updated:    '🍱',
 }
 
 export async function logActivity(

@@ -9,14 +9,15 @@ import { ACTION_LABELS, ACTION_ICONS } from '@/lib/activity-log'
 import type { ActionType } from '@/lib/activity-log'
 
 interface NotifySetting {
-  exhibit_id:            string
-  notify_notice_posted:  boolean
-  notify_notice_edited:  boolean
-  notify_content_edited: boolean
-  notify_basic_edited:   boolean
-  notify_wait_updated:   boolean
-  notify_status_changed: boolean
-  notify_sales_updated:  boolean
+  exhibit_id:              string
+  notify_notice_posted:    boolean
+  notify_notice_edited:    boolean
+  notify_notice_rejected:  boolean
+  notify_content_edited:   boolean
+  notify_basic_edited:     boolean
+  notify_wait_updated:     boolean
+  notify_status_changed:   boolean
+  notify_sales_updated:    boolean
 }
 
 interface LogRow {
@@ -31,13 +32,14 @@ interface LogRow {
 }
 
 const ACTION_SETTING_KEY: Record<ActionType, keyof Omit<NotifySetting, 'exhibit_id'>> = {
-  notice_posted:  'notify_notice_posted',
-  notice_edited:  'notify_notice_edited',
-  content_edited: 'notify_content_edited',
-  basic_edited:   'notify_basic_edited',
-  wait_updated:   'notify_wait_updated',
-  status_changed: 'notify_status_changed',
-  sales_updated:  'notify_sales_updated',
+  notice_posted:    'notify_notice_posted',
+  notice_edited:    'notify_notice_edited',
+  notice_rejected:  'notify_notice_rejected',
+  content_edited:   'notify_content_edited',
+  basic_edited:     'notify_basic_edited',
+  wait_updated:     'notify_wait_updated',
+  status_changed:   'notify_status_changed',
+  sales_updated:    'notify_sales_updated',
 }
 
 function fmtDatetime(iso: string) {

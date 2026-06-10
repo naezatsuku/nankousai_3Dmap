@@ -12,37 +12,40 @@ import type { ActionType } from '@/lib/activity-log'
 interface Exhibit { id: string; name: string; class_label: string | null }
 
 interface Setting {
-  exhibit_id:            string
-  notify_notice_posted:  boolean
-  notify_notice_edited:  boolean
-  notify_content_edited: boolean
-  notify_basic_edited:   boolean
-  notify_wait_updated:   boolean
-  notify_status_changed: boolean
-  notify_sales_updated:  boolean
+  exhibit_id:              string
+  notify_notice_posted:    boolean
+  notify_notice_edited:    boolean
+  notify_notice_rejected:  boolean
+  notify_content_edited:   boolean
+  notify_basic_edited:     boolean
+  notify_wait_updated:     boolean
+  notify_status_changed:   boolean
+  notify_sales_updated:    boolean
 }
 
 type SettingKey = keyof Omit<Setting, 'exhibit_id'>
 
 const SETTING_ROWS: { key: SettingKey; action: ActionType; description: string }[] = [
-  { key:'notify_notice_posted',  action:'notice_posted',  description:'新しいお知らせが投稿されたとき' },
-  { key:'notify_notice_edited',  action:'notice_edited',  description:'既存のお知らせが編集されたとき' },
-  { key:'notify_content_edited', action:'content_edited', description:'詳細ページのコンテンツが編集されたとき' },
-  { key:'notify_basic_edited',   action:'basic_edited',   description:'展示名・説明など基本情報が変更されたとき' },
-  { key:'notify_wait_updated',   action:'wait_updated',   description:'待ち時間・来場者数が更新されたとき' },
-  { key:'notify_status_changed', action:'status_changed', description:'公開 / 非公開の状態が変わったとき' },
-  { key:'notify_sales_updated',  action:'sales_updated',  description:'フード販売数が変わったとき' },
+  { key:'notify_notice_posted',    action:'notice_posted',    description:'新しいお知らせが投稿されたとき' },
+  { key:'notify_notice_edited',    action:'notice_edited',    description:'既存のお知らせが編集されたとき' },
+  { key:'notify_notice_rejected',  action:'notice_rejected',  description:'投稿したお知らせが管理者に却下されたとき' },
+  { key:'notify_content_edited',   action:'content_edited',   description:'詳細ページのコンテンツが編集されたとき' },
+  { key:'notify_basic_edited',     action:'basic_edited',     description:'展示名・説明など基本情報が変更されたとき' },
+  { key:'notify_wait_updated',     action:'wait_updated',     description:'待ち時間・来場者数が更新されたとき' },
+  { key:'notify_status_changed',   action:'status_changed',   description:'公開 / 非公開の状態が変わったとき' },
+  { key:'notify_sales_updated',    action:'sales_updated',    description:'フード販売数が変わったとき' },
 ]
 
 const DEFAULT_SETTING = (exhibitId: string): Setting => ({
-  exhibit_id:            exhibitId,
-  notify_notice_posted:  true,
-  notify_notice_edited:  false,
-  notify_content_edited: true,
-  notify_basic_edited:   false,
-  notify_wait_updated:   false,
-  notify_status_changed: true,
-  notify_sales_updated:  false,
+  exhibit_id:              exhibitId,
+  notify_notice_posted:    true,
+  notify_notice_edited:    false,
+  notify_notice_rejected:  true,
+  notify_content_edited:   true,
+  notify_basic_edited:     false,
+  notify_wait_updated:     false,
+  notify_status_changed:   true,
+  notify_sales_updated:    false,
 })
 
 export default function TeacherNotifySettingsPage() {
@@ -51,8 +54,8 @@ export default function TeacherNotifySettingsPage() {
   const [exhibits,  setExhibits]  = useState<Exhibit[]>([])
   const [settings,  setSettings]  = useState<Record<string, Setting>>({})
   const [loading,   setLoading]   = useState(true)
-  const [saving,    setSaving]    = useState<string | null>(null) // exhibit_id
-  const [saved,     setSaved]     = useState<string | null>(null)
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set()) // exhibit_id
+  const [savedKeys,  setSavedKeys]  = useState<Set<string>>(new Set())
 
   // プッシュ通知状態
   type PushState = 'checking' | 'unsupported' | 'denied' | 'off' | 'on'
@@ -140,25 +143,22 @@ export default function TeacherNotifySettingsPage() {
     })
   }, [router])
 
-  const toggle = useCallback((exhibitId: string, key: SettingKey) => {
-    setSettings(prev => ({
-      ...prev,
-      [exhibitId]: { ...prev[exhibitId], [key]: !prev[exhibitId][key] },
-    }))
+  const toggle = useCallback((exhibitId: string, key: SettingKey, currentUserId: string) => {
+    setSettings(prev => {
+      const next = { ...prev, [exhibitId]: { ...prev[exhibitId], [key]: !prev[exhibitId][key] } }
+      void (async () => {
+        setSavingKeys(s => new Set(s).add(exhibitId))
+        const supabase = createClient()
+        await supabase
+          .from('teacher_notify_settings')
+          .upsert({ ...next[exhibitId], user_id: currentUserId, exhibit_id: exhibitId })
+        setSavingKeys(s => { const ns = new Set(s); ns.delete(exhibitId); return ns })
+        setSavedKeys(s => new Set(s).add(exhibitId))
+        setTimeout(() => setSavedKeys(s => { const ns = new Set(s); ns.delete(exhibitId); return ns }), 1500)
+      })()
+      return next
+    })
   }, [])
-
-  const handleSave = async (exhibitId: string) => {
-    if (!userId) return
-    setSaving(exhibitId)
-    const supabase = createClient()
-    const s = settings[exhibitId]
-    await supabase
-      .from('teacher_notify_settings')
-      .upsert({ ...s, user_id: userId, exhibit_id: exhibitId })
-    setSaving(null)
-    setSaved(exhibitId)
-    setTimeout(() => setSaved(null), 2000)
-  }
 
   if (loading) return <PageLoader />
 
@@ -281,6 +281,12 @@ export default function TeacherNotifySettingsPage() {
                   }}>
                     {enabledCount}件 ON
                   </span>
+                  {savingKeys.has(ex.id) && (
+                    <span style={{ fontSize: 11, color: '#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>保存中…</span>
+                  )}
+                  {!savingKeys.has(ex.id) && savedKeys.has(ex.id) && (
+                    <span style={{ fontSize: 11, color: '#10b981', fontFamily:"'Kiwi Maru',serif" }}>✓ 保存済み</span>
+                  )}
                 </div>
 
                 {/* 設定行 */}
@@ -314,7 +320,7 @@ export default function TeacherNotifySettingsPage() {
                         </div>
                         {/* トグル */}
                         <button
-                          onClick={() => toggle(ex.id, row.key)}
+                          onClick={() => userId && toggle(ex.id, row.key, userId)}
                           style={{
                             width: 44, height: 24, borderRadius: 99, border: 'none',
                             cursor: 'pointer', flexShrink: 0, position: 'relative',
@@ -336,25 +342,6 @@ export default function TeacherNotifySettingsPage() {
                   })}
                 </div>
 
-                {/* 保存ボタン */}
-                <div style={{ padding: '12px 20px 16px', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={() => handleSave(ex.id)}
-                    disabled={saving === ex.id}
-                    style={{
-                      padding: '8px 24px', borderRadius: 10, border: 'none',
-                      background: saved === ex.id ? '#10b981'
-                        : saving === ex.id ? '#e2e8f0'
-                        : 'linear-gradient(135deg,#FF6B00,#FFAA28)',
-                      color: saving === ex.id ? '#94a3b8' : '#fff',
-                      fontWeight: 700, fontSize: 13,
-                      fontFamily:"'Kiwi Maru',serif", cursor: saving === ex.id ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    {saved === ex.id ? '✓ 保存しました' : saving === ex.id ? '保存中…' : '保存'}
-                  </button>
-                </div>
               </div>
             )
           })}
