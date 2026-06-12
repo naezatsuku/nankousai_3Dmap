@@ -29,6 +29,7 @@ export default function AdminFoodPage() {
   const [saved,   setSaved]   = useState<Record<string, boolean>>({})
   // localDraft: menuId → sold_count の編集中の値
   const [draft, setDraft] = useState<Record<string, number>>({})
+  const [draftWarn, setDraftWarn] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -76,7 +77,10 @@ export default function AdminFoodPage() {
     setLoading(false)
   }, [router])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const id = setTimeout(load, 0)
+    return () => clearTimeout(id)
+  }, [load])
 
   const setDraftValue = (menuId: string, val: number) => {
     setDraft(prev => ({ ...prev, [menuId]: Math.max(0, val) }))
@@ -193,30 +197,41 @@ export default function AdminFoodPage() {
                       </div>
 
                       {/* カウンター */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        <button
-                          style={btnStyle('#64748b', val <= 0)}
-                          disabled={val <= 0}
-                          onMouseDown={() => setDraftValue(menu.id, val - 1)}
-                        >−</button>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            style={btnStyle('#64748b', val <= 0)}
+                            disabled={val <= 0}
+                            onMouseDown={() => setDraftValue(menu.id, val - 1)}
+                          >−</button>
 
-                        <input
-                          type="number"
-                          min={0}
-                          value={val}
-                          onChange={e => setDraftValue(menu.id, parseInt(e.target.value) || 0)}
-                          style={{
-                            width: 56, height: 36, textAlign: 'center', borderRadius: 8,
-                            border: `1px solid ${isDirty ? '#fbbf24' : '#e2e8f0'}`,
-                            fontFamily: "'Kaisei Decol',serif", fontSize: 15, fontWeight: 700,
-                            color: '#1e293b', background: '#fff', outline: 'none',
-                          }}
-                        />
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={val}
+                            onChange={e => {
+                              const v = e.target.value
+                              if (/[^\x00-\x7F]/.test(v)) { setDraftWarn(w => ({ ...w, [menu.id]: true })); return }
+                              setDraftWarn(w => ({ ...w, [menu.id]: false }))
+                              if (!/^\d*$/.test(v)) return
+                              setDraftValue(menu.id, parseInt(v) || 0)
+                            }}
+                            style={{
+                              width: 56, height: 36, textAlign: 'center', borderRadius: 8,
+                              border: `1px solid ${isDirty ? '#fbbf24' : '#e2e8f0'}`,
+                              fontFamily: "'Kaisei Decol',serif", fontSize: 15, fontWeight: 700,
+                              color: '#1e293b', background: '#fff', outline: 'none',
+                            }}
+                          />
 
-                        <button
-                          style={btnStyle('#FF6B00', false)}
-                          onMouseDown={() => setDraftValue(menu.id, val + 1)}
-                        >＋</button>
+                          <button
+                            style={btnStyle('#FF6B00', false)}
+                            onMouseDown={() => setDraftValue(menu.id, val + 1)}
+                          >＋</button>
+                        </div>
+                        {draftWarn[menu.id] && (
+                          <div style={{ fontSize: 10, color: '#ef4444', fontFamily: "'Kiwi Maru',serif" }}>半角数字で入力してください</div>
+                        )}
                       </div>
 
                       {/* 保存ボタン */}

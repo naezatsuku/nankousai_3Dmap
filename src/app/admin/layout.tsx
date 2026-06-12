@@ -97,7 +97,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // パスが変わったらアクティブグループを自動展開
   useEffect(() => {
-    if (activeGroupId) setOpenGroups(prev => new Set([...prev, activeGroupId]))
+    if (!activeGroupId) return
+    const id = setTimeout(() => setOpenGroups(prev => new Set([...prev, activeGroupId])), 0)
+    return () => clearTimeout(id)
   }, [activeGroupId])
 
   useEffect(() => {
@@ -161,7 +163,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isTeacher && !g.teacherOk) return false
     return g.items.some(itemVisible)
   }
-  const visibleGroups = NAV_GROUPS.filter(groupVisible)
+  const visibleGroups = profile ? NAV_GROUPS.filter(groupVisible) : []
 
   return (
     <>

@@ -157,8 +157,8 @@ export default function ExhibitFeedPage() {
   useEffect(() => {
     noticeCursorRef.current  = null
     commentCursorRef.current = null
-    loadNotices(true)
-    loadComments(true)
+    const id = setTimeout(() => { loadNotices(true); loadComments(true) }, 0)
+    return () => clearTimeout(id)
   }, [loadNotices, loadComments])
 
   // ── sentinel callback refs ───────────────────────────────────

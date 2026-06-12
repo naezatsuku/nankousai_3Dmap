@@ -36,7 +36,7 @@ export default function FloorSelector({ current, onChange }: FloorSelectorProps)
     <div
       onMouseEnter={wakeUp}
       onPointerDown={wakeUp}
-      className="absolute top-[100px] left-3 z-[60] flex flex-col gap-2 p-1.5 rounded-2xl transition-all duration-700 ease-in-out"
+      className="absolute top-25 left-3 z-60 flex flex-col gap-2 p-1.5 rounded-2xl transition-all duration-700 ease-in-out"
       style={{
         background: isIdle ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.85)',
         backdropFilter: isIdle ? 'blur(4px)' : 'blur(16px)',

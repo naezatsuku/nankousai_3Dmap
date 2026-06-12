@@ -51,7 +51,10 @@ export default function AdminVotesPage() {
     setLoading(false)
   }, [router])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const id = setTimeout(load, 0)
+    return () => clearTimeout(id)
+  }, [load])
 
   const saveSettings = async () => {
     setSaving(true)

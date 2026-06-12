@@ -30,15 +30,18 @@ const TYPE_ORDER = ['class', 'food', 'band', 'special', 'cafeteria']
 export default function NotificationsPage() {
   const [exhibits, setExhibits]     = useState<ExhibitItem[]>([])
   const [loading, setLoading]       = useState(true)
-  // SSR との一致のため初期値は固定値にし、クライアントで useEffect 更新
+  // SSR との一致のため初期値は固定値にし、マウント後にタイマーコールバック経由で更新（同期的 setState を避ける）
   const [perm,     setPerm]     = useState<string>('default')
   const [subs,     setSubs]     = useState<Set<string>>(new Set())
   const [globalOn, setGlobalOn] = useState<boolean>(true)
 
   useEffect(() => {
-    setPerm(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
-    setSubs(getLocalSubs())
-    setGlobalOn(isGlobalOn())
+    const id = setTimeout(() => {
+      setPerm(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
+      setSubs(getLocalSubs())
+      setGlobalOn(isGlobalOn())
+    }, 0)
+    return () => clearTimeout(id)
   }, [])
   const [toggling, setToggling]     = useState<string | null>(null)
   const [globalBusy, setGlobalBusy] = useState(false)

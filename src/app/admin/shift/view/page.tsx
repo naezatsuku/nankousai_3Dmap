@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PageLoader from '@/components/ui/PageLoader'
+import NotificationBanner from '@/components/ui/NotificationBanner'
 
 interface Slot    { id: string; date: string; start_at: string; end_at: string; required_count: number }
 interface Member  { user_id: string; profiles: { id: string; name: string } | null }
@@ -188,6 +189,7 @@ export default function ShiftViewPage() {
 
   return (
     <>
+    <NotificationBanner />
     <div className="shift-screen-view" style={{ maxWidth:700 }}>
       {/* ヘッダー */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:12 }}>

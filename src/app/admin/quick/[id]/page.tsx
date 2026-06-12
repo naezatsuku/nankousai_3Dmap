@@ -60,6 +60,7 @@ export default function QuickPage() {
   const [hasWait,       setHasWait]       = useState(true)
   const [tpg,           setTpg]           = useState(5)
   const [queueCount,    setQueueCount]    = useState(0)
+  const [queueWarn,     setQueueWarn]     = useState(false)
   const [visitorCount,  setVisitorCount]  = useState(0)
   const visitorCountRef = useRef(visitorCount)
   useEffect(() => { visitorCountRef.current = visitorCount }, [visitorCount])
@@ -160,7 +161,10 @@ export default function QuickPage() {
     setLikesLoading(false)
   }, [id])
 
-  useEffect(() => { fetchNoticeLikes() }, [fetchNoticeLikes])
+  useEffect(() => {
+    const id = setTimeout(() => fetchNoticeLikes(), 0)
+    return () => clearTimeout(id)
+  }, [fetchNoticeLikes])
 
   // ── PC簡単表示：右上グラフのデータ取得（リアルタイム） ────────
   const fetchChartData = useCallback(async (opts?: { silent?: boolean }) => {
@@ -305,12 +309,16 @@ export default function QuickPage() {
     setChartLoading(false)
   }, [chartType, chartScope, id, name])
 
-  useEffect(() => { fetchChartData() }, [fetchChartData])
+  useEffect(() => {
+    const id = setTimeout(() => fetchChartData(), 0)
+    return () => clearTimeout(id)
+  }, [fetchChartData])
 
   // 来場者数の増減はグラフを再取得せず、自分のバーの値だけをその場で滑らかに更新する
   useEffect(() => {
     if (chartType !== 'visitors' || chartScope !== 'own') return
-    setChartBars(prev => prev.map(b => b.id === id ? { ...b, value: visitorCount } : b))
+    const tid = setTimeout(() => setChartBars(prev => prev.map(b => b.id === id ? { ...b, value: visitorCount } : b)), 0)
+    return () => clearTimeout(tid)
   }, [visitorCount, chartType, chartScope, id])
 
   // 常に最新の fetchChartData を参照するための ref（チャンネルの張り直しを最小限にする）
@@ -515,13 +523,26 @@ export default function QuickPage() {
                   <div style={{ textAlign:'center', marginTop:6, fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>組</div>
                 </div>
 
-                <input
-                  type="number" min={0} value={queueCount}
-                  onChange={e => setQueueCount(Number(e.target.value))}
-                  style={{ width:'100%', padding:'11px', borderRadius:10, border:'1px solid #e2e8f0',
-                    fontSize:15, fontFamily:"'Kaisei Decol',serif", boxSizing:'border-box',
-                    textAlign:'center', color:'#1e293b', outline:'none', marginBottom:12 }}
-                />
+                <div style={{ marginBottom:12 }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={queueCount}
+                    onChange={e => {
+                      const v = e.target.value
+                      if (/[^\x00-\x7F]/.test(v)) { setQueueWarn(true); return }
+                      setQueueWarn(false)
+                      if (!/^\d*$/.test(v)) return
+                      setQueueCount(Number(v))
+                    }}
+                    style={{ width:'100%', padding:'11px', borderRadius:10, border:'1px solid #e2e8f0',
+                      fontSize:15, fontFamily:"'Kaisei Decol',serif", boxSizing:'border-box',
+                      textAlign:'center', color:'#1e293b', outline:'none' }}
+                  />
+                  {queueWarn && (
+                    <div style={{ fontSize:11, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:4, textAlign:'center' }}>半角数字で入力してください</div>
+                  )}
+                </div>
               </>)}
 
               <div style={{ background:'#fff7ed', borderRadius:12, padding:'16px 20px', marginBottom:12, border:'1px solid #fde68a' }}>

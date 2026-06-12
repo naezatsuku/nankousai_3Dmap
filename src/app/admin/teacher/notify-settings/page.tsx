@@ -64,12 +64,15 @@ export default function TeacherNotifySettingsPage() {
 
   // プッシュ通知の現在の状態を確認
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setPushState('unsupported'); return
-    }
-    if (Notification.permission === 'denied') { setPushState('denied'); return }
-    // 既存の push.ts が localStorage['fcm_token'] を管理している
-    setPushState(getStoredToken() ? 'on' : 'off')
+    const id = setTimeout(() => {
+      if (typeof window === 'undefined' || !('Notification' in window)) {
+        setPushState('unsupported'); return
+      }
+      if (Notification.permission === 'denied') { setPushState('denied'); return }
+      // 既存の push.ts が localStorage['fcm_token'] を管理している
+      setPushState(getStoredToken() ? 'on' : 'off')
+    }, 0)
+    return () => clearTimeout(id)
   }, [])
 
   const enablePush = async () => {

@@ -42,18 +42,45 @@ export async function POST(req: Request) {
   if (!userKey) return NextResponse.json({ error: 'user_key が必要です' }, { status: 400 })
 
   const body = await req.json() as {
-    title:         string
-    date:          'sat' | 'sun'
-    start_time:    string
-    end_time?:     string
-    location?:     string
-    exhibit_id?:   string
+    title:           string
+    date:            'sat' | 'sun'
+    start_time:      string
+    end_time?:       string
+    location?:       string
+    exhibit_id?:     string
     notify_minutes?: number
-    color?:        string
-    type?:         'visit' | 'custom'
+    color?:          string
+    type?:           'visit' | 'custom'
+    fcm_token?:      string
   }
 
-  const { data, error } = await serviceDb()
+  const db = serviceDb()
+
+  // custom 追加時、同じ (user_key, exhibit_id, date, start_time) の visit 行があれば
+  // 新規行を作らず notify_minutes だけ更新する（UI重複防止）
+  if (body.type === 'custom' && body.exhibit_id && body.notify_minutes != null) {
+    const { data: existing } = await db
+      .from('schedule_items')
+      .select('id')
+      .eq('user_key', userKey)
+      .eq('exhibit_id', body.exhibit_id)
+      .eq('date', body.date)
+      .eq('start_time', body.start_time)
+      .eq('type', 'visit')
+      .maybeSingle()
+
+    if (existing) {
+      const { data, error } = await db
+        .from('schedule_items')
+        .update({ notify_minutes: body.notify_minutes })
+        .eq('id', existing.id)
+        .select().single()
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ item: data })
+    }
+  }
+
+  const { data, error } = await db
     .from('schedule_items')
     .insert({ ...body, user_key: userKey, type: body.type ?? 'visit' })
     .select().single()
@@ -101,7 +128,7 @@ export async function PUT(req: Request) {
   const userKey = await resolveUserKey(req)
   if (!userKey) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
 
-  const { exhibitIds } = await req.json() as { exhibitIds: string[] }
+  const { exhibitIds, fcmToken } = await req.json() as { exhibitIds: string[]; fcmToken?: string | null }
   const db = serviceDb()
 
   // 購読解除された展示の visit アイテムを削除
@@ -136,21 +163,28 @@ export async function PUT(req: Request) {
     .in('exhibit_id', exhibitIds)
 
   // bands + band_schedules を取得
+  interface BandRow { id: string; name: string; exhibit_id: string }
+  interface SpecialRow {
+    exhibit_id: string; day: string; start_at: string; end_at: string | null
+    location: string | null; exhibit: { name: string } | null
+  }
+  interface BandScheduleRow { band_id: string; day: string; start_at: string; end_at: string | null; stage: string | null }
+
   const { data: bands } = await db
     .from('bands')
     .select('id, name, exhibit_id')
     .in('exhibit_id', exhibitIds)
 
-  const bandIds = (bands ?? []).map((b: any) => b.id)
+  const bandIds = (bands ?? []).map((b: BandRow) => b.id)
   const { data: bandSchedules } = bandIds.length > 0
     ? await db.from('band_schedules').select('band_id, day, start_at, end_at, stage').in('band_id', bandIds)
     : { data: [] }
 
-  const bandMap = new Map((bands ?? []).map((b: any) => [b.id, b]))
+  const bandMap = new Map((bands ?? []).map((b: BandRow) => [b.id, b]))
 
   const toInsert: object[] = []
 
-  for (const s of (specials ?? []) as any[]) {
+  for (const s of (specials ?? []) as unknown as SpecialRow[]) {
     toInsert.push({
       user_key:       userKey,
       title:          s.exhibit?.name ?? '催し物',
@@ -162,11 +196,12 @@ export async function PUT(req: Request) {
       type:           'visit',
       color:          '#FF6B00',
       notify_minutes: null,
+      fcm_token:      fcmToken ?? null,
     })
   }
 
-  for (const bs of (bandSchedules ?? []) as any[]) {
-    const band = bandMap.get(bs.band_id) as any
+  for (const bs of (bandSchedules ?? []) as unknown as BandScheduleRow[]) {
+    const band = bandMap.get(bs.band_id)
     if (!band) continue
     toInsert.push({
       user_key:       userKey,
@@ -179,6 +214,7 @@ export async function PUT(req: Request) {
       type:           'visit',
       color:          '#FF6B00',
       notify_minutes: null,
+      fcm_token:      fcmToken ?? null,
     })
   }
 

@@ -149,10 +149,11 @@ export async function syncSubscriptionSchedule(): Promise<void> {
 
   _syncPromise = (async () => {
     const exhibitIds = [...getLocalSubs()]
+    const fcmToken = getStoredToken()
     await fetch('/api/schedule', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
-      body: JSON.stringify({ exhibitIds }),
+      body: JSON.stringify({ exhibitIds, fcmToken }),
     }).catch(() => {})
   })().finally(() => { _syncPromise = null })
 

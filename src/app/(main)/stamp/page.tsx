@@ -22,22 +22,25 @@ export default function StampPage() {
 
   // ブラウザ環境にしか存在しない値は useEffect で初期化してハイドレーションミスマッチを防ぐ
   useEffect(() => {
-    // userId
-    let id = localStorage.getItem('stamp_user_id')
-    if (!id) {
-      id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
-      localStorage.setItem('stamp_user_id', id)
-    }
-    setUserId(id)
+    const tid = setTimeout(() => {
+      // userId
+      let id = localStorage.getItem('stamp_user_id')
+      if (!id) {
+        id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
+        localStorage.setItem('stamp_user_id', id)
+      }
+      setUserId(id)
 
-    // インストールゲート
-    const ua           = navigator.userAgent
-    const isMobile     = /iPhone|iPad|iPod|Android/.test(ua)
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as { standalone?: boolean }).standalone === true
-    setGate((!isMobile || isStandalone) ? 'ok' : 'blocked')
-    setGateIOS(/iPhone|iPad|iPod/.test(ua))
+      // インストールゲート
+      const ua           = navigator.userAgent
+      const isMobile     = /iPhone|iPad|iPod|Android/.test(ua)
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (navigator as { standalone?: boolean }).standalone === true
+      setGate((!isMobile || isStandalone) ? 'ok' : 'blocked')
+      setGateIOS(/iPhone|iPad|iPod/.test(ua))
+    }, 0)
+    return () => clearTimeout(tid)
   }, [])
 
   const [exhibits,      setExhibits]      = useState<StampExhibit[]>([])

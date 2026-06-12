@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PageLoader from '@/components/ui/PageLoader'
+import NotificationBanner from '@/components/ui/NotificationBanner'
 
 interface StudentProfile {
   id:          string
@@ -107,10 +108,13 @@ export default function ShiftMembersPage() {
 
   useEffect(() => {
     if (!exhibitId) return
-    loadAssigned(exhibitId)
-    // 選択中の展示のクラスラベルのみを ★ 対象に更新
-    const ex = exhibits.find(e => e.id === exhibitId)
-    setMyExhibitClasses(ex?.class_label ? new Set([ex.class_label]) : new Set())
+    const tid = setTimeout(() => {
+      loadAssigned(exhibitId)
+      // 選択中の展示のクラスラベルのみを ★ 対象に更新
+      const ex = exhibits.find(e => e.id === exhibitId)
+      setMyExhibitClasses(ex?.class_label ? new Set([ex.class_label]) : new Set())
+    }, 0)
+    return () => clearTimeout(tid)
   }, [exhibitId, exhibits, loadAssigned])
 
 
@@ -165,6 +169,7 @@ export default function ShiftMembersPage() {
 
   return (
     <div style={{ maxWidth:700 }}>
+      <NotificationBanner />
       <div style={{ marginBottom:24 }}>
         <h1 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
           👤 メンバー管理

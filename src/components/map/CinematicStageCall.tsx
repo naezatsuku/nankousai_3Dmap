@@ -52,14 +52,20 @@ export default function CinematicStageCall() {
   const [sidebarItems, setSidebarItems] = useState<AnnouncementItem[]>([])
   const [mouseX, setMouseX]       = useState(0)
   const [mouseY, setMouseY]       = useState(0)
-  const [triggerMin, setTriggerMin] = useState(5)
+
   const shownRef = useRef<Set<string>>(new Set())
 
-  // PC判定
+  // PC判定 + ?cinematic=preview でデモ即発火
   useEffect(() => {
-    const check = () => setIsPC(window.innerWidth >= 1024)
+    const params = new URLSearchParams(window.location.search)
+    const isPreview = params.get('cinematic') === 'preview'
+    const check = () => setIsPC(isPreview || window.innerWidth >= 1024)
     check()
     window.addEventListener('resize', check)
+    if (isPreview) {
+      const t = setTimeout(() => setActiveItem(DEMO_ITEM), 800)
+      return () => { window.removeEventListener('resize', check); clearTimeout(t) }
+    }
     return () => window.removeEventListener('resize', check)
   }, [])
 
@@ -71,23 +77,13 @@ export default function CinematicStageCall() {
     return () => window.removeEventListener('mousemove', handler)
   }, [phase])
 
-  // ?cinematic=preview でデモ即発火
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('cinematic') === 'preview') {
-      setIsPC(true)
-      const t = setTimeout(() => setActiveItem(DEMO_ITEM), 800)
-      return () => clearTimeout(t)
-    }
-  }, [])
-
   // キューから次の演出を取り出す（演出が終わったら自動で次へ）
   useEffect(() => {
     if (phase !== 'idle') return
     if (activeItem !== null) return
     if (queue.length === 0) return
     const [next, ...rest] = queue
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setQueue(rest)
     setActiveItem(next)
   }, [phase, activeItem, queue])
@@ -103,7 +99,6 @@ export default function CinematicStageCall() {
         announcement_trigger_minutes?: number
       }
       const tm = settings.announcement_trigger_minutes ?? 5
-      setTriggerMin(tm)
 
       const now    = new Date()
       const jst    = new Date(now.getTime() + 9 * 60 * 60 * 1000)
@@ -191,6 +186,7 @@ export default function CinematicStageCall() {
   useEffect(() => {
     if (!activeItem) return
     const thisItem = activeItem
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPhase('flash')
     const timers = [
       setTimeout(() => setPhase('bars'),       300),
@@ -422,7 +418,7 @@ export default function CinematicStageCall() {
 function SidebarCard({ item, onExpire }: { item: AnnouncementItem; onExpire: () => void }) {
   const [secs, setSecs] = useState(item.remainingSeconds)
   const onExpireRef = useRef(onExpire)
-  onExpireRef.current = onExpire
+  useEffect(() => { onExpireRef.current = onExpire })
 
   useEffect(() => {
     if (secs <= 0) { onExpireRef.current(); return }

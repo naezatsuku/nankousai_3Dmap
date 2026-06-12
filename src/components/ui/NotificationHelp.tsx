@@ -1,23 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+
+function detectPlatform(): 'ios' | 'android' | 'other' {
+  if (typeof window === 'undefined') return 'other'
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua)) return 'ios'
+  if (/Android/.test(ua)) return 'android'
+  return 'other'
+}
+
+function detectStandalone(): boolean {
+  if (typeof window === 'undefined') return false
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as { standalone?: boolean }).standalone === true
+  )
+}
 
 export default function NotificationHelp() {
-  const [open, setOpen] = useState(false)
-  const [platform, setPlatform] = useState<'ios' | 'android' | 'other'>('other')
-  const [isStandalone, setIsStandalone] = useState(false)
-
-  useEffect(() => {
-    const ua = navigator.userAgent
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as { standalone?: boolean }).standalone === true
-    setIsStandalone(standalone)
-
-    if (/iPad|iPhone|iPod/.test(ua)) setPlatform('ios')
-    else if (/Android/.test(ua))      setPlatform('android')
-    else                               setPlatform('other')
-  }, [])
+  const [open,         setOpen]      = useState(false)
+  const [platform]                   = useState(detectPlatform)
+  const [isStandalone]               = useState(detectStandalone)
 
   // iOS でスタンドアロンでない場合は「まずインストールを」という案内を追加表示
   const needsInstall = platform === 'ios' && !isStandalone

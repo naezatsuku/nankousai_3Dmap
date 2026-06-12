@@ -9,40 +9,36 @@ interface BeforeInstallPromptEvent extends Event {
 
 const STORAGE_KEY = 'install_banner_dismissed_v1'
 
+function detectPlatform(): 'android' | 'ios' | null {
+  if (typeof window === 'undefined') return null
+  if (window.matchMedia('(display-mode: standalone)').matches) return null
+  if ((navigator as { standalone?: boolean }).standalone) return null
+  if (localStorage.getItem(STORAGE_KEY)) return null
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua)) {
+    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)
+    return isSafari ? 'ios' : null
+  }
+  if (/Android/.test(ua)) return 'android'
+  return null
+}
+
 export default function InstallBanner() {
-  const [visible,       setVisible]       = useState(false)
-  const [platform,      setPlatform]      = useState<'android' | 'ios' | null>(null)
+  const [platform]                         = useState(detectPlatform)
+  const [visible,        setVisible]       = useState(platform === 'ios')
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [showGuide,     setShowGuide]     = useState(false)
+  const [showGuide,      setShowGuide]     = useState(false)
 
   useEffect(() => {
-    // すでにインストール済み
-    if (window.matchMedia('(display-mode: standalone)').matches) return
-    if ((navigator as { standalone?: boolean }).standalone) return
-    // すでに閉じた
-    if (localStorage.getItem(STORAGE_KEY)) return
-
-    const ua      = navigator.userAgent
-    const isIOS   = /iPad|iPhone|iPod/.test(ua)
-    const isAndroid = /Android/.test(ua)
-
-    if (isIOS) {
-      // iOS は Safari のみ対応（Chrome for iOS などは除外）
-      const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)
-      if (!isSafari) return
-      setPlatform('ios')
+    if (platform !== 'android') return
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e as BeforeInstallPromptEvent)
       setVisible(true)
-    } else if (isAndroid) {
-      setPlatform('android')
-      const handler = (e: Event) => {
-        e.preventDefault()
-        setDeferredPrompt(e as BeforeInstallPromptEvent)
-        setVisible(true)
-      }
-      window.addEventListener('beforeinstallprompt', handler)
-      return () => window.removeEventListener('beforeinstallprompt', handler)
     }
-  }, [])
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [platform])
 
   const dismiss = () => {
     setVisible(false)

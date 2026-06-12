@@ -1,6 +1,14 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js')
 
+// /api/* は常にネットワークから取得し、キャッシュしない
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url)
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }))
+  }
+})
+
 firebase.initializeApp({
   apiKey:            'AIzaSyBjZY62GEzU4L38-UV7AviFx5oBo1RRUNc',
   authDomain:        'nankousai-8dc09.firebaseapp.com',

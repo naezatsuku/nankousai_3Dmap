@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PageLoader from '@/components/ui/PageLoader'
+import NotificationBanner from '@/components/ui/NotificationBanner'
 
 type PrefType = 'want' | 'neutral' | 'avoid'
 interface Slot    { id: string; date: string; start_at: string; end_at: string }
@@ -93,7 +94,9 @@ export default function ShiftSurveyPage() {
   }, [])
 
   useEffect(() => {
-    if (exhibitId) loadSlots(exhibitId)
+    if (!exhibitId) return
+    const id = setTimeout(() => loadSlots(exhibitId), 0)
+    return () => clearTimeout(id)
   }, [exhibitId, loadSlots])
 
   const handleSaveClass = async () => {
@@ -159,6 +162,7 @@ export default function ShiftSurveyPage() {
 
   return (
     <div style={{ maxWidth:700 }}>
+      <NotificationBanner />
       <div style={{ marginBottom:24, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
         <div>
           <h1 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', marginBottom:4 }}>

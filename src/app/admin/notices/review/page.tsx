@@ -76,7 +76,10 @@ export default function NoticeReviewPage() {
     setLoading(false)
   }, [filter])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const id = setTimeout(load, 0)
+    return () => clearTimeout(id)
+  }, [load])
 
   // 承認
   const approve = async (notice: PendingNotice) => {

@@ -96,6 +96,7 @@ export default function ExhibitEditPage() {
   const [commentsLoaded, setCommentsLoaded] = useState(false)
   const [noticeItems,     setNoticeItems]     = useState<{ id:string; title:string; status:string; created_at:string; review_comment:string|null }[]>([])
   const [noticesLoaded,   setNoticesLoaded]   = useState(false)
+  const [queueWarn,       setQueueWarn]       = useState(false)
 
   // ── データ読み込み ────────────────────────────────────────────
   useEffect(() => {
@@ -840,11 +841,20 @@ export default function ExhibitEditPage() {
                       <div style={{ marginBottom:14 }}>
                         <label style={{ fontSize:11, color:'#94a3b8', display:'block', marginBottom:4, fontFamily:"'Kiwi Maru',serif" }}>または直接入力</label>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <input type="number" min={0} value={form.queue_count}
-                            onChange={e=>set('queue_count',Number(e.target.value))}
+                          <input type="text" inputMode="numeric" value={form.queue_count}
+                            onChange={e => {
+                              const v = e.target.value
+                              if (/[^\x00-\x7F]/.test(v)) { setQueueWarn(true); return }
+                              setQueueWarn(false)
+                              if (!/^\d*$/.test(v)) return
+                              set('queue_count', Number(v))
+                            }}
                             className="field-input" style={{ ...inputStyle, flex:1 }} placeholder="待ち組数を入力" />
                           <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>組</span>
                         </div>
+                        {queueWarn && (
+                          <div style={{ fontSize:11, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:4 }}>半角数字で入力してください</div>
+                        )}
                       </div>
 
                       <button onClick={handleSave} disabled={saving} style={{
@@ -1514,6 +1524,8 @@ function MenuEditor({ exhibitId, menus, onChange, onRemove }: {
   onChange: (v: MenuItem[]) => void
   onRemove: (id: string) => void
 }) {
+  const [menuWarn, setMenuWarn] = useState<Record<string, 'price'|'stock'|null>>({})
+
   const addMenu = () => onChange([...menus, {
     id: `new_${Date.now()}`, name: '', price: 0, description: '', image_url: '', stock: 0, is_selling: true, sold_count: 0,
   }])
@@ -1539,9 +1551,18 @@ function MenuEditor({ exhibitId, menus, onChange, onRemove }: {
               <Input value={menu.name} onChange={v => update(menu.id, { name:v })} placeholder="例: 焼きそば" />
             </FormField>
             <FormField label="価格（円）">
-              <input type="number" min={0} value={menu.price}
-                onChange={e => update(menu.id, { price: Number(e.target.value) })}
+              <input type="text" inputMode="numeric" value={menu.price}
+                onChange={e => {
+                  const v = e.target.value
+                  if (/[^\x00-\x7F]/.test(v)) { setMenuWarn(w => ({ ...w, [menu.id]: 'price' })); return }
+                  if (menuWarn[menu.id] === 'price') setMenuWarn(w => ({ ...w, [menu.id]: null }))
+                  if (!/^\d*$/.test(v)) return
+                  update(menu.id, { price: Number(v) })
+                }}
                 className="field-input" style={inputStyle} />
+              {menuWarn[menu.id] === 'price' && (
+                <div style={{ fontSize:11, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:4 }}>半角数字で入力してください</div>
+              )}
             </FormField>
           </div>
 
@@ -1551,9 +1572,18 @@ function MenuEditor({ exhibitId, menus, onChange, onRemove }: {
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
             <FormField label="在庫数">
-              <input type="number" min={0} value={menu.stock}
-                onChange={e => update(menu.id, { stock: Number(e.target.value) })}
+              <input type="text" inputMode="numeric" value={menu.stock}
+                onChange={e => {
+                  const v = e.target.value
+                  if (/[^\x00-\x7F]/.test(v)) { setMenuWarn(w => ({ ...w, [menu.id]: 'stock' })); return }
+                  if (menuWarn[menu.id] === 'stock') setMenuWarn(w => ({ ...w, [menu.id]: null }))
+                  if (!/^\d*$/.test(v)) return
+                  update(menu.id, { stock: Number(v) })
+                }}
                 className="field-input" style={inputStyle} />
+              {menuWarn[menu.id] === 'stock' && (
+                <div style={{ fontSize:11, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:4 }}>半角数字で入力してください</div>
+              )}
             </FormField>
             <FormField label="販売状態">
               <label style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', border:'1px solid #e2e8f0', borderRadius:8, cursor:'pointer' }}>

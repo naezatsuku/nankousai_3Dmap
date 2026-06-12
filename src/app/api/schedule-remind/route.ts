@@ -70,6 +70,16 @@ export async function POST(req: Request) {
         const { data: subs } = await supabase
           .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', s.exhibit_id)
 
+        // PatternB（カスタム通知時刻）を設定済みのトークンは PatternA をスキップ
+        const { data: customSubs } = await supabase
+          .from('schedule_items')
+          .select('fcm_token')
+          .eq('exhibit_id', s.exhibit_id)
+          .eq('date', day)
+          .not('notify_minutes', 'is', null)
+          .not('fcm_token', 'is', null)
+        const customTokens = new Set((customSubs ?? []).map((r: { fcm_token: string }) => r.fcm_token))
+
         const name  = s.exhibit?.name ?? '催し'
         const icon  = s.exhibit?.thumbnail_url ?? undefined
         const start = s.start_at.slice(0, 5)
@@ -79,6 +89,7 @@ export async function POST(req: Request) {
 
         let sent = 0
         for (const sub of (subs ?? []) as Sub[]) {
+          if (customTokens.has(sub.fcm_token)) continue
           if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, msg, icon) === 200) sent++
         }
         results.push({ phase, name, start, sent })
@@ -93,7 +104,6 @@ export async function POST(req: Request) {
         .eq('day', day)
         .gte('start_at', from)
         .lte('start_at', to)
-      // band.id + start_at でメモリ内重複除去（DBに同一行が複数あっても1通のみ）
       const seen = new Set<string>()
       for (const b of (bands ?? []) as unknown as RawBandSchedule[]) {
         const { band } = b
@@ -104,6 +114,15 @@ export async function POST(req: Request) {
         const { data: subs } = await supabase
           .from('exhibit_push_subs').select('fcm_token').eq('exhibit_id', band.exhibit_id)
 
+        // PatternB 設定済みトークンは PatternA をスキップ
+        const { data: customSubs } = await supabase
+          .from('schedule_items')
+          .select('fcm_token')
+          .eq('exhibit_id', band.exhibit_id)
+          .not('notify_minutes', 'is', null)
+          .not('fcm_token', 'is', null)
+        const customTokens = new Set((customSubs ?? []).map((r: { fcm_token: string }) => r.fcm_token))
+
         const icon  = band.thumbnail_url ?? undefined
         const start = b.start_at.slice(0, 5)
         const stage = b.stage ? `（${b.stage}）` : ''
@@ -112,10 +131,45 @@ export async function POST(req: Request) {
 
         let sent = 0
         for (const sub of (subs ?? []) as Sub[]) {
+          if (customTokens.has(sub.fcm_token)) continue
           if (await sendFCM(accessToken, sa.project_id, sub.fcm_token, title, msg, icon) === 200) sent++
         }
         results.push({ phase, name: band.name, start, sent })
       }
+    }
+
+    // ── PatternB: schedule_items のカスタム通知 ────────────────
+    // notify_minutes が設定されているアイテムを現在時刻ウィンドウ(±2分)でチェック
+    interface ScheduleItem {
+      id: string; exhibit_id: string; title: string
+      date: string; start_time: string; notify_minutes: number; fcm_token: string
+    }
+    const { data: customItems } = await supabase
+      .from('schedule_items')
+      .select('id, exhibit_id, title, date, start_time, notify_minutes, fcm_token')
+      .eq('date', day)
+      .not('notify_minutes', 'is', null)
+      .not('fcm_token', 'is', null)
+
+    const nowMin = now.getHours() * 60 + now.getMinutes()
+
+    for (const item of (customItems ?? []) as ScheduleItem[]) {
+      const [h, m] = item.start_time.split(':').map(Number)
+      const notifyAt = h * 60 + m - item.notify_minutes
+      if (Math.abs(nowMin - notifyAt) > 2) continue
+
+      // 重複送信防止
+      const dedupKey = `si:${item.id}:${item.notify_minutes}`
+      const { error: dupErr } = await supabase
+        .from('sent_notifications')
+        .insert({ key: dedupKey })
+      if (dupErr) continue
+
+      const title = `⏰ ${item.notify_minutes}分後に開始 — ${item.title}`
+      const msg   = `${item.start_time}〜 もうすぐです！`
+
+      await sendFCM(accessToken, sa.project_id, item.fcm_token, title, msg)
+      results.push({ phase: `custom(${item.notify_minutes}min)`, name: item.title, start: item.start_time, sent: 1 })
     }
 
     // ── shift_assignments 通知 ─────────────────────────────────
@@ -152,9 +206,9 @@ export async function POST(req: Request) {
       shiftDiag.push({ step: 'shift_slots in window', detail: `${(rawSlots ?? []).length} 件` })
       if (!rawSlots?.length) continue
 
-      const eids = [...new Set((rawSlots as any[]).map(s => s.exhibit_id))]
+      const eids = [...new Set((rawSlots as { exhibit_id: string }[]).map(s => s.exhibit_id))]
       const { data: exhibitRows } = await supabase.from('exhibits').select('id, name').in('id', eids)
-      const nameMap = new Map((exhibitRows ?? []).map((e: any) => [e.id, e.name as string]))
+      const nameMap = new Map((exhibitRows ?? []).map((e: { id: string; name: string }) => [e.id, e.name]))
 
       const { data: subs, error: subsErr } = await supabase
         .from('push_subscriptions').select('fcm_token').eq('user_id', pref.user_id)

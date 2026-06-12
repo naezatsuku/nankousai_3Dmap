@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { hasSubsOfType } from '@/lib/push'
 
@@ -54,14 +54,10 @@ const BUTTONS: { href: string; label: string; subType?: string; icon: React.Reac
 
 export default function SideButtons() {
   const router = useRouter()
-  const [subsMap, setSubsMap] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    setSubsMap({
-      band:    hasSubsOfType('band'),
-      special: hasSubsOfType('special'),
-    })
-  }, [])
+  const [subsMap] = useState<Record<string, boolean>>(() => ({
+    band:    hasSubsOfType('band'),
+    special: hasSubsOfType('special'),
+  }))
 
   return (
     <div className="absolute right-3 top-1/2 -translate-y-1/2 sm:top-[100px] sm:translate-y-0 flex flex-col gap-2.5 z-20">

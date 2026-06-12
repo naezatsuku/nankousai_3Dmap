@@ -35,6 +35,7 @@ function ProfileContent() {
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
   const [error, setError]     = useState('')
+  const [studentNumWarn, setStudentNumWarn] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -225,10 +226,19 @@ function ProfileContent() {
                 </select>
               </Field>
               <Field label="出席番号">
-                <input type="number" min={1} max={50}
+                <input type="text" inputMode="numeric"
                   value={form.student_num}
-                  onChange={e => setForm(f => ({ ...f, student_num: Number(e.target.value) }))}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (/[^\x00-\x7F]/.test(v)) { setStudentNumWarn(true); return }
+                    setStudentNumWarn(false)
+                    if (!/^\d*$/.test(v)) return
+                    setForm(f => ({ ...f, student_num: Number(v) }))
+                  }}
                   style={inputStyle} />
+                {studentNumWarn && (
+                  <div style={{ fontSize:11, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:4 }}>半角数字で入力してください</div>
+                )}
               </Field>
             </div>
           )}

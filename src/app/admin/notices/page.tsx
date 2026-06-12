@@ -1,6 +1,5 @@
 'use client'
 
-import PageLoader from '@/components/ui/PageLoader'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'

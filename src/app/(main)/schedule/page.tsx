@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import PageLoader from '@/components/ui/PageLoader'
 import { getLocalSubs, syncSubscriptionSchedule } from '@/lib/push'
+import NotificationBanner from '@/components/ui/NotificationBanner'
 
 // ── 定数 ────────────────────────────────────────────────────────
 const START_MIN = 8 * 60 + 30   // 8:30
@@ -132,6 +133,18 @@ function scheduleNotifications(
   }
 }
 
+// ── 通知許可を確認・リクエストする ─────────────────────────────
+async function ensureNotificationPermission(): Promise<boolean> {
+  if (typeof Notification === 'undefined') return false
+  if (Notification.permission === 'granted') return true
+  if (Notification.permission === 'denied') {
+    alert('通知がブロックされています。ブラウザの設定から許可してください。')
+    return false
+  }
+  const perm = await Notification.requestPermission()
+  return perm === 'granted'
+}
+
 // ── メインページ ─────────────────────────────────────────────
 export default function SchedulePage() {
   const [date,          setDate]         = useState<'sat'|'sun'>('sat')
@@ -185,7 +198,7 @@ export default function SchedulePage() {
       if (!k) { k = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2); localStorage.setItem('stamp_user_id', k) }
       return k
     })()
-    setUserKey(key)
+    const keyTid = setTimeout(() => setUserKey(key), 0)
 
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -205,6 +218,7 @@ export default function SchedulePage() {
         })
       }
     })
+    return () => clearTimeout(keyTid)
   }, [])
 
   const fetchItems = useCallback(async () => {
@@ -276,11 +290,14 @@ export default function SchedulePage() {
   }, [userKey, isLoggedIn, myUserId, role, date])
 
   useEffect(() => {
-    if (userKey) fetchItems()
+    if (!userKey) return
+    const id = setTimeout(() => fetchItems(), 0)
+    return () => clearTimeout(id)
   }, [userKey, fetchItems])
 
   const handleAdd = async () => {
     if (!newTitle.trim() || !userKey) return
+    if (newNotify !== null) await ensureNotificationPermission()
     setAdding(true)
     await fetch('/api/schedule', {
       method: 'POST',
@@ -311,6 +328,7 @@ export default function SchedulePage() {
 
   const handleEditSave = async () => {
     if (!editItem || !userKey) return
+    if (editNotify !== null) await ensureNotificationPermission()
     setEditSaving(true)
     await fetch('/api/schedule', {
       method: 'PATCH',
@@ -336,6 +354,7 @@ export default function SchedulePage() {
 
   const handleShiftNotify = async () => {
     if (!shiftNotifyItem) return
+    if (shiftNotifyMin !== null) await ensureNotificationPermission()
     setShiftNotifySaving(true)
     const newNotifyMin = shiftNotifyMin
 
@@ -392,6 +411,8 @@ export default function SchedulePage() {
 
       <div style={{ height:'100%', display:'flex', flexDirection:'column', background:'#f5f3ef', overflow:'hidden' }}>
       <div style={{ width:'100%', maxWidth:720, margin:'0 auto', display:'flex', flexDirection:'column', height:'100%', background:'#fff', overflow:'hidden', boxShadow:'0 0 24px rgba(0,0,0,0.04)' }}>
+
+        <NotificationBanner />
 
         {/* ── ヘッダー ── */}
         <div style={{

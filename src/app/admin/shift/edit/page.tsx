@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PageLoader from '@/components/ui/PageLoader'
+import NotificationBanner from '@/components/ui/NotificationBanner'
 
 type PrefType = 'want' | 'neutral' | 'avoid'
 interface Slot    { id: string; date: string; start_at: string; end_at: string; required_count: number; order_index: number }
@@ -40,6 +41,9 @@ export default function ShiftEditPage() {
   const [saved,   setSaved]   = useState(false)
   const [autoMsg, setAutoMsg] = useState('')
   const [loading, setLoading] = useState(true)
+  const [intervalWarn,    setIntervalWarn]    = useState(false)
+  const [defRequiredWarn, setDefRequiredWarn] = useState(false)
+  const [slotWarn,        setSlotWarn]        = useState<Record<string, boolean>>({})
 
   // メンバーピッカーモーダル
   const [pickerSlot,    setPickerSlot]    = useState<Slot | null>(null)
@@ -146,7 +150,8 @@ export default function ShiftEditPage() {
           setDefRequired(cur.default_required)
         }
       })
-    fetchSlotData(exhibitId, date)
+    const tid = setTimeout(() => fetchSlotData(exhibitId, date), 0)
+    return () => clearTimeout(tid)
   }, [date, exhibitId, fetchSlotData])
 
   const handleGenerate = async () => {
@@ -255,6 +260,7 @@ export default function ShiftEditPage() {
 
   return (
     <div style={{ maxWidth:1000 }}>
+      <NotificationBanner />
       <div style={{ marginBottom:24 }}>
         <h1 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
           ✏ シフト編集
@@ -340,14 +346,34 @@ export default function ShiftEditPage() {
               <div style={{ display:'flex', gap:12 }}>
                 <div style={{ flex:1 }}>
                   <Field label="コマの長さ（分）">
-                    <input type="number" value={interval} min={10} max={120} step={5}
-                      onChange={e => setInterval(Number(e.target.value))} style={inputStyle} />
+                    <input type="text" inputMode="numeric" value={interval}
+                      onChange={e => {
+                        const v = e.target.value
+                        if (/[^\x00-\x7F]/.test(v)) { setIntervalWarn(true); return }
+                        setIntervalWarn(false)
+                        if (!/^\d*$/.test(v)) return
+                        setInterval(Number(v))
+                      }}
+                      style={inputStyle} />
+                    {intervalWarn && (
+                      <div style={{ fontSize:11, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:4 }}>半角数字で入力してください</div>
+                    )}
                   </Field>
                 </div>
                 <div style={{ flex:1 }}>
                   <Field label="必要人数（一括）">
-                    <input type="number" value={defRequired} min={1} max={20}
-                      onChange={e => setDefRequired(Number(e.target.value))} style={inputStyle} />
+                    <input type="text" inputMode="numeric" value={defRequired}
+                      onChange={e => {
+                        const v = e.target.value
+                        if (/[^\x00-\x7F]/.test(v)) { setDefRequiredWarn(true); return }
+                        setDefRequiredWarn(false)
+                        if (!/^\d*$/.test(v)) return
+                        setDefRequired(Number(v))
+                      }}
+                      style={inputStyle} />
+                    {defRequiredWarn && (
+                      <div style={{ fontSize:11, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:4 }}>半角数字で入力してください</div>
+                    )}
                   </Field>
                 </div>
               </div>
@@ -374,11 +400,22 @@ export default function ShiftEditPage() {
                     <span style={{ flex:1, fontFamily:"'Kaisei Decol',serif", fontSize:13, fontWeight:700, color:'#1e293b', whiteSpace:'nowrap' }}>
                       {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
                     </span>
-                    <input
-                      type="number" min={1} max={20} value={slot.required_count}
-                      onChange={e => handleSlotRequired(slot.id, Number(e.target.value))}
-                      style={{ ...inputStyle, width:72, textAlign:'center' }}
-                    />
+                    <div>
+                      <input
+                        type="text" inputMode="numeric" value={slot.required_count}
+                        onChange={e => {
+                          const v = e.target.value
+                          if (/[^\x00-\x7F]/.test(v)) { setSlotWarn(w => ({ ...w, [slot.id]: true })); return }
+                          setSlotWarn(w => ({ ...w, [slot.id]: false }))
+                          if (!/^\d*$/.test(v)) return
+                          handleSlotRequired(slot.id, Number(v))
+                        }}
+                        style={{ ...inputStyle, width:72, textAlign:'center' }}
+                      />
+                      {slotWarn[slot.id] && (
+                        <div style={{ fontSize:10, color:'#ef4444', fontFamily:"'Kiwi Maru',serif", marginTop:2 }}>半角数字で入力</div>
+                      )}
+                    </div>
                     <span style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", flexShrink:0 }}>人</span>
                   </div>
                 ))}

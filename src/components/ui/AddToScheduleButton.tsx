@@ -31,7 +31,10 @@ export default function AddToScheduleButton({
   const [registered,    setRegistered]   = useState(false)
   const [itemId,        setItemId]       = useState<string|null>(null)
   const [deleting,      setDeleting]     = useState(false)
-  const [alreadySubbed, setAlreadySubbed]= useState(false)
+  const [alreadySubbed] = useState(() => {
+    if (!exhibitId) return false
+    try { return getLocalSubs().has(exhibitId) } catch { return false }
+  })
 
   const getUserKey = () => {
     if (typeof window === 'undefined') return ''
@@ -42,11 +45,6 @@ export default function AddToScheduleButton({
 
   // マウント時に既存登録 & 通知購読を確認
   useEffect(() => {
-    // 通知購読チェック（exhibitId がある場合のみ）
-    if (exhibitId) {
-      try { setAlreadySubbed(getLocalSubs().has(exhibitId)) } catch { /* noop */ }
-    }
-
     const userKey = getUserKey()
     if (!userKey) return
     fetch(`/api/schedule?date=${date}`, { headers: { 'x-user-key': userKey }, cache: 'no-store' })

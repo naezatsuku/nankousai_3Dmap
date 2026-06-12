@@ -110,7 +110,10 @@ export default function TimelinePage() {
   }, [fetchLikesFor])
 
   // 初回ロード
-  useEffect(() => { loadPage(null, true) }, [loadPage])
+  useEffect(() => {
+    const id = setTimeout(() => loadPage(null, true), 0)
+    return () => clearTimeout(id)
+  }, [loadPage])
 
   // 引っ張って更新（カードエリアの PullToRefresh から発火する 'app-refresh' を受けて先頭から取り直す）
   const refreshFeed = useCallback(() => {

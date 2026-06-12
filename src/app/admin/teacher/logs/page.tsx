@@ -1,6 +1,7 @@
 'use client'
 
 import PageLoader from '@/components/ui/PageLoader'
+import NotificationBanner from '@/components/ui/NotificationBanner'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -143,6 +144,7 @@ export default function TeacherLogsPage() {
 
   return (
     <div style={{ maxWidth: 820 }}>
+      <NotificationBanner />
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontFamily:"'Kaisei Decol',serif", fontSize: 20, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>
           変更ログ

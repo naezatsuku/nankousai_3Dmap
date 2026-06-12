@@ -727,10 +727,11 @@ export default function Page() {
 
   // クライアントでのみ sessionStorage を確認
   useEffect(() => {
-    if (sessionStorage.getItem('nanpen_loaded')) {
-      setLoaded(true)
-    }
-    setChecked(true)
+    const id = setTimeout(() => {
+      if (sessionStorage.getItem('nanpen_loaded')) setLoaded(true)
+      setChecked(true)
+    }, 0)
+    return () => clearTimeout(id)
   }, [])
 
   const handleComplete = () => {
