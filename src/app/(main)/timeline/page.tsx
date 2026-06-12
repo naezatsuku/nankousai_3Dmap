@@ -10,7 +10,7 @@ import { fetchFeedPage, type FeedItem } from '@/lib/feed'
 import MarqueeText   from '@/components/ui/MarqueeText'
 import PullToRefresh from '@/components/ui/PullToRefresh'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
 type FilterType = 'all' | 'notice' | 'comment'
 type NoticeFeedItem  = Extract<FeedItem, { kind: 'notice' }>

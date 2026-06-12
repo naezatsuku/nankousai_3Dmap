@@ -154,7 +154,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const itemVisible = (n: NavItem) => {
     if (isStudent) return !!n.studentOk
     if (isTeacher) return !!n.teacherOk
-    if (!isAdmin)  return !n.adminOnly  // editor
+    if (!isAdmin)  return !!n.editorOk  // editor
     return true
   }
   // グループが表示可能か（1件以上表示できるアイテムがある）

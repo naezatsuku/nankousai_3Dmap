@@ -331,12 +331,12 @@ export default function ShiftEditPage() {
             <div style={{ display:'flex', flexDirection:'column', gap:14, marginBottom:16 }}>
               {/* 開始・終了を横並び */}
               <div style={{ display:'flex', gap:12 }}>
-                <div style={{ flex:1 }}>
+                <div style={{ flex:1, minWidth:0 }}>
                   <Field label="開始時刻">
                     <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
                   </Field>
                 </div>
-                <div style={{ flex:1 }}>
+                <div style={{ flex:1, minWidth:0 }}>
                   <Field label="終了時刻">
                     <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
                   </Field>
@@ -344,7 +344,7 @@ export default function ShiftEditPage() {
               </div>
               {/* コマ長さ・必要人数を横並び */}
               <div style={{ display:'flex', gap:12 }}>
-                <div style={{ flex:1 }}>
+                <div style={{ flex:1, minWidth:0 }}>
                   <Field label="コマの長さ（分）">
                     <input type="text" inputMode="numeric" value={interval}
                       onChange={e => {
@@ -360,7 +360,7 @@ export default function ShiftEditPage() {
                     )}
                   </Field>
                 </div>
-                <div style={{ flex:1 }}>
+                <div style={{ flex:1, minWidth:0 }}>
                   <Field label="必要人数（一括）">
                     <input type="text" inputMode="numeric" value={defRequired}
                       onChange={e => {
@@ -632,7 +632,7 @@ export default function ShiftEditPage() {
                       </div>
 
                       {/* フィルタータブ */}
-                      <div style={{ display:'flex', gap:5, marginBottom:14 }}>
+                      <div style={{ display:'flex', gap:5, marginBottom:14, flexWrap:'wrap' }}>
                         {([
                           { key:'all',     label:'すべて' },
                           { key:'want',    label:'◎入りたい' },
@@ -644,6 +644,7 @@ export default function ShiftEditPage() {
                             background: pickerFilter === f.key ? '#1e293b' : '#f1f5f9',
                             color: pickerFilter === f.key ? '#fff' : '#64748b',
                             fontSize:11, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                            whiteSpace:'nowrap',
                           }}>{f.label}</button>
                         ))}
                       </div>
@@ -758,7 +759,7 @@ export default function ShiftEditPage() {
 }
 
 const inputStyle: React.CSSProperties = {
-  width:'100%', padding:'9px 12px', borderRadius:8,
+  width:'100%', minWidth:0, padding:'9px 12px', borderRadius:8,
   border:'1px solid #e2e8f0', background:'#fff',
   fontSize:13, color:'#1e293b', fontFamily:"'Kiwi Maru',serif", boxSizing:'border-box',
 }

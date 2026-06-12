@@ -45,7 +45,7 @@ export default function NotificationBanner() {
   // ── 通知ON: コンパクトバー ──────────────────────────────────────
   if (pushState === 'on') {
     return (
-      <div style={{
+      <div className="notification-banner" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '8px 16px', background: '#f0fdf4',
         borderBottom: '1px solid #bbf7d0', flexShrink: 0,
@@ -70,7 +70,7 @@ export default function NotificationBanner() {
   // ── 通知DENIED: 警告バー ─────────────────────────────────────────
   if (pushState === 'denied') {
     if (collapsed) return (
-      <div style={{
+      <div className="notification-banner" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '8px 16px', background: '#fef9c3',
         borderBottom: '1px solid #fde047', flexShrink: 0,
@@ -84,7 +84,7 @@ export default function NotificationBanner() {
       </div>
     )
     return (
-      <div style={{
+      <div className="notification-banner" style={{
         padding: '12px 16px', background: '#fef9c3',
         borderBottom: '1px solid #fde047', flexShrink: 0,
       }}>
@@ -106,7 +106,7 @@ export default function NotificationBanner() {
   // ── 通知OFF: プロンプトバナー ────────────────────────────────────
   if (collapsed) {
     return (
-      <div style={{
+      <div className="notification-banner" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '8px 16px', background: '#fff7ed',
         borderBottom: '1px solid #fed7aa', flexShrink: 0,
@@ -130,7 +130,7 @@ export default function NotificationBanner() {
   }
 
   return (
-    <div style={{
+    <div className="notification-banner" style={{
       padding: '12px 16px', background: '#fff7ed',
       borderBottom: '2px solid #FF8C00', flexShrink: 0,
     }}>

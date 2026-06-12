@@ -35,3 +35,10 @@ input, textarea, [contenteditable] {
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* 印刷/PDF出力に画面用バナーを載せない */
+@media print {
+  .notification-banner {
+    display: none !important;
+  }
+}

@@ -556,7 +556,7 @@ export default function ShiftViewPage() {
         .shift-print-table th,
         .shift-print-table td {
           border: 1px solid #000;
-          padding: 6px 8px;
+          padding: 3px 8px;
           text-align: center;
           overflow: hidden;
         }
@@ -569,7 +569,7 @@ export default function ShiftViewPage() {
           vertical-align: middle;
         }
         .shift-print-name {
-          padding: 3px 4px;
+          padding: 2px 4px;
           vertical-align: middle;
           white-space: nowrap;
         }

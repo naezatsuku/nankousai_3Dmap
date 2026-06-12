@@ -60,7 +60,7 @@ export default function SideButtons() {
   }))
 
   return (
-    <div className="absolute right-3 top-1/2 -translate-y-1/2 sm:top-[100px] sm:translate-y-0 flex flex-col gap-2.5 z-20">
+    <div className="absolute right-3 top-1/2 -translate-y-1/2 sm:top-29 sm:translate-y-0 flex flex-col gap-2.5 z-20">
       {BUTTONS.map(({ href, label, subType, icon }) => {
         const subscribed = subType ? subsMap[subType] ?? false : false
         return (
