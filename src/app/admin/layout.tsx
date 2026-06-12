@@ -9,6 +9,8 @@ import type { Profile } from '@/types'
 type NavItem = {
   href: string; icon: string; label: string
   adminOnly?: boolean; editorOk?: boolean; studentOk?: boolean; teacherOk?: boolean
+  /** band ロール or band_editors に割当のあるユーザーに表示 */
+  bandOk?: boolean
 }
 type NavGroup = {
   id:         string
@@ -18,6 +20,7 @@ type NavGroup = {
   editorOk?:  boolean
   studentOk?: boolean
   teacherOk?: boolean
+  bandOk?:    boolean
   items:      NavItem[]
 }
 
@@ -38,6 +41,13 @@ const NAV_GROUPS: NavGroup[] = [
       { href:'/admin/notices/review', icon:'🔍', label:'お知らせ審査', adminOnly:true },
       { href:'/admin/food',           icon:'🍱', label:'販売数管理',   adminOnly:true },
       { href:'/admin/exhibits',       icon:'🏫', label:'団体管理',     adminOnly:true },
+    ],
+  },
+  {
+    id:'myband', label:null,
+    bandOk:true,
+    items:[
+      { href:'/admin/band', icon:'🎸', label:'マイバンド', bandOk:true },
     ],
   },
   {
@@ -82,6 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router      = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profile,    setProfile]    = useState<Profile | null>(null)
+  const [hasBands,   setHasBands]   = useState(false)
 
   // pathname から現在のアクティブグループを計算（ロール不問）
   const activeGroupId = NAV_GROUPS.find(g =>
@@ -106,6 +117,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
+      // バンド担当の有無（ロールに関わらず「マイバンド」ナビ表示に使用）
+      supabase.from('band_editors').select('band_id').eq('user_id', user.id).limit(1)
+        .then(({ data }) => setHasBands((data ?? []).length > 0))
       supabase.from('profiles').select('*').eq('id', user.id).single()
         .then(({ data }) => {
           if (data) {
@@ -126,6 +140,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               const teacherAllowed = ['/admin', '/admin/edit', '/admin/notices', '/admin/teacher', '/admin/profile']
               const allowed = teacherAllowed.some(a => pathname === a || pathname.startsWith(a + '/'))
               if (!allowed) router.replace('/admin/edit')
+            }
+            // band は許可されたパス以外にアクセスできない
+            if (p.role === 'band') {
+              const bandAllowed = ['/admin/band', '/admin/profile']
+              const allowed = bandAllowed.some(a => pathname === a || pathname.startsWith(a + '/'))
+              if (!allowed) router.replace('/admin/band')
             }
             // editor にはダッシュボードを見せない
             if (p.role === 'editor' && pathname === '/admin') {
@@ -148,10 +168,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isAdmin     = profile?.role === 'admin'
   const isStudent   = profile?.role === 'student'
   const isTeacher   = profile?.role === 'teacher'
+  const isBand      = profile?.role === 'band'
   const displayName = profile?.name || '…'
 
   // アイテムが表示可能か
   const itemVisible = (n: NavItem) => {
+    // マイバンドは band ロール or バンド担当割当のあるユーザーに表示
+    if (n.bandOk && (isBand || hasBands)) return true
+    if (isBand)    return false
     if (isStudent) return !!n.studentOk
     if (isTeacher) return !!n.teacherOk
     if (!isAdmin)  return !!n.editorOk  // editor
@@ -159,6 +183,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
   // グループが表示可能か（1件以上表示できるアイテムがある）
   const groupVisible = (g: NavGroup) => {
+    if (g.bandOk && (isBand || hasBands)) return g.items.some(itemVisible)
+    if (isBand) return false
     if (isStudent && !g.studentOk) return false
     if (isTeacher && !g.teacherOk) return false
     return g.items.some(itemVisible)
@@ -348,11 +374,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:1 }}>{displayName}</div>
               <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', display:'flex', alignItems:'center', gap:4 }}>
                 <span style={{
-                  background: isAdmin ? 'rgba(255,107,0,0.3)' : isTeacher ? 'rgba(14,165,233,0.3)' : 'rgba(255,255,255,0.1)',
-                  color: isAdmin ? '#FF8C00' : isTeacher ? '#0ea5e9' : 'rgba(255,255,255,0.5)',
+                  background: isAdmin ? 'rgba(255,107,0,0.3)' : isTeacher ? 'rgba(14,165,233,0.3)' : isBand ? 'rgba(168,85,247,0.3)' : 'rgba(255,255,255,0.1)',
+                  color: isAdmin ? '#FF8C00' : isTeacher ? '#0ea5e9' : isBand ? '#c084fc' : 'rgba(255,255,255,0.5)',
                   padding:'1px 6px', borderRadius:99, fontSize:9, fontWeight:700,
                 }}>
-                  {isAdmin ? 'ADMIN' : isTeacher ? 'TEACHER' : isStudent ? 'STUDENT' : 'EDITOR'}
+                  {isAdmin ? 'ADMIN' : isTeacher ? 'TEACHER' : isStudent ? 'STUDENT' : isBand ? 'BAND' : 'EDITOR'}
                 </span>
                 <span style={{ color:'rgba(255,255,255,0.25)', fontSize:9 }}>プロフィール編集 ›</span>
               </div>
@@ -433,6 +459,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
     '/admin/exhibits':      '団体管理',
     '/admin/notify-test':   '通知テスト',
     '/admin/profile':       'プロフィール',
+    '/admin/band':          'マイバンド',
   }
   const label = Object.entries(MAP)
     .filter(([path]) => pathname.startsWith(path))

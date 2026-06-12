@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ui/ImageUpload'
+import BandMemberAssign from '@/components/admin/BandMemberAssign'
 import { logActivity } from '@/lib/activity-log'
 
 function fmtTime(iso: string) {
@@ -1348,6 +1349,14 @@ function BandEditor({ exhibitId, bands, onChange, onRemove }: {
             schedules={band.schedules}
             onChange={scheds => update(band.id, { schedules: scheds })}
           />
+
+          {/* 担当者（マイバンド編集権限） */}
+          <div style={{ marginTop:14, padding:'12px 14px', background:'#fdfaff', borderRadius:10, border:'1px solid #f3e8ff' }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:8, fontFamily:"'Kiwi Maru',serif" }}>
+              👤 担当者（マイバンドページで編集・お知らせ投稿ができます）
+            </div>
+            <BandMemberAssign bandId={band.id} />
+          </div>
 
           {/* 特殊演出設定 */}
           <div style={{ marginTop:14, padding:'12px 14px', background:'#fafafa', borderRadius:10, border:'1px solid #f1f5f9' }}>

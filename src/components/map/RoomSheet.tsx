@@ -66,6 +66,7 @@ export default function RoomSheet({
     const fb = feedbacks[exhibitId]
     if (!fb) return
     const nowLiked = !fb.userLiked
+    // 楽観的更新: 先にUIへ反映し、応答で補正・失敗時は巻き戻す
     setFeedbacks(prev => ({
       ...prev,
       [exhibitId]: {
@@ -74,10 +75,27 @@ export default function RoomSheet({
         likeCount:  prev[exhibitId].likeCount + (nowLiked ? 1 : -1),
       },
     }))
-    await fetch('/api/exhibit-like', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exhibitId, userId }),
-    }).catch(() => {})
+    try {
+      const res = await fetch('/api/exhibit-like', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exhibitId, userId }),
+      })
+      if (!res.ok) throw new Error()
+      const json = await res.json() as { liked: boolean; likeCount: number }
+      setFeedbacks(prev => ({
+        ...prev,
+        [exhibitId]: { ...prev[exhibitId], userLiked: json.liked, likeCount: json.likeCount },
+      }))
+    } catch {
+      setFeedbacks(prev => ({
+        ...prev,
+        [exhibitId]: {
+          ...prev[exhibitId],
+          userLiked:  !nowLiked,
+          likeCount:  prev[exhibitId].likeCount + (nowLiked ? -1 : 1),
+        },
+      }))
+    }
   }
 
   return (

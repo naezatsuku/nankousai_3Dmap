@@ -27,6 +27,8 @@ export interface NoticeMedia {
 export interface NoticeItem {
   id:                string
   exhibit_id:        string
+  /** バンド名義のお知らせの場合のみ */
+  band_id?:          string
   sender:            string
   sender_thumbnail?: string
   title:             string
@@ -40,10 +42,11 @@ export interface NoticeItem {
 
 interface RawNoticeMedia { id: string; url: string; type: 'image'|'video'; caption: string|null; order_index: number }
 interface RawNotice {
-  id: string; exhibit_id: string; title: string; body: string
+  id: string; exhibit_id: string; band_id: string|null; title: string; body: string
   sender_name: string|null; is_urgent: boolean; created_at: string
   notice_media: RawNoticeMedia[]
   exhibit: { id: string; name: string; thumbnail_url: string|null; cover_url: string|null } | null
+  band: { id: string; name: string; thumbnail_url: string|null } | null
 }
 
 // ─── Supabase データ取得 ──────────────────────────────────────
@@ -52,8 +55,10 @@ function rawToNoticeItem(raw: RawNotice): NoticeItem {
   return {
     id:         raw.id,
     exhibit_id: raw.exhibit_id,
-    sender:     raw.sender_name ?? raw.exhibit?.name ?? '不明',
-    sender_thumbnail: raw.exhibit?.thumbnail_url ?? raw.exhibit?.cover_url ?? undefined,
+    band_id:    raw.band_id ?? undefined,
+    // バンド名義: バンド名・バンド写真を優先し、なければ団体のものへフォールバック
+    sender:     raw.sender_name ?? raw.band?.name ?? raw.exhibit?.name ?? '不明',
+    sender_thumbnail: raw.band?.thumbnail_url ?? raw.exhibit?.thumbnail_url ?? raw.exhibit?.cover_url ?? undefined,
     title:      raw.title,
     body:       raw.body ? [{ type: 'text' as const, text: raw.body }] : [],
     media:      (raw.notice_media ?? [])
@@ -84,9 +89,10 @@ export async function fetchNotices(options?: FetchNoticesOptions): Promise<Notic
   let query = supabase
     .from('notices')
     .select(`
-      id, exhibit_id, title, body, sender_name, is_urgent, created_at,
+      id, exhibit_id, band_id, title, body, sender_name, is_urgent, created_at,
       notice_media(id, url, type, caption, order_index),
-      exhibit:exhibits(id, name, thumbnail_url, cover_url)
+      exhibit:exhibits(id, name, thumbnail_url, cover_url),
+      band:bands(id, name, thumbnail_url)
     `)
     .order('created_at', { ascending: false })
 
@@ -108,9 +114,10 @@ export async function fetchNotice(id: string): Promise<NoticeItem | null> {
   const { data, error } = await supabase
     .from('notices')
     .select(`
-      id, exhibit_id, title, body, sender_name, is_urgent, created_at,
+      id, exhibit_id, band_id, title, body, sender_name, is_urgent, created_at,
       notice_media(id, url, type, caption, order_index),
-      exhibit:exhibits(id, name, thumbnail_url, cover_url)
+      exhibit:exhibits(id, name, thumbnail_url, cover_url),
+      band:bands(id, name, thumbnail_url)
     `)
     .eq('id', id)
     .eq('status', 'approved')

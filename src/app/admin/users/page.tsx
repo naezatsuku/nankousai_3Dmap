@@ -7,16 +7,20 @@ import { createClient } from '@/lib/supabase/client'
 import type { Profile, Role } from '@/types'
 
 interface ExhibitOption { id: string; name: string; class_label: string | null }
+interface BandOption    { id: string; name: string }
 
-interface AssignedEntry { exhibit_id: string; exhibit: ExhibitOption | null }
+interface AssignedEntry     { exhibit_id: string; exhibit: ExhibitOption | null }
+interface AssignedBandEntry { band_id: string; band: BandOption | null }
 interface ProfileRow extends Profile {
   exhibit_editors:  AssignedEntry[]
   student_exhibits: AssignedEntry[]
+  band_editors:     AssignedBandEntry[]
 }
 
 export default function UsersPage() {
   const [profiles, setProfiles]   = useState<ProfileRow[]>([])
   const [allExhibits, setAllExhibits] = useState<ExhibitOption[]>([])
+  const [allBands, setAllBands]       = useState<BandOption[]>([])
   const [loading, setLoading]     = useState(true)
   const [myId, setMyId]           = useState<string | null>(null)
 
@@ -37,7 +41,7 @@ export default function UsersPage() {
     const supabase = createClient()
     supabase
       .from('profiles')
-      .select('*, exhibit_editors(exhibit_id, exhibit:exhibits(id, name, class_label)), student_exhibits(exhibit_id, exhibit:exhibits(id, name, class_label))')
+      .select('*, exhibit_editors(exhibit_id, exhibit:exhibits(id, name, class_label)), student_exhibits(exhibit_id, exhibit:exhibits(id, name, class_label)), band_editors(band_id, band:bands(id, name))')
       .order('role')
       .then(({ data }) => {
         if (data) setProfiles(data as unknown as ProfileRow[])
@@ -52,6 +56,8 @@ export default function UsersPage() {
     })
     supabase.from('exhibits').select('id, name, class_label').order('class_label')
       .then(({ data }) => { if (data) setAllExhibits(data as ExhibitOption[]) })
+    supabase.from('bands').select('id, name').order('name')
+      .then(({ data }) => { if (data) setAllBands(data as BandOption[]) })
     loadProfiles()
   }, [loadProfiles])
 
@@ -73,9 +79,9 @@ export default function UsersPage() {
     setInviting(false)
   }
 
-  // ── ロール切り替え（admin→editor→student→teacher→admin） ────
+  // ── ロール切り替え（admin→editor→student→teacher→band→admin） ──
   const cycleRole = async (profile: ProfileRow) => {
-    const cycle: Role[] = ['admin', 'editor', 'student', 'teacher']
+    const cycle: Role[] = ['admin', 'editor', 'student', 'teacher', 'band']
     const next = cycle[(cycle.indexOf(profile.role) + 1) % cycle.length]
     const res = await fetch('/api/admin/users/role', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -99,7 +105,9 @@ export default function UsersPage() {
   // ── 割り当てモーダルを開く ─────────────────────────────────
   const openAssign = (p: ProfileRow) => {
     setAssignTarget(p)
-    const ids = (p.role === 'editor' || p.role === 'teacher')
+    const ids = p.role === 'band'
+      ? p.band_editors.map(e => e.band_id)
+      : (p.role === 'editor' || p.role === 'teacher')
       ? p.exhibit_editors.map(e => e.exhibit_id)
       : p.student_exhibits.map(e => e.exhibit_id) // student / admin 共通
     setPendingIds(new Set(ids))
@@ -117,8 +125,9 @@ export default function UsersPage() {
   const saveAssignments = async () => {
     if (!assignTarget) return
     setSaving(true)
-    const table = assignTarget.role === 'student' ? 'student_exhibits' : 'exhibit_editors'
-    // teacher は exhibit_editors を使用（editor と同じテーブル）
+    const table = assignTarget.role === 'band' ? 'band_editors'
+      : assignTarget.role === 'student' ? 'student_exhibits' : 'exhibit_editors'
+    // teacher は exhibit_editors を使用（editor と同じテーブル）、band は band_editors（バンドID）
     await fetch('/api/admin/users/assign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -187,20 +196,24 @@ export default function UsersPage() {
             const roleColor = p.role === 'admin' ? '#FF6B00'
               : p.role === 'editor' ? '#6366f1'
               : p.role === 'teacher' ? '#0ea5e9'
+              : p.role === 'band' ? '#a855f7'
               : '#10b981'
             const roleBg = p.role === 'admin' ? 'rgba(255,107,0,0.15)'
               : p.role === 'editor' ? 'rgba(99,102,241,0.12)'
               : p.role === 'teacher' ? 'rgba(14,165,233,0.12)'
+              : p.role === 'band' ? 'rgba(168,85,247,0.12)'
               : 'rgba(16,185,129,0.12)'
             const avatarBg = p.role === 'admin'
               ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
               : p.role === 'editor' ? 'linear-gradient(135deg,#6366f1,#818cf8)'
               : p.role === 'teacher' ? 'linear-gradient(135deg,#0ea5e9,#38bdf8)'
+              : p.role === 'band' ? 'linear-gradient(135deg,#a855f7,#c084fc)'
               : 'linear-gradient(135deg,#10b981,#34d399)'
 
             const nextRole: Role = p.role === 'admin' ? 'editor'
               : p.role === 'editor' ? 'student'
               : p.role === 'student' ? 'teacher'
+              : p.role === 'teacher' ? 'band'
               : 'admin'
 
             return (
@@ -233,6 +246,27 @@ export default function UsersPage() {
                     <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", wordBreak:'break-all' }}>
                       {p.email}
                     </div>
+
+                    {/* 担当バンドチップ */}
+                    {p.role === 'band' && (
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:6 }}>
+                        {p.band_editors.length === 0 ? (
+                          <span style={{ fontSize:11, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif" }}>
+                            担当バンドなし（編集不可）
+                          </span>
+                        ) : (
+                          p.band_editors.map(e => e.band).filter(Boolean).map(b => (
+                            <span key={b!.id} style={{
+                              fontSize:10, padding:'2px 8px', borderRadius:99,
+                              background:'#faf5ff', color:'#a855f7', border:'1px solid #d8b4fe',
+                              fontFamily:"'Kiwi Maru',serif",
+                            }}>
+                              🎸 {b!.name}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    )}
 
                     {/* 担当展示/クラスチップ */}
                     {(p.role === 'editor' || p.role === 'student' || p.role === 'teacher') && (
@@ -286,15 +320,15 @@ export default function UsersPage() {
 
                 {p.id !== myId && (
                   <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-end', marginTop:12, paddingTop:12, borderTop:'1px solid #f1f5f9' }}>
-                    {(p.role === 'editor' || p.role === 'student' || p.role === 'teacher') && (
+                    {(p.role === 'editor' || p.role === 'student' || p.role === 'teacher' || p.role === 'band') && (
                       <button onClick={() => openAssign(p)} style={{
                         padding:'6px 12px', borderRadius:8,
-                        border: `1px solid ${p.role === 'student' ? '#86efac' : p.role === 'teacher' ? '#7dd3fc' : '#bae6fd'}`,
-                        background: p.role === 'student' ? '#f0fdf4' : p.role === 'teacher' ? '#f0f9ff' : '#f0f9ff',
-                        fontSize:11, color: p.role === 'student' ? '#16a34a' : p.role === 'teacher' ? '#0ea5e9' : '#0284c7',
+                        border: `1px solid ${p.role === 'student' ? '#86efac' : p.role === 'teacher' ? '#7dd3fc' : p.role === 'band' ? '#d8b4fe' : '#bae6fd'}`,
+                        background: p.role === 'student' ? '#f0fdf4' : p.role === 'band' ? '#faf5ff' : '#f0f9ff',
+                        fontSize:11, color: p.role === 'student' ? '#16a34a' : p.role === 'teacher' ? '#0ea5e9' : p.role === 'band' ? '#a855f7' : '#0284c7',
                         cursor:'pointer', fontFamily:"'Kiwi Maru',serif", fontWeight:700,
                       }}>
-                        {p.role === 'student' ? 'クラスを割り当て' : '展示を割り当て'}
+                        {p.role === 'student' ? 'クラスを割り当て' : p.role === 'band' ? 'バンドを割り当て' : '展示を割り当て'}
                       </button>
                     )}
                     {p.role === 'admin' && (
@@ -375,11 +409,13 @@ export default function UsersPage() {
             maxHeight:'80vh', display:'flex', flexDirection:'column',
           }}>
             <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:4 }}>
-              {assignTarget.role === 'editor' ? '担当展示を設定' : assignTarget.role === 'admin' ? 'シフト参加クラスを設定' : 'クラスを設定'}
+              {assignTarget.role === 'band' ? '担当バンドを設定' : assignTarget.role === 'editor' ? '担当展示を設定' : assignTarget.role === 'admin' ? 'シフト参加クラスを設定' : 'クラスを設定'}
             </div>
             <div style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:16 }}>
               {assignTarget.name || assignTarget.email} ·{' '}
-              {assignTarget.role === 'editor'
+              {assignTarget.role === 'band'
+                ? 'チェックしたバンドのみ編集・お知らせ投稿できます'
+                : assignTarget.role === 'editor'
                 ? 'チェックした展示のみ編集できます'
                 : assignTarget.role === 'admin'
                 ? 'シフトアンケート・閲覧で使用するクラスです'
@@ -389,7 +425,9 @@ export default function UsersPage() {
             {/* 全選択/解除 */}
             <div style={{ display:'flex', gap:8, marginBottom:12 }}>
               <button
-                onClick={() => setPendingIds(new Set(allExhibits.map(e => e.id)))}
+                onClick={() => setPendingIds(new Set(
+                  (assignTarget.role === 'band' ? allBands : allExhibits).map(e => e.id)
+                ))}
                 style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', fontFamily:"'Kiwi Maru',serif" }}
               >
                 すべて選択
@@ -405,9 +443,12 @@ export default function UsersPage() {
               </span>
             </div>
 
-            {/* 展示リスト */}
+            {/* 展示/バンドリスト */}
             <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:4, marginBottom:16 }}>
-              {allExhibits.map(ex => {
+              {(assignTarget.role === 'band'
+                ? allBands.map(b => ({ id: b.id, name: `🎸 ${b.name}`, class_label: null as string | null }))
+                : allExhibits
+              ).map(ex => {
                 const checked = pendingIds.has(ex.id)
                 return (
                   <div

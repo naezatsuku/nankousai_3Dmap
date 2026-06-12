@@ -12,8 +12,8 @@ export type Day = 'sat' | 'sun' | 'both'
 /** 学校区分 */
 export type SchoolType = 'middle' | 'high'
 
-/** ロール */
-export type Role = 'admin' | 'editor' | 'student' | 'teacher'
+/** ロール（band = バンド単位の編集のみ可能な軽音メンバー） */
+export type Role = 'admin' | 'editor' | 'student' | 'teacher' | 'band'
 
 /** 展示種別 */
 export type ExhibitType = 'class' | 'food' | 'band' | 'special' | 'cafeteria'

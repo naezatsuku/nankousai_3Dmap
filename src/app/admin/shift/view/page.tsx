@@ -45,6 +45,98 @@ function printNameFontSize(name: string) {
   return Math.round(PRINT_NAME_BASE_SIZE * PRINT_NAME_FIT_CHARS / name.length)
 }
 
+// コマ→割当ユーザーIDセット
+function buildAssignMap(assigns: Assign[]) {
+  const map = new Map<string, Set<string>>()
+  for (const a of assigns) {
+    if (!map.has(a.slot_id)) map.set(a.slot_id, new Set())
+    map.get(a.slot_id)!.add(a.user_id)
+  }
+  return map
+}
+
+// 画像出力のレイアウト定数（A4縦の印刷イメージに合わせる）
+const IMG_SCALE = 3        // 高解像度化の倍率
+const IMG_PAD = 24         // 画像の外側余白
+const IMG_CONTENT_W = 688  // A4幅(約794px) − 印刷余白14mm×2 相当
+const IMG_TIME_COL_W = 106 // 時間列の幅 ≒28mm
+const IMG_HEADER_H = 26
+const IMG_ROW_H = 24
+const IMG_TITLE_SIZE = 16
+
+// 1日分のシフト表をCanvasに描画してPNG用のcanvasを返す（コマが無い日はnull）
+function drawDayImage(day: DayData, title: string): HTMLCanvasElement | null {
+  const { slots, members, assigns } = day
+  if (slots.length === 0) return null
+
+  const assignMap = buildAssignMap(assigns)
+  const { rowsPerSlot, colsPerRow } = buildPrintLayout(slots)
+  const totalCols = rowsPerSlot * colsPerRow
+  const nameColW = (IMG_CONTENT_W - IMG_TIME_COL_W) / colsPerRow
+
+  const tableTop = IMG_PAD + IMG_TITLE_SIZE + 12
+  const tableH = IMG_HEADER_H + slots.length * rowsPerSlot * IMG_ROW_H
+  const width = IMG_CONTENT_W + IMG_PAD * 2
+  const height = tableTop + tableH + IMG_PAD
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width * IMG_SCALE
+  canvas.height = height * IMG_SCALE
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  ctx.scale(IMG_SCALE, IMG_SCALE)
+
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, width, height)
+
+  ctx.fillStyle = '#000'
+  ctx.textBaseline = 'middle'
+
+  // タイトル
+  ctx.font = `700 ${IMG_TITLE_SIZE}px sans-serif`
+  ctx.textAlign = 'left'
+  ctx.fillText(title, IMG_PAD, IMG_PAD + IMG_TITLE_SIZE / 2)
+
+  ctx.strokeStyle = '#000'
+  ctx.lineWidth = 1
+  ctx.textAlign = 'center'
+
+  const cell = (x: number, y: number, w: number, h: number, text: string, font: string) => {
+    ctx.strokeRect(x, y, w, h)
+    if (text) {
+      ctx.font = font
+      ctx.fillText(text, x + w / 2, y + h / 2 + 1)
+    }
+  }
+
+  const left = IMG_PAD
+  cell(left, tableTop, IMG_TIME_COL_W, IMG_HEADER_H, '時間', '700 12px sans-serif')
+  cell(left + IMG_TIME_COL_W, tableTop, IMG_CONTENT_W - IMG_TIME_COL_W, IMG_HEADER_H, '担当者', '700 12px sans-serif')
+
+  let y = tableTop + IMG_HEADER_H
+  for (const slot of slots) {
+    const slotAssigns = assignMap.get(slot.id) ?? new Set()
+    const assigned = members.filter(m => slotAssigns.has(m.user_id))
+    const names = sortMembers(assigned, '').map(m => m.profiles?.name ?? '')
+    while (names.length < totalCols) names.push('')
+
+    const slotH = rowsPerSlot * IMG_ROW_H
+    cell(left, y, IMG_TIME_COL_W, slotH,
+      `${slot.start_at.slice(0,5)}〜${slot.end_at.slice(0,5)}`, '700 12px sans-serif')
+
+    for (let row = 0; row < rowsPerSlot; row++) {
+      for (let col = 0; col < colsPerRow; col++) {
+        const name = names[row * colsPerRow + col]
+        cell(left + IMG_TIME_COL_W + col * nameColW, y + row * IMG_ROW_H, nameColW, IMG_ROW_H,
+          name, `${printNameFontSize(name)}px sans-serif`)
+      }
+    }
+    y += slotH
+  }
+
+  return canvas
+}
+
 export default function ShiftViewPage() {
   const router = useRouter()
   const [exhibits,    setExhibits]    = useState<Exhibit[]>([])
@@ -133,19 +225,30 @@ export default function ShiftViewPage() {
   }, [exhibitId])
 
   const { slots, members, assigns } = dayData[date]
-
-  // コマ→割当ユーザーIDセット
-  const buildAssignMap = (assigns: Assign[]) => {
-    const map = new Map<string, Set<string>>()
-    for (const a of assigns) {
-      if (!map.has(a.slot_id)) map.set(a.slot_id, new Set())
-      map.get(a.slot_id)!.add(a.user_id)
-    }
-    return map
-  }
   const assignMap = buildAssignMap(assigns)
 
   const currentExhibit = exhibits.find(e => e.id === exhibitId)
+
+  // 土日それぞれのシフト表をPNGとしてダウンロード
+  const handleSaveImages = async () => {
+    const exhibitName = currentExhibit?.class_label ?? currentExhibit?.name ?? ''
+    let saved = 0
+    for (const d of DATES) {
+      const label = d === 'sat' ? '土曜日' : '日曜日'
+      const canvas = drawDayImage(dayData[d], `${exhibitName} シフト表（${label}）`)
+      if (!canvas) continue
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'))
+      if (!blob) continue
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `シフト表_${label}.png`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      saved++
+    }
+    if (saved === 0) alert('保存できるシフトがありません。')
+  }
 
   // 自分が担当するコマに通知を一括設定
   const handleSaveNotify = async () => {
@@ -226,6 +329,16 @@ export default function ShiftViewPage() {
           }}>
             <span style={{ fontSize:16 }}>📄</span>
             PDFとして保存
+          </button>
+          {/* 画像出力ボタン */}
+          <button onClick={handleSaveImages} title="画像(PNG)として保存する" style={{
+            height:36, padding:'0 16px', borderRadius:99, border:'none', cursor:'pointer',
+            background:'#f1f5f9', color:'#64748b',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", whiteSpace:'nowrap',
+          }}>
+            <span style={{ fontSize:16 }}>🖼</span>
+            画像で保存
           </button>
           {/* 通知設定ボタン */}
           <button onClick={() => setNotifyModal(true)} title="シフト通知を設定" style={{

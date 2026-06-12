@@ -11,6 +11,8 @@ interface Props {
   location?:  string
   exhibitId?: string
   color?:     string
+  /** ボタンの文言（両日開催で土・日ボタンが並ぶときに区別する用） */
+  label?:     string
 }
 
 const NOTIFY_OPTIONS = [
@@ -23,7 +25,7 @@ const NOTIFY_OPTIONS = [
 ]
 
 export default function AddToScheduleButton({
-  title, date, startTime, endTime, location, exhibitId, color = '#FF6B00',
+  title, date, startTime, endTime, location, exhibitId, color = '#FF6B00', label = '予定に追加',
 }: Props) {
   const [open,          setOpen]         = useState(false)
   const [notify,        setNotify]       = useState<number|null>(null)
@@ -146,7 +148,7 @@ export default function AddToScheduleButton({
           transition:'all 0.2s',
         }}
       >
-        📅 予定に追加
+        📅 {label}
       </button>
 
       {open && (

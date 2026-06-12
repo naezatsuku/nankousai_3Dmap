@@ -246,11 +246,11 @@ export default function ShiftEditPage() {
   const currentExhibit = exhibits.find(e => e.id === exhibitId)
 
   const tabStyle = (t: string): React.CSSProperties => ({
-    padding:'8px 18px', borderRadius:99, border:'none', cursor:'pointer',
+    padding:'8px clamp(6px, 2vw, 18px)', borderRadius:99, border:'none', cursor:'pointer',
     background: tab === t ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#f1f5f9',
     color: tab === t ? '#fff' : '#64748b',
     fontWeight:700, fontSize:12, fontFamily:"'Kiwi Maru',serif",
-    transition:'all 0.15s',
+    whiteSpace:'nowrap', transition:'all 0.15s',
   })
 
   const cardStyle: React.CSSProperties = {

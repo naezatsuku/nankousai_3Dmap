@@ -11,7 +11,8 @@ function serviceDb() {
 }
 
 // POST /api/admin/users/assign
-// body: { userId, exhibitIds, table: 'exhibit_editors' | 'student_exhibits' }
+// body: { userId, exhibitIds, table: 'exhibit_editors' | 'student_exhibits' | 'band_editors' }
+// band_editors の場合 exhibitIds にはバンド ID を渡す
 export async function POST(req: Request) {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,19 +27,21 @@ export async function POST(req: Request) {
   const body = await req.json() as {
     userId:     string
     exhibitIds: string[]
-    table:      'exhibit_editors' | 'student_exhibits'
+    table:      'exhibit_editors' | 'student_exhibits' | 'band_editors'
   }
 
-  if (!body.userId || !['exhibit_editors', 'student_exhibits'].includes(body.table)) {
+  if (!body.userId || !['exhibit_editors', 'student_exhibits', 'band_editors'].includes(body.table)) {
     return NextResponse.json({ error: 'パラメータが不正です' }, { status: 400 })
   }
+
+  const idColumn = body.table === 'band_editors' ? 'band_id' : 'exhibit_id'
 
   const db = serviceDb()
   await db.from(body.table).delete().eq('user_id', body.userId)
 
   if (body.exhibitIds.length > 0) {
     await db.from(body.table).insert(
-      body.exhibitIds.map(exhibit_id => ({ user_id: body.userId, exhibit_id }))
+      body.exhibitIds.map(id => ({ user_id: body.userId, [idColumn]: id }))
     )
   }
 
