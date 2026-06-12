@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ============================================================
 // 型定義
@@ -59,31 +59,47 @@ const SITEMAP: SitemapItem[] = [
 // ============================================================
 type LoaderPhase = "hanging" | "swing" | "land" | "bounce" | "show";
 
+const MIN_SHOW_MS = 2000; // 演出の最低表示時間
+const MAX_WAIT_MS = 4000; // プリロード待ちの上限（遅い回線でも先へ進む）
+
 function NanpenLoader({ onComplete }: NanpenLoaderProps) {
   const [phase, setPhase] = useState<LoaderPhase>("hanging");
   const [progress, setProgress] = useState<number>(0);
   const [visible, setVisible] = useState<boolean>(true);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("swing"),  300);
-    const t2 = setTimeout(() => setPhase("land"),  3000);
-    const t3 = setTimeout(() => setPhase("bounce"), 3450);
-    const t4 = setTimeout(() => setPhase("show"),  3900);
+    const t1 = setTimeout(() => setPhase("swing"),   150);
+    const t2 = setTimeout(() => setPhase("land"),   1150);
+    const t3 = setTimeout(() => setPhase("bounce"), 1300);
+    const t4 = setTimeout(() => setPhase("show"),   1650);
 
     const interval = setInterval(() => {
       setProgress((p) => {
         if (p >= 100) { clearInterval(interval); return 100; }
-        return p + 1.8;
+        return p + 4;
       });
     }, 55);
 
-    const t5 = setTimeout(() => {
+    // 「最低表示時間」と「実際のプリロード完了（上限つき）」の両方を待って終了
+    const minShow = new Promise((r) => setTimeout(r, MIN_SHOW_MS));
+    const preload = import("@/lib/glbPreload")
+      .then((m) => m.preloadAllFloors())
+      .catch(() => {});
+    const waitCap = new Promise((r) => setTimeout(r, MAX_WAIT_MS));
+
+    let alive = true;
+    let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+    Promise.all([minShow, Promise.race([preload, waitCap])]).then(() => {
+      if (!alive) return;
+      setProgress(100);
       setVisible(false);
-      setTimeout(() => onComplete?.(), 700);
-    }, 5400);
+      fadeTimer = setTimeout(() => onComplete?.(), 450);
+    });
 
     return () => {
-      [t1, t2, t3, t4, t5].forEach(clearTimeout);
+      alive = false;
+      [t1, t2, t3, t4].forEach(clearTimeout);
+      if (fadeTimer) clearTimeout(fadeTimer);
       clearInterval(interval);
     };
   }, [onComplete]);
@@ -93,19 +109,13 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@700&family=Kiwi+Maru:wght@400;500&display=swap');
-
         @keyframes pendulum {
           0%  { transform: rotate(0deg); }
-          6%  { transform: rotate(26deg); }
-          18% { transform: rotate(-22deg); }
-          30% { transform: rotate(18deg); }
-          42% { transform: rotate(-14deg); }
-          54% { transform: rotate(10deg); }
-          65% { transform: rotate(-6deg); }
-          75% { transform: rotate(4deg); }
-          84% { transform: rotate(-2deg); }
-          92% { transform: rotate(1deg); }
+          15% { transform: rotate(24deg); }
+          40% { transform: rotate(-18deg); }
+          62% { transform: rotate(10deg); }
+          80% { transform: rotate(-4deg); }
+          92% { transform: rotate(2deg); }
           100%{ transform: rotate(0deg); }
         }
         @keyframes landBounce {
@@ -130,7 +140,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
         }
         .pendulum-wrap {
           transform-origin: top center;
-          animation: pendulum 2.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          animation: pendulum 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
         .land-bounce {
           animation: landBounce 0.75s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
@@ -144,7 +154,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
         alignItems: "center", justifyContent: "center",
         zIndex: 9999,
         opacity: visible ? 1 : 0,
-        transition: "opacity 0.7s ease",
+        transition: "opacity 0.45s ease",
       }}>
         {/* 背景デコ */}
         <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
@@ -207,6 +217,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
               <img
                 src="/nanpen.png"
                 alt="なんぺん"
+                fetchPriority="high"
                 style={{
                   width: 175, height: "auto", marginTop: -4,
                   filter: "drop-shadow(0 8px 24px rgba(255,140,0,0.3))",
@@ -243,7 +254,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
         <div style={{
           marginTop: 12, textAlign: "center",
           animation: "fadeInUp 0.8s ease forwards",
-          animationDelay: "3.7s", opacity: 0,
+          animationDelay: "1.4s", opacity: 0,
         }}>
           <div style={{
             fontFamily: "'Kaisei Decol', serif",
@@ -332,8 +343,6 @@ function TopPage({ onNavigate }: TopPageProps) {
       overflowX: "hidden",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@700&family=Kiwi+Maru:wght@400;500&display=swap');
-
         @keyframes float {
           0%, 100%{ transform: translateY(0px) rotate(0deg);    }
           33%     { transform: translateY(-10px) rotate(-1.5deg); }
@@ -721,35 +730,32 @@ function TopPage({ onNavigate }: TopPageProps) {
 // ============================================================
 export default function Page() {
   const router = useRouter();
-  // SSR との一致のため初期値は false 固定
+  // SSR・初回クライアントレンダーともにローダーを即表示（FCP/LCP を稼ぐ）
   const [loaded, setLoaded] = useState<boolean>(false);
-  const [checked, setChecked] = useState<boolean>(false);
 
-  // クライアントでのみ sessionStorage を確認
+  // リピーター（同セッション2回目以降）はハイドレーション後すぐスキップ
   useEffect(() => {
-    const id = setTimeout(() => {
-      if (sessionStorage.getItem('nanpen_loaded')) setLoaded(true)
-      setChecked(true)
-    }, 0)
-    return () => clearTimeout(id)
+    if (sessionStorage.getItem('nanpen_loaded')) setLoaded(true)
   }, [])
 
-  const handleComplete = () => {
+  // マップの GLB を先読み・パースしておく
+  // （ローダー表示時は NanpenLoader 側でも完了を待つ。キャッシュ共有なので二重ロードはしない）
+  useEffect(() => {
+    import('@/lib/glbPreload')
+      .then(m => m.preloadAllFloors())
+      .catch(() => {})
+  }, [])
+
+  const handleComplete = useCallback(() => {
     sessionStorage.setItem('nanpen_loaded', '1')
     setLoaded(true)
-  }
+  }, [])
 
   const handleNavigate = (dest: string) => {
     router.push(`${dest}`)
   };
 
-  // sessionStorage 確認前は空白（ハイドレーションのズレを防ぐ）
-  if (!checked) return null
-
-  return (
-    <>
-      {!loaded && <NanpenLoader onComplete={handleComplete} />}
-      {loaded && <TopPage onNavigate={handleNavigate} />}
-    </>
-  );
+  return loaded
+    ? <TopPage onNavigate={handleNavigate} />
+    : <NanpenLoader onComplete={handleComplete} />
 }

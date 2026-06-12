@@ -11,9 +11,9 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import { Eye, Navigation } from 'lucide-react'
 import * as THREE from 'three'
-import { GLTFLoader }    from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
+import { getFloorModel, preloadAllFloors } from '@/lib/glbPreload'
 import { Exhibit } from '@/types'
 
 // ── カラー ──────────────────────────────────────────────
@@ -255,6 +255,7 @@ export default function MapCanvas({
   const applyRoomColorsRef  = useRef<() => void>(() => {})
   const rebuildMarkersRef   = useRef<(scene: THREE.Scene) => void>(() => {})
   const panHalfExtRef       = useRef(0)
+  const loadSeqRef          = useRef(0)
 
   const [isTopDown, setIsTopDown] = useState(false)
   const [btnFaded,  setBtnFaded]  = useState(false)
@@ -370,11 +371,12 @@ export default function MapCanvas({
     const prev = scene.getObjectByName('floorModel')
     if (prev) scene.remove(prev)
 
-    const loader = new GLTFLoader()
-    loader.load(
-      `/models/schoolmap_${f}F.glb`,
-      (gltf) => {
-        const root = gltf.scene
+    // プリロード済みキャッシュから取得（未ロード時のみフェッチ＋パース）
+    const reqId = ++loadSeqRef.current
+    getFloorModel(f)
+      .then((root) => {
+        // 取得中に別フロアへ切り替わっていたら破棄
+        if (reqId !== loadSeqRef.current) return
         root.name  = 'floorModel'
 
         // 中央揃え
@@ -436,10 +438,8 @@ export default function MapCanvas({
           cam.updateProjectionMatrix()
           panHalfExtRef.current = maxDim * 1.1
         }
-      },
-      undefined,
-      (err) => console.error(`GLB load error (${f}F):`, err)
-    )
+      })
+      .catch((err) => console.error(`GLB load error (${f}F):`, err))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -592,6 +592,10 @@ export default function MapCanvas({
     }
     el.addEventListener('pointerdown', onPointerDown)
     el.addEventListener('pointerup',   onPointerUp)
+
+    // トップページを経由しない直接アクセスに備え、全フロアを裏で先読み
+    // （キャッシュ済みなら即解決するだけなのでコストなし）
+    preloadAllFloors(floor)
 
     // リサイズ
     const ro = new ResizeObserver(() => {

@@ -10,7 +10,6 @@ interface BeforeInstallPromptEvent extends Event {
 const STORAGE_KEY = 'install_banner_dismissed_v1'
 
 function detectPlatform(): 'android' | 'ios' | null {
-  if (typeof window === 'undefined') return null
   if (window.matchMedia('(display-mode: standalone)').matches) return null
   if ((navigator as { standalone?: boolean }).standalone) return null
   if (localStorage.getItem(STORAGE_KEY)) return null
@@ -24,13 +23,16 @@ function detectPlatform(): 'android' | 'ios' | null {
 }
 
 export default function InstallBanner() {
-  const [platform]                         = useState(detectPlatform)
-  const [visible,        setVisible]       = useState(platform === 'ios')
+  const [platform,       setPlatform]       = useState<'android' | 'ios' | null>(null)
+  const [visible,        setVisible]        = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [showGuide,      setShowGuide]     = useState(false)
+  const [showGuide,      setShowGuide]      = useState(false)
 
   useEffect(() => {
-    if (platform !== 'android') return
+    const detected = detectPlatform()
+    setPlatform(detected)
+    if (detected === 'ios') setVisible(true)
+    if (detected !== 'android') return
     const handler = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
@@ -38,7 +40,7 @@ export default function InstallBanner() {
     }
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [platform])
+  }, [])
 
   const dismiss = () => {
     setVisible(false)
