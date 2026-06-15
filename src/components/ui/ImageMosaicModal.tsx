@@ -23,11 +23,11 @@ export default function ImageMosaicModal({ file, onConfirm, onCancel }: Props) {
     const overlay = overlayRef.current
     if (!canvas || !overlay) return
 
-    // image load
     const url = URL.createObjectURL(file)
     const img = new Image()
     img.onload = () => {
-      const maxW = 600, maxH = 460
+      // フルスクリーン用に大きめのサイズを許容し、CSS側で収める
+      const maxW = 1600, maxH = 1600
       const scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight)
       const W = Math.round(img.naturalWidth  * scale)
       const H = Math.round(img.naturalHeight * scale)
@@ -39,7 +39,6 @@ export default function ImageMosaicModal({ file, onConfirm, onCancel }: Props) {
     img.onerror = () => URL.revokeObjectURL(url)
     img.src = url
 
-    // helpers
     const getPos = (clientX: number, clientY: number) => {
       const rect = overlay.getBoundingClientRect()
       return {
@@ -86,52 +85,14 @@ export default function ImageMosaicModal({ file, onConfirm, onCancel }: Props) {
 
     const clearOverlay = () => overlay.getContext('2d')!.clearRect(0, 0, overlay.width, overlay.height)
 
-    // mouse
-    const onMouseDown = (e: MouseEvent) => {
-      dragging.current = true
-      startRef.current = getPos(e.clientX, e.clientY)
-    }
-    const onMouseMove = (e: MouseEvent) => {
-      if (!dragging.current) return
-      const cur = getPos(e.clientX, e.clientY)
-      drawRect(startRef.current.x, startRef.current.y, cur.x, cur.y)
-    }
-    const onMouseUp = (e: MouseEvent) => {
-      if (!dragging.current) return
-      dragging.current = false
-      const cur = getPos(e.clientX, e.clientY)
-      clearOverlay()
-      applyMosaic(startRef.current.x, startRef.current.y, cur.x, cur.y)
-    }
-    const onMouseLeave = () => {
-      if (!dragging.current) return
-      dragging.current = false
-      clearOverlay()
-    }
+    const onMouseDown  = (e: MouseEvent) => { dragging.current = true; startRef.current = getPos(e.clientX, e.clientY) }
+    const onMouseMove  = (e: MouseEvent) => { if (!dragging.current) return; const c = getPos(e.clientX, e.clientY); drawRect(startRef.current.x, startRef.current.y, c.x, c.y) }
+    const onMouseUp    = (e: MouseEvent) => { if (!dragging.current) return; dragging.current = false; const c = getPos(e.clientX, e.clientY); clearOverlay(); applyMosaic(startRef.current.x, startRef.current.y, c.x, c.y) }
+    const onMouseLeave = () => { if (!dragging.current) return; dragging.current = false; clearOverlay() }
 
-    // touch — passive: false で preventDefault を有効にする
-    const onTouchStart = (e: TouchEvent) => {
-      e.preventDefault()
-      const t = e.touches[0]
-      dragging.current = true
-      startRef.current = getPos(t.clientX, t.clientY)
-    }
-    const onTouchMove = (e: TouchEvent) => {
-      e.preventDefault()
-      if (!dragging.current) return
-      const t = e.touches[0]
-      const cur = getPos(t.clientX, t.clientY)
-      drawRect(startRef.current.x, startRef.current.y, cur.x, cur.y)
-    }
-    const onTouchEnd = (e: TouchEvent) => {
-      e.preventDefault()
-      if (!dragging.current) return
-      dragging.current = false
-      const t = e.changedTouches[0]
-      const cur = getPos(t.clientX, t.clientY)
-      clearOverlay()
-      applyMosaic(startRef.current.x, startRef.current.y, cur.x, cur.y)
-    }
+    const onTouchStart = (e: TouchEvent) => { e.preventDefault(); const t = e.touches[0]; dragging.current = true; startRef.current = getPos(t.clientX, t.clientY) }
+    const onTouchMove  = (e: TouchEvent) => { e.preventDefault(); if (!dragging.current) return; const t = e.touches[0]; const c = getPos(t.clientX, t.clientY); drawRect(startRef.current.x, startRef.current.y, c.x, c.y) }
+    const onTouchEnd   = (e: TouchEvent) => { e.preventDefault(); if (!dragging.current) return; dragging.current = false; const t = e.changedTouches[0]; const c = getPos(t.clientX, t.clientY); clearOverlay(); applyMosaic(startRef.current.x, startRef.current.y, c.x, c.y) }
 
     overlay.addEventListener('mousedown',  onMouseDown)
     overlay.addEventListener('mousemove',  onMouseMove)
@@ -162,52 +123,91 @@ export default function ImageMosaicModal({ file, onConfirm, onCancel }: Props) {
     canvasRef.current!.toBlob(blob => { if (blob) onConfirm(blob) }, 'image/webp', 0.85)
   }
 
-  const btn = (onClick: () => void, label: string, primary = false, disabled = false) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        padding: '8px 18px', borderRadius: 8, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-        fontFamily: "'Kiwi Maru',serif", fontSize: 13, fontWeight: primary ? 700 : 400,
-        background: disabled ? '#334155' : primary ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#334155',
-        color: disabled ? '#475569' : '#fff',
-      }}
-    >
-      {label}
-    </button>
-  )
-
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
-    }}>
-      <div style={{
-        background: '#1e293b', borderRadius: 16, padding: 20,
-        display: 'flex', flexDirection: 'column', gap: 14,
-        maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-      }}>
-        <div style={{ color: '#f1f5f9', fontFamily: "'Kiwi Maru',serif", fontSize: 14, fontWeight: 700 }}>
-          モザイクをかけたい範囲をドラッグで選択
-        </div>
+    <div style={{ position: 'fixed', inset: 0, background: '#000', display: 'flex', flexDirection: 'column', zIndex: 9999 }}>
 
-        <div style={{ position: 'relative', display: 'inline-block', cursor: 'crosshair', lineHeight: 0 }}>
+      {/* ── ヘッダーバー ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 16px', flexShrink: 0,
+        background: '#111827',
+        borderBottom: '1px solid #1f2937',
+      }}>
+        {/* 左: キャンセル */}
+        <button
+          onClick={onCancel}
+          style={{
+            background: 'none', border: 'none', color: '#9ca3af',
+            fontSize: 14, cursor: 'pointer', padding: '4px 0',
+            fontFamily: "'Kiwi Maru',serif",
+          }}
+        >
+          キャンセル
+        </button>
+
+        {/* 中央: タイトル */}
+        <span style={{ color: '#f9fafb', fontSize: 15, fontWeight: 700, fontFamily: "'Kiwi Maru',serif" }}>
+          モザイク
+        </span>
+
+        {/* 右: 元に戻す + 完了 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={handleUndo}
+            disabled={!canUndo}
+            title="元に戻す"
+            style={{
+              background: canUndo ? '#1f2937' : 'none',
+              border: 'none',
+              borderRadius: 8,
+              color: canUndo ? '#f9fafb' : '#374151',
+              fontSize: 18, cursor: canUndo ? 'pointer' : 'not-allowed',
+              padding: '4px 8px', lineHeight: 1,
+            }}
+          >
+            ↩
+          </button>
+          <button
+            onClick={handleConfirm}
+            style={{
+              background: 'linear-gradient(135deg,#FF6B00,#FFAA28)',
+              border: 'none', borderRadius: 8,
+              color: '#fff', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', padding: '6px 16px',
+              fontFamily: "'Kiwi Maru',serif",
+            }}
+          >
+            完了
+          </button>
+        </div>
+      </div>
+
+      {/* ── キャンバスエリア（残り全高） ── */}
+      <div style={{
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#0a0a0a', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0, cursor: 'crosshair' }}>
           <canvas
             ref={canvasRef}
-            style={{ display: 'block', borderRadius: 8, maxWidth: 'min(600px, 80vw)' }}
+            style={{ display: 'block', maxWidth: '100vw', maxHeight: 'calc(100dvh - 108px)' }}
           />
           <canvas
             ref={overlayRef}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: 8, touchAction: 'none' }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none' }}
           />
         </div>
-
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          {btn(handleUndo, '↩ 元に戻す', false, !canUndo)}
-          {btn(onCancel, 'キャンセル')}
-          {btn(handleConfirm, '確定してアップロード', true)}
-        </div>
       </div>
+
+      {/* ── フッターヒント ── */}
+      <div style={{
+        textAlign: 'center', padding: '10px 16px', flexShrink: 0,
+        background: '#111827', borderTop: '1px solid #1f2937',
+        color: '#6b7280', fontSize: 11, fontFamily: "'Kiwi Maru',serif",
+      }}>
+        ドラッグして範囲を選択 → モザイクをかけます
+      </div>
+
     </div>
   )
 }
