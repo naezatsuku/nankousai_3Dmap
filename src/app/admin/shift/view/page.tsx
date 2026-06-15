@@ -63,19 +63,23 @@ const IMG_TIME_COL_W = 106 // 時間列の幅 ≒28mm
 const IMG_HEADER_H = 26
 const IMG_ROW_H = 24
 const IMG_TITLE_SIZE = 16
+// A4縦の全体高さ(px)。幅(IMG_CONTENT_W+余白)をA4比率(297/210)で換算したもの。
+// この高さを超えるとコマ単位で改ページ（＝別のPNG）に分割する。
+const IMG_PAGE_H = Math.round((IMG_CONTENT_W + IMG_PAD * 2) * 297 / 210)
 
-// 1日分のシフト表をCanvasに描画してPNG用のcanvasを返す（コマが無い日はnull）
-function drawDayImage(day: DayData, title: string): HTMLCanvasElement | null {
-  const { slots, members, assigns } = day
-  if (slots.length === 0) return null
-
-  const assignMap = buildAssignMap(assigns)
-  const { rowsPerSlot, colsPerRow } = buildPrintLayout(slots)
-  const totalCols = rowsPerSlot * colsPerRow
-  const nameColW = (IMG_CONTENT_W - IMG_TIME_COL_W) / colsPerRow
-
+// 指定したコマ群だけを1枚のcanvasに描画する（1ページ分）。
+function drawDayPage(
+  pageSlots: Slot[],
+  members: Member[],
+  assignMap: Map<string, Set<string>>,
+  rowsPerSlot: number,
+  colsPerRow: number,
+  totalCols: number,
+  nameColW: number,
+  title: string,
+): HTMLCanvasElement | null {
   const tableTop = IMG_PAD + IMG_TITLE_SIZE + 12
-  const tableH = IMG_HEADER_H + slots.length * rowsPerSlot * IMG_ROW_H
+  const tableH = IMG_HEADER_H + pageSlots.length * rowsPerSlot * IMG_ROW_H
   const width = IMG_CONTENT_W + IMG_PAD * 2
   const height = tableTop + tableH + IMG_PAD
 
@@ -114,7 +118,7 @@ function drawDayImage(day: DayData, title: string): HTMLCanvasElement | null {
   cell(left + IMG_TIME_COL_W, tableTop, IMG_CONTENT_W - IMG_TIME_COL_W, IMG_HEADER_H, '担当者', '700 12px sans-serif')
 
   let y = tableTop + IMG_HEADER_H
-  for (const slot of slots) {
+  for (const slot of pageSlots) {
     const slotAssigns = assignMap.get(slot.id) ?? new Set()
     const assigned = members.filter(m => slotAssigns.has(m.user_id))
     const names = sortMembers(assigned, '').map(m => m.profiles?.name ?? '')
@@ -135,6 +139,34 @@ function drawDayImage(day: DayData, title: string): HTMLCanvasElement | null {
   }
 
   return canvas
+}
+
+// 1日分のシフト表をPNG用canvasの配列で返す（コマが無い日は空配列）。
+// 1ページ(A4縦)に収まらない場合はコマ単位で区切って複数ページに分割する。
+function drawDayImages(day: DayData, title: string): HTMLCanvasElement[] {
+  const { slots, members, assigns } = day
+  if (slots.length === 0) return []
+
+  const assignMap = buildAssignMap(assigns)
+  const { rowsPerSlot, colsPerRow } = buildPrintLayout(slots)
+  const totalCols = rowsPerSlot * colsPerRow
+  const nameColW = (IMG_CONTENT_W - IMG_TIME_COL_W) / colsPerRow
+
+  // 1ページに収まるコマ数（タイトル・ヘッダー・上下余白を除いた高さから算出）
+  const tableTop = IMG_PAD + IMG_TITLE_SIZE + 12
+  const slotH = rowsPerSlot * IMG_ROW_H
+  const availForSlots = IMG_PAGE_H - tableTop - IMG_HEADER_H - IMG_PAD
+  const slotsPerPage = Math.max(1, Math.floor(availForSlots / slotH))
+
+  const canvases: HTMLCanvasElement[] = []
+  for (let start = 0; start < slots.length; start += slotsPerPage) {
+    const canvas = drawDayPage(
+      slots.slice(start, start + slotsPerPage),
+      members, assignMap, rowsPerSlot, colsPerRow, totalCols, nameColW, title,
+    )
+    if (canvas) canvases.push(canvas)
+  }
+  return canvases
 }
 
 export default function ShiftViewPage() {
@@ -235,17 +267,20 @@ export default function ShiftViewPage() {
     let saved = 0
     for (const d of DATES) {
       const label = d === 'sat' ? '土曜日' : '日曜日'
-      const canvas = drawDayImage(dayData[d], `${exhibitName} シフト表（${label}）`)
-      if (!canvas) continue
-      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'))
-      if (!blob) continue
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `シフト表_${label}.png`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 10000)
-      saved++
+      const canvases = drawDayImages(dayData[d], `${exhibitName} シフト表（${label}）`)
+      const multi = canvases.length > 1
+      for (let p = 0; p < canvases.length; p++) {
+        const blob = await new Promise<Blob | null>(res => canvases[p].toBlob(res, 'image/png'))
+        if (!blob) continue
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        // 複数ページに分かれた場合はファイル名にページ番号を付ける
+        a.download = multi ? `シフト表_${label}_${p + 1}.png` : `シフト表_${label}.png`
+        a.click()
+        setTimeout(() => URL.revokeObjectURL(url), 10000)
+        saved++
+      }
     }
     if (saved === 0) alert('保存できるシフトがありません。')
   }
@@ -604,29 +639,33 @@ export default function ShiftViewPage() {
                     <th colSpan={colsPerRow}>担当者</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {dSlots.map(slot => {
-                    const slotAssigns = dAssignMap.get(slot.id) ?? new Set()
-                    const assigned = dMembers.filter(m => slotAssigns.has(m.user_id))
-                    const names = sortMembers(assigned, '').map(m => m.profiles?.name ?? '')
-                    while (names.length < totalCols) names.push('')
+                {/* コマごとに tbody を分け、コマ単位で改ページされるようにする
+                    （行の途中でページがまたがらないよう page-break-inside: avoid を効かせる） */}
+                {dSlots.map(slot => {
+                  const slotAssigns = dAssignMap.get(slot.id) ?? new Set()
+                  const assigned = dMembers.filter(m => slotAssigns.has(m.user_id))
+                  const names = sortMembers(assigned, '').map(m => m.profiles?.name ?? '')
+                  while (names.length < totalCols) names.push('')
 
-                    return Array.from({ length: rowsPerSlot }).map((_, row) => (
-                      <tr key={`${slot.id}-${row}`}>
-                        {row === 0 && (
-                          <td rowSpan={rowsPerSlot} className="shift-print-time">
-                            {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
-                          </td>
-                        )}
-                        {names.slice(row * colsPerRow, (row + 1) * colsPerRow).map((name, i2) => (
-                          <td key={i2} className="shift-print-name">
-                            {name && <span style={{ fontSize: printNameFontSize(name) }}>{name}</span>}
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  })}
-                </tbody>
+                  return (
+                    <tbody key={slot.id} className="shift-print-slot">
+                      {Array.from({ length: rowsPerSlot }).map((_, row) => (
+                        <tr key={`${slot.id}-${row}`}>
+                          {row === 0 && (
+                            <td rowSpan={rowsPerSlot} className="shift-print-time">
+                              {slot.start_at.slice(0,5)}〜{slot.end_at.slice(0,5)}
+                            </td>
+                          )}
+                          {names.slice(row * colsPerRow, (row + 1) * colsPerRow).map((name, i2) => (
+                            <td key={i2} className="shift-print-name">
+                              {name && <span style={{ fontSize: printNameFontSize(name) }}>{name}</span>}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  )
+                })}
               </table>
             )}
           </section>
@@ -648,7 +687,11 @@ export default function ShiftViewPage() {
         .shift-print-view { display: block; }
         @page { size: A4 portrait; margin: 14mm; }
 
-        .shift-print-day { page-break-inside: avoid; }
+        /* 表が1ページに収まらない場合は、コマ(tbody)単位で区切ってから次ページへ。
+           行の途中でページがまたがらないようにする */
+        .shift-print-slot { page-break-inside: avoid; break-inside: avoid; }
+        /* 各ページの先頭にヘッダー行を繰り返す */
+        .shift-print-table thead { display: table-header-group; }
         .shift-print-title {
           font-family: sans-serif;
           font-size: 16px;
