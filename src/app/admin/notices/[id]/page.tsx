@@ -4,7 +4,7 @@ import PageLoader from '@/components/ui/PageLoader'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+
 import { createClient } from '@/lib/supabase/client'
 import MediaUpload, { isVideoUrl } from '@/components/ui/MediaUpload'
 import { logActivity } from '@/lib/activity-log'
@@ -210,7 +210,9 @@ export default function NoticeEditPage() {
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', currentUser!.id).single()
       const role = (prof as { role: string } | null)?.role ?? ''
       const isAdmin = role === 'admin'
-      const newStatus: NoticeStatus = isNew ? (isAdmin ? 'approved' : 'pending') : status
+      const newStatus: NoticeStatus = isNew
+        ? (isAdmin ? 'approved' : 'pending')
+        : (status === 'rejected' && !isAdmin ? 'pending' : status)
 
       if (isNew) {
         const { error: e } = await supabase.from('notices').insert({
@@ -224,13 +226,21 @@ export default function NoticeEditPage() {
         })
         if (e) throw e
       } else {
-        const { error: e } = await supabase.from('notices').update({
+        const updatePayload: Record<string, unknown> = {
           exhibit_id:  form.exhibit_id,
           title:       form.title.trim(),
           body:        form.body.trim(),
           sender_name: form.sender_name.trim() || null,
           is_urgent:   form.is_urgent,
-        }).eq('id', nid)
+        }
+        // 却下済みを非 admin が再保存 → 審査待ちに戻す
+        if (status === 'rejected' && !isAdmin) {
+          updatePayload.status         = 'pending'
+          updatePayload.review_comment = null
+          updatePayload.reviewed_at    = null
+          updatePayload.reviewed_by    = null
+        }
+        const { error: e } = await supabase.from('notices').update(updatePayload).eq('id', nid)
         if (e) throw e
         // 既存メディアを一括削除してから再挿入
         await supabase.from('notice_media').delete().eq('notice_id', nid)
@@ -269,7 +279,8 @@ export default function NoticeEditPage() {
         }).catch(() => {})
       }
 
-      if (isNew) setStatus(newStatus)
+      setStatus(newStatus)
+      if (newStatus === 'pending' && status === 'rejected') setReviewComment('')
 
       // 変更ログを記録（先生への通知用）
       if (currentUser) {
@@ -298,11 +309,12 @@ export default function NoticeEditPage() {
     <div style={{ maxWidth:760 }}>
       {/* ページヘッダー */}
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
-        <Link href="/admin/notices" style={{
+        <button onClick={() => router.push('/admin/notices')} style={{
           width:34, height:34, borderRadius:'50%', background:'#f1f5f9',
           display:'flex', alignItems:'center', justifyContent:'center',
-          color:'#475569', textDecoration:'none', fontSize:16, flexShrink:0,
-        }}>←</Link>
+          color:'#475569', fontSize:16, flexShrink:0,
+          border:'none', cursor:'pointer',
+        }}>←</button>
         <div>
           <h1 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', marginBottom:0 }}>
             {isNew ? 'お知らせを作成' : 'お知らせを編集'}
@@ -566,17 +578,22 @@ export default function NoticeEditPage() {
             transition:'all 0.2s',
           }}
         >
-          {saving ? '保存中…' : saved ? '✓ 保存しました' : (isNew ? '作成する' : '変更を保存')}
+          {saving ? '保存中…'
+            : saved ? '✓ 保存しました'
+            : isNew ? '作成する'
+            : (status === 'rejected' && userRole !== 'admin') ? '修正して再提出する'
+            : '変更を保存'}
         </button>
 
-        <Link href="/admin/notices" style={{
+        <button onClick={() => router.push('/admin/notices')} style={{
           padding:'14px 20px', borderRadius:12,
           border:'1px solid #e2e8f0', background:'#fff',
-          color:'#64748b', textDecoration:'none',
+          color:'#64748b',
           fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+          cursor:'pointer',
         }}>
           キャンセル
-        </Link>
+        </button>
       </div>
     </div>
   )

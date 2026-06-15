@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { getFCMToken, getStoredToken, unsubscribeFromGlobal } from '@/lib/push'
 
 type PushState = 'unsupported' | 'denied' | 'off' | 'on'
@@ -12,9 +12,13 @@ function detectPushState(): PushState {
 }
 
 export default function NotificationBanner() {
-  const [pushState,  setPushState]  = useState<PushState>(detectPushState)
+  const [pushState,  setPushState]  = useState<PushState>('unsupported')
   const [working,    setWorking]    = useState(false)
   const [collapsed,  setCollapsed]  = useState(false)
+
+  useEffect(() => {
+    setPushState(detectPushState())
+  }, [])
 
   const enablePush = async () => {
     setWorking(true)

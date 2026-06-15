@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { Exhibit } from '@/types'
+import { Building2, CheckCircle2, Clock, Bell, Pencil, Users, Plus, ShoppingBag, Vote, Settings, ClipboardList, CalendarDays, Map } from 'lucide-react'
 
 function relativeTime(iso: string) {
   const diff = new Date().getTime() - new Date(iso).getTime()
@@ -102,10 +103,10 @@ export default function AdminDashboard() {
     w >= 30 ? '#ef4444' : w >= 15 ? '#f59e0b' : '#10b981'
 
   const statsCards = stats ? [
-    { label:'展示団体数',   value: String(stats.total),             sub:'全フロア',              icon:'🏫', color:'#6366f1' },
-    { label:'現在公開中',   value: String(stats.active),            sub:`${stats.total - stats.active}団体が非公開`, icon:'✅', color:'#10b981' },
-    { label:'平均待ち時間', value: stats.avgWait > 0 ? `${stats.avgWait}分` : '−', sub:'公開中の全体平均', icon:'⏱', color:'#f59e0b' },
-    { label:'お知らせ（7日）', value: `${stats.notices}件`,         sub:'直近7日間',              icon:'🔔', color:'#ef4444' },
+    { label:'展示団体数',   value: String(stats.total),             sub:'全フロア',              icon:<Building2 size={20} />,    color:'#6366f1' },
+    { label:'現在公開中',   value: String(stats.active),            sub:`${stats.total - stats.active}団体が非公開`, icon:<CheckCircle2 size={20} />, color:'#10b981' },
+    { label:'平均待ち時間', value: stats.avgWait > 0 ? `${stats.avgWait}分` : '−', sub:'公開中の全体平均', icon:<Clock size={20} />,        color:'#f59e0b' },
+    { label:'お知らせ（7日）', value: `${stats.notices}件`,         sub:'直近7日間',              icon:<Bell size={20} />,         color:'#ef4444' },
   ] : []
 
   return (
@@ -140,7 +141,7 @@ export default function AdminDashboard() {
               <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:10 }}>
                 <div style={{
                   width:40, height:40, borderRadius:10,
-                  background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20,
+                  background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', color:s.color,
                 }}>{s.icon}</div>
               </div>
               <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:26, fontWeight:700, color:'#1e293b', marginBottom:2 }}>
@@ -231,15 +232,15 @@ export default function AdminDashboard() {
       {/* ── クイックアクセス ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12, marginTop:20 }}>
         {[
-          { href:'/admin/edit',          label:'展示を編集',    icon:'✏', color:'#6366f1', editorOk: true },
-          { href:'/admin/users',         label:'権限を管理',    icon:'👥', color:'#10b981' },
-          { href:'/admin/exhibits',      label:'団体を追加',    icon:'＋', color:'#f59e0b' },
-          { href:'/admin/food',          label:'販売数管理',    icon:'🍱', color:'#f97316' },
-          { href:'/admin/votes',         label:'人気投票',      icon:'🗳', color:'#FF6B00' },
-          { href:'/admin/settings',      label:'サイト設定',    icon:'⚙', color:'#64748b' },
-          { href:'/admin/shift/survey',  label:'シフトアンケート', icon:'📝', color:'#6366f1', editorOk: true, studentOk: true },
-          { href:'/admin/shift/view',    label:'シフト表を確認', icon:'📅', color:'#10b981', editorOk: true, studentOk: true },
-          { href:'/map',                 label:'マップを確認',  icon:'🗺', color:'#0ea5e9', editorOk: true, studentOk: true },
+          { href:'/admin/edit',          label:'展示を編集',    icon:<Pencil size={16} />,       color:'#6366f1', editorOk: true },
+          { href:'/admin/users',         label:'権限を管理',    icon:<Users size={16} />,         color:'#10b981' },
+          { href:'/admin/exhibits',      label:'団体を追加',    icon:<Plus size={16} />,          color:'#f59e0b' },
+          { href:'/admin/food',          label:'販売数管理',    icon:<ShoppingBag size={16} />,   color:'#f97316' },
+          { href:'/admin/votes',         label:'人気投票',      icon:<Vote size={16} />,          color:'#FF6B00' },
+          { href:'/admin/settings',      label:'サイト設定',    icon:<Settings size={16} />,      color:'#64748b' },
+          { href:'/admin/shift/survey',  label:'シフトアンケート', icon:<ClipboardList size={16} />, color:'#6366f1', editorOk: true, studentOk: true },
+          { href:'/admin/shift/view',    label:'シフト表を確認', icon:<CalendarDays size={16} />, color:'#10b981', editorOk: true, studentOk: true },
+          { href:'/map',                 label:'マップを確認',  icon:<Map size={16} />,           color:'#0ea5e9', editorOk: true, studentOk: true },
         ].filter(a =>
           (!isEditor  || a.editorOk) &&
           (!isStudent || a.studentOk)
@@ -252,7 +253,7 @@ export default function AdminDashboard() {
           }}>
             <div style={{
               width:32, height:32, borderRadius:8, background:`${a.color}18`,
-              display:'flex', alignItems:'center', justifyContent:'center', fontSize:16,
+              display:'flex', alignItems:'center', justifyContent:'center', color:a.color,
             }}>{a.icon}</div>
             <span style={{ fontSize:12, fontWeight:700, color:'#1e293b', fontFamily:"'Kiwi Maru',serif" }}>{a.label}</span>
           </Link>

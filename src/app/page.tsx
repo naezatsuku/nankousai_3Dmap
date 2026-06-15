@@ -2,13 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { ReactNode } from "react";
+import { Map, Megaphone, Layers, CalendarDays, UtensilsCrossed, Info } from "lucide-react";
 
 // ============================================================
 // 型定義
 // ============================================================
 interface SitemapItem {
   id: string;
-  icon: string;
+  icon: ReactNode;
   label: string;
   color: string;
   lightColor: string;
@@ -29,27 +31,27 @@ interface TopPageProps {
 // ============================================================
 const SITEMAP: SitemapItem[] = [
   {
-    id: "map", icon: "🗺️", label: "校内マップ", color: "#FF6B00", lightColor: "#FFF3E0",
+    id: "map", icon: <Map size={22} />, label: "校内マップ", color: "#FF6B00", lightColor: "#FFF3E0",
     desc: "1F〜6Fの展示を地図で確認", sub: ["フロア切り替え", "教室タップで詳細", "待ち時間表示"],
   },
   {
-    id: "news", icon: "📣", label: "お知らせ", color: "#E65100", lightColor: "#FBE9E7",
+    id: "news", icon: <Megaphone size={22} />, label: "お知らせ", color: "#E65100", lightColor: "#FBE9E7",
     desc: "各クラス・実行委員からの最新情報", sub: ["リアルタイム更新", "未読バッジ", "クラス別"],
   },
   {
-    id: "exhibits", icon: "🎭", label: "展示一覧", color: "#F57C00", lightColor: "#FFF8E1",
+    id: "exhibits", icon: <Layers size={22} />, label: "展示一覧", color: "#F57C00", lightColor: "#FFF8E1",
     desc: "全クラスの展示をまとめて見る", sub: ["ジャンル別", "お気に入り", "待ち時間順"],
   },
   {
-    id: "schedule", icon: "📅", label: "タイムテーブル", color: "#EF6C00", lightColor: "#FFF3E0",
+    id: "schedule", icon: <CalendarDays size={22} />, label: "タイムテーブル", color: "#EF6C00", lightColor: "#FFF3E0",
     desc: "ステージ・イベントのスケジュール", sub: ["体育館ステージ", "屋外エリア", "時間帯"],
   },
   {
-    id: "food", icon: "🍱", label: "フード", color: "#BF360C", lightColor: "#FBE9E7",
+    id: "food", icon: <UtensilsCrossed size={22} />, label: "フード", color: "#BF360C", lightColor: "#FBE9E7",
     desc: "模擬店・フードコートの情報", sub: ["メニュー一覧", "営業時間", "混雑状況"],
   },
   {
-    id: "info", icon: "ℹ️", label: "インフォ", color: "#FF8F00", lightColor: "#FFFDE7",
+    id: "info", icon: <Info size={22} />, label: "インフォ", color: "#FF8F00", lightColor: "#FFFDE7",
     desc: "アクセス・ルール・お問い合わせ", sub: ["来場ガイド", "注意事項", "緊急連絡先"],
   },
 ];
@@ -538,7 +540,7 @@ function TopPage({ onNavigate }: TopPageProps) {
             onPointerDown={(e) => { e.currentTarget.style.transform = "scale(0.95)"; }}
             onPointerUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
           >
-            🗺️ マップを見る
+            マップを見る
           </button>
           <button
             onClick={() => sitemapRef.current?.scrollIntoView({ behavior: "smooth" })}
@@ -642,7 +644,7 @@ function TopPage({ onNavigate }: TopPageProps) {
                 background: `linear-gradient(135deg, ${item.color}18, ${item.color}30)`,
                 border: `1.5px solid ${item.color}28`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 22,
+                color: item.color,
                 transition: "transform 0.2s",
                 transform: hoveredCard === item.id ? "scale(1.1) rotate(-4deg)" : "scale(1)",
               }}>

@@ -51,13 +51,22 @@ export default function ClassPageContent({ exhibit }: { exhibit: ExhibitDetail }
       {exhibit.media.length > 0 && <Gallery media={exhibit.media} />}
 
       <div style={{ padding:'8px 16px 32px' }}>
-        <Link href="/map" style={{
-          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-          padding:'14px 0', borderRadius:16,
-          background:'#f8f9fa', border:'1px solid #e0e0e0',
-          color:'#555', textDecoration:'none',
-          fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
-        }}>
+        <Link
+          href={(() => {
+            const params = new URLSearchParams()
+            if (exhibit.room_object) params.set('room', exhibit.room_object)
+            if (exhibit.floor != null) params.set('floor', String(exhibit.floor))
+            const qs = params.toString()
+            return qs ? `/map?${qs}` : '/map'
+          })()}
+          style={{
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            padding:'14px 0', borderRadius:16,
+            background:'#f8f9fa', border:'1px solid #e0e0e0',
+            color:'#555', textDecoration:'none',
+            fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700,
+          }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
             <line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>

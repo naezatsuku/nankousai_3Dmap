@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next'
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nankousai-3d-map.vercel.app'
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name:             '南高祭 公式サイト',
@@ -13,6 +15,13 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation:      'portrait-primary',
     lang:             'ja',
     categories:       ['education', 'entertainment'],
+    // getInstalledRelatedApps() で PWA インストール検出に使用
+    related_applications: [
+      {
+        platform: 'webapp',
+        url:      `${SITE_URL}/manifest.webmanifest`,
+      },
+    ],
     icons: [
       {
         src:     '/nanpen.png',

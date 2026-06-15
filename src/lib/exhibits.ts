@@ -41,6 +41,7 @@ export interface ExhibitDetail {
   name:          string
   class_label?:  string
   type:          ExhibitType
+  room_object?:  string
   room_display?: string
   floor?:        number
   day:           Day
@@ -58,7 +59,7 @@ interface RawImage { id: string; url: string; type: 'image'|'video'; caption: st
 interface RawSection { id: string; heading: string; body: BodySegment[]; order_index: number; section_images: RawImage[] }
 interface RawExhibit {
   id: string; name: string; class_label: string|null; type: string
-  room_display: string|null; floor: number|null; day: string|null
+  room_object: string|null; room_display: string|null; floor: number|null; day: string|null
   catch_copy: string|null; cover_url: string|null; thumbnail_url: string|null; description: string|null
   sections: RawSection[]; images: RawImage[]
 }
@@ -71,7 +72,7 @@ export async function fetchExhibitDetail(id: string): Promise<ExhibitDetail | nu
   const { data, error } = await supabase
     .from('exhibits')
     .select(`
-      id, name, class_label, type, room_display, floor, day,
+      id, name, class_label, type, room_object, room_display, floor, day,
       catch_copy, cover_url, thumbnail_url, description,
       sections:exhibit_sections(id, heading, body, order_index,
         section_images:exhibit_images(id, url, type, caption, order_index)
@@ -91,6 +92,7 @@ export async function fetchExhibitDetail(id: string): Promise<ExhibitDetail | nu
     name:          raw.name,
     class_label:   raw.class_label ?? undefined,
     type:          raw.type as ExhibitType,
+    room_object:   raw.room_object ?? undefined,
     room_display:  raw.room_display ?? undefined,
     floor:         raw.floor ?? undefined,
     day:           (raw.day ?? 'both') as Day,

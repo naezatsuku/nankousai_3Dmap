@@ -3,6 +3,8 @@
 import PageLoader from '@/components/ui/PageLoader'
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { buildThresholds, DEFAULT_WAIT_CONFIG, type WaitConfig } from '@/lib/waitColorUtil'
+import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { Exhibit } from '@/types'
@@ -31,19 +33,41 @@ const MapCanvas = dynamic(() => import('@/components/map/MapCanvas'), {
 })
 
 export default function MapPage() {
-  const [mapEnabled, setMapEnabled]     = useState<boolean | null>(null)
+  const searchParams = useSearchParams()
+
+  const [mapEnabled,     setMapEnabled]     = useState<boolean | null>(null)
+  const [waitStageCount, setWaitStageCount] = useState(DEFAULT_WAIT_CONFIG.stageCount)
+  const [waitTh1,        setWaitTh1]        = useState(10)
+  const [waitTh2,        setWaitTh2]        = useState(25)
+  const [waitTh3,        setWaitTh3]        = useState(40)
   const [exhibits, setExhibits]         = useState<Exhibit[]>([])
-  const [floor, setFloor]               = useState(2)
+  const [floor, setFloor]               = useState(() => {
+    const roomParam  = searchParams.get('room')
+    const floorParam = searchParams.get('floor')
+    if (!roomParam || !floorParam) return 2
+    const f = parseInt(floorParam, 10)
+    return isNaN(f) ? 2 : f
+  })
   const [searchQuery, setSearchQuery]   = useState('')
   const [selectedRoom, setSelectedRoom]   = useState<string>('')
   const [sheetExhibits, setSheetExhibits] = useState<Exhibit[]>([])
-  const [focusRoom, setFocusRoom]       = useState<string | null>(null)
+  const [focusRoom, setFocusRoom]       = useState<string | null>(() => {
+    const roomParam  = searchParams.get('room')
+    const floorParam = searchParams.get('floor')
+    return roomParam && floorParam ? roomParam : null
+  })
   const floorRef                        = useRef(floor)
 
   useEffect(() => {
     fetch('/api/admin/settings')
       .then(r => r.json())
-      .then((d: { map_enabled: boolean }) => setMapEnabled(d.map_enabled ?? true))
+      .then((d: { map_enabled: boolean; wait_stage_count?: number; wait_threshold_low?: number; wait_threshold_high?: number; wait_threshold_3?: number }) => {
+        setMapEnabled(d.map_enabled ?? true)
+        setWaitStageCount(d.wait_stage_count    ?? DEFAULT_WAIT_CONFIG.stageCount)
+        setWaitTh1(d.wait_threshold_low  ?? 10)
+        setWaitTh2(d.wait_threshold_high ?? 25)
+        setWaitTh3(d.wait_threshold_3    ?? 40)
+      })
   }, [])
 
   const fetchExhibits = useCallback(async () => {
@@ -96,6 +120,11 @@ export default function MapPage() {
   }, [fetchExhibits])
 
   const floorExhibits = useMemo(() => exhibits.filter(e => e.floor === floor), [exhibits, floor])
+
+  const waitConfig = useMemo<WaitConfig>(() => ({
+    stageCount: waitStageCount,
+    thresholds: buildThresholds(waitStageCount, waitTh1, waitTh2, waitTh3),
+  }), [waitStageCount, waitTh1, waitTh2, waitTh3])
 
   // floorRef を常に最新に保つ
   useEffect(() => { floorRef.current = floor }, [floor])
@@ -169,6 +198,7 @@ export default function MapPage() {
         searchQuery={searchQuery}
         focusRoom={focusRoom}
         onRoomClick={handleRoomClick}
+        waitConfig={waitConfig}
       />
 
       <FloorSelector current={floor} onChange={handleFloorChange} />
@@ -190,6 +220,7 @@ export default function MapPage() {
         }
         floor={floor}
         onClose={handleClose}
+        waitConfig={waitConfig}
       />
     </div>
   )

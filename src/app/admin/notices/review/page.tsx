@@ -2,21 +2,28 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 type NoticeStatus = 'pending' | 'approved' | 'rejected'
 
 interface PendingNotice {
-  id:          string
-  title:       string
-  body:        string
-  sender_name: string | null
-  is_urgent:   boolean
-  created_at:  string
-  status:      NoticeStatus
-  exhibit:     { id: string; name: string; class_label: string | null } | null
-  _mediaCount: number
+  id:             string
+  title:          string
+  body:           string
+  sender_name:    string | null
+  is_urgent:      boolean
+  created_at:     string
+  status:         NoticeStatus
+  review_comment: string | null
+  exhibit:        { id: string; name: string; class_label: string | null } | null
+  _mediaCount:    number
+}
+
+interface ModalMedia {
+  id:      string
+  url:     string
+  type:    'image' | 'video'
+  caption: string | null
 }
 
 function fmtTime(iso: string) {
@@ -30,10 +37,14 @@ export default function NoticeReviewPage() {
   const [notices,  setNotices]  = useState<PendingNotice[]>([])
   const [loading,  setLoading]  = useState(true)
   const [filter,   setFilter]   = useState<'pending' | 'all'>('pending')
-  // 却下コメント入力中の noticeId → コメント本文
-  const [rejectingId,      setRejectingId]      = useState<string | null>(null)
-  const [rejectComment,    setRejectComment]    = useState('')
-  const [processingId,     setProcessingId]     = useState<string | null>(null)
+  const [rejectingId,   setRejectingId]   = useState<string | null>(null)
+  const [rejectComment, setRejectComment] = useState('')
+  const [processingId,  setProcessingId]  = useState<string | null>(null)
+
+  // モーダル
+  const [modalNotice,       setModalNotice]       = useState<PendingNotice | null>(null)
+  const [modalMedia,        setModalMedia]        = useState<ModalMedia[]>([])
+  const [modalMediaLoading, setModalMediaLoading] = useState(false)
 
   // 権限チェック（admin 以外はリダイレクト）
   useEffect(() => {
@@ -53,7 +64,7 @@ export default function NoticeReviewPage() {
     let query = supabase
       .from('notices')
       .select(`
-        id, title, body, sender_name, is_urgent, created_at, status,
+        id, title, body, sender_name, is_urgent, created_at, status, review_comment,
         exhibit:exhibits(id, name, class_label),
         notice_media(id)
       `)
@@ -65,7 +76,7 @@ export default function NoticeReviewPage() {
     if (data) {
       type Row = {
         id: string; title: string; body: string; sender_name: string|null
-        is_urgent: boolean; created_at: string; status: NoticeStatus
+        is_urgent: boolean; created_at: string; status: NoticeStatus; review_comment: string|null
         exhibit: { id:string; name:string; class_label:string|null } | null
         notice_media: { id:string }[]
       }
@@ -81,20 +92,46 @@ export default function NoticeReviewPage() {
     return () => clearTimeout(id)
   }, [load])
 
+  // モーダルを開く
+  const openModal = async (notice: PendingNotice) => {
+    setModalNotice(notice)
+    setModalMedia([])
+    if (notice._mediaCount > 0) {
+      setModalMediaLoading(true)
+      const { data } = await createClient()
+        .from('notice_media')
+        .select('id, url, type, caption, order_index')
+        .eq('notice_id', notice.id)
+        .order('order_index')
+      setModalMedia((data ?? []) as unknown as ModalMedia[])
+      setModalMediaLoading(false)
+    }
+  }
+
+  const closeModal = () => {
+    setModalNotice(null)
+    setModalMedia([])
+  }
+
   // 承認
   const approve = async (notice: PendingNotice) => {
     setProcessingId(notice.id)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    await supabase.from('notices').update({
-      status:      'approved',
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: user?.id ?? null,
+    const { error } = await supabase.from('notices').update({
+      status:         'approved',
+      reviewed_at:    new Date().toISOString(),
+      reviewed_by:    user?.id ?? null,
       review_comment: null,
     }).eq('id', notice.id)
 
-    // 承認後に購読者へ通知
+    if (error) {
+      alert(`承認に失敗しました: ${error.message}`)
+      setProcessingId(null)
+      return
+    }
+
     const senderName = notice.sender_name ?? notice.exhibit?.name ?? ''
     fetch('/api/notice-notify', {
       method:  'POST',
@@ -111,6 +148,9 @@ export default function NoticeReviewPage() {
       ? prev.filter(n => n.id !== notice.id)
       : prev.map(n => n.id === notice.id ? { ...n, status: 'approved' } : n)
     )
+    if (modalNotice?.id === notice.id) {
+      setModalNotice(prev => prev ? { ...prev, status: 'approved' } : null)
+    }
     setProcessingId(null)
   }
 
@@ -121,14 +161,19 @@ export default function NoticeReviewPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    await supabase.from('notices').update({
+    const { error } = await supabase.from('notices').update({
       status:         'rejected',
       review_comment: rejectComment.trim(),
       reviewed_at:    new Date().toISOString(),
       reviewed_by:    user?.id ?? null,
     }).eq('id', notice.id)
 
-    // 担当 editor + teacher に却下を通知
+    if (error) {
+      alert(`却下に失敗しました: ${error.message}`)
+      setProcessingId(null)
+      return
+    }
+
     fetch('/api/push/send', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -141,8 +186,11 @@ export default function NoticeReviewPage() {
 
     setNotices(prev => filter === 'pending'
       ? prev.filter(n => n.id !== notice.id)
-      : prev.map(n => n.id === notice.id ? { ...n, status: 'rejected' } : n)
+      : prev.map(n => n.id === notice.id ? { ...n, status: 'rejected', review_comment: rejectComment.trim() } : n)
     )
+    if (modalNotice?.id === notice.id) {
+      setModalNotice(prev => prev ? { ...prev, status: 'rejected', review_comment: rejectComment.trim() } : null)
+    }
     setRejectingId(null)
     setRejectComment('')
     setProcessingId(null)
@@ -217,7 +265,6 @@ export default function NoticeReviewPage() {
               <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:10 }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3, flexWrap:'wrap' }}>
-                    {/* ステータスバッジ */}
                     <span style={{
                       fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99,
                       fontFamily:"'Kiwi Maru',serif", flexShrink:0,
@@ -256,13 +303,16 @@ export default function NoticeReviewPage() {
                   </div>
                 </div>
 
-                <Link href={`/admin/notices/${notice.id}`} style={{
-                  padding:'6px 12px', borderRadius:8, border:'1px solid #e2e8f0',
-                  background:'#f8fafc', color:'#64748b', textDecoration:'none',
-                  fontSize:11, fontWeight:700, fontFamily:"'Kiwi Maru',serif", flexShrink:0,
-                }}>
+                <button
+                  onClick={() => openModal(notice)}
+                  style={{
+                    padding:'6px 12px', borderRadius:8, border:'1px solid #e2e8f0',
+                    background:'#f8fafc', color:'#64748b', cursor:'pointer',
+                    fontSize:11, fontWeight:700, fontFamily:"'Kiwi Maru',serif", flexShrink:0,
+                  }}
+                >
                   詳細
-                </Link>
+                </button>
               </div>
 
               {/* 本文プレビュー */}
@@ -278,14 +328,13 @@ export default function NoticeReviewPage() {
                 </div>
               )}
 
-              {/* 却下コメント表示 */}
-              {notice.status === 'rejected' && (
+              {/* 却下理由 */}
+              {notice.status === 'rejected' && notice.review_comment && (
                 <div style={{
                   fontSize:12, color:'#dc2626', fontFamily:"'Kiwi Maru',serif",
                   padding:'8px 12px', background:'#fef2f2', borderRadius:8, marginBottom:10,
                 }}>
-                  却下理由: {/* review_comment は別途取得が必要なためリンクで確認案内 */}
-                  <Link href={`/admin/notices/${notice.id}`} style={{ color:'#dc2626' }}>詳細ページで確認</Link>
+                  却下理由: {notice.review_comment}
                 </div>
               )}
 
@@ -336,7 +385,7 @@ export default function NoticeReviewPage() {
                 </div>
               )}
 
-              {/* アクションボタン（審査待ちのみ表示） */}
+              {/* アクションボタン（審査待ちのみ） */}
               {notice.status === 'pending' && rejectingId !== notice.id && (
                 <div style={{ display:'flex', gap:8, marginTop:4 }}>
                   <button
@@ -369,6 +418,221 @@ export default function NoticeReviewPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── 詳細モーダル ── */}
+      {modalNotice && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) closeModal() }}
+          style={{
+            position:'fixed', inset:0, zIndex:1000,
+            background:'rgba(0,0,0,0.45)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            padding:'16px',
+          }}
+        >
+          <div style={{
+            background:'#fff', borderRadius:20,
+            width:'100%', maxWidth:600,
+            maxHeight:'88vh', display:'flex', flexDirection:'column',
+            boxShadow:'0 20px 60px rgba(0,0,0,0.2)',
+          }}>
+            {/* モーダルヘッダー */}
+            <div style={{
+              display:'flex', alignItems:'center', gap:10,
+              padding:'16px 20px', borderBottom:'1px solid #f1f5f9', flexShrink:0,
+            }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
+                  <span style={{
+                    fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99,
+                    fontFamily:"'Kiwi Maru',serif",
+                    background:
+                      modalNotice.status === 'approved' ? '#dcfce7' :
+                      modalNotice.status === 'rejected' ? '#fee2e2' : '#fef9c3',
+                    color:
+                      modalNotice.status === 'approved' ? '#16a34a' :
+                      modalNotice.status === 'rejected' ? '#dc2626' : '#92400e',
+                  }}>
+                    {modalNotice.status === 'approved' ? '✓ 承認済み' :
+                     modalNotice.status === 'rejected' ? '✕ 却下' : '⏳ 審査待ち'}
+                  </span>
+                  {modalNotice.is_urgent && (
+                    <span style={{
+                      fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99,
+                      fontFamily:"'Kiwi Maru',serif",
+                      background:'#fff7ed', color:'#ea580c',
+                    }}>⚠️ 重要</span>
+                  )}
+                </div>
+                <div style={{ fontSize:16, fontWeight:700, color:'#1e293b', fontFamily:"'Kiwi Maru',serif" }}>
+                  {modalNotice.title}
+                </div>
+                <div style={{ fontSize:12, color:'#64748b', fontFamily:"'Kiwi Maru',serif", marginTop:2 }}>
+                  {modalNotice.exhibit
+                    ? `${modalNotice.exhibit.class_label ? modalNotice.exhibit.class_label + ' ' : ''}${modalNotice.exhibit.name}`
+                    : '—'}
+                  {modalNotice.sender_name && ` · ${modalNotice.sender_name}`}
+                  <span style={{ marginLeft:8, color:'#cbd5e1' }}>{fmtTime(modalNotice.created_at)}</span>
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                style={{
+                  width:32, height:32, borderRadius:'50%', border:'none',
+                  background:'#f1f5f9', color:'#64748b', cursor:'pointer',
+                  fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
+                  flexShrink:0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* モーダル本文 */}
+            <div style={{ flex:1, overflowY:'auto', padding:'20px' }}>
+              {/* 却下理由 */}
+              {modalNotice.status === 'rejected' && modalNotice.review_comment && (
+                <div style={{
+                  padding:'10px 14px', background:'#fef2f2', border:'1px solid #fca5a5',
+                  borderRadius:10, marginBottom:16,
+                  fontSize:12, color:'#dc2626', fontFamily:"'Kiwi Maru',serif", lineHeight:1.6,
+                }}>
+                  <span style={{ fontWeight:700 }}>却下理由: </span>{modalNotice.review_comment}
+                </div>
+              )}
+
+              {/* 本文 */}
+              {modalNotice.body ? (
+                <div style={{
+                  fontSize:13, color:'#334155', fontFamily:"'Kiwi Maru',serif",
+                  lineHeight:1.8, whiteSpace:'pre-wrap', marginBottom:16,
+                }}>
+                  {modalNotice.body}
+                </div>
+              ) : (
+                <div style={{ fontSize:13, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginBottom:16 }}>
+                  （本文なし）
+                </div>
+              )}
+
+              {/* メディア */}
+              {modalMediaLoading && (
+                <div style={{ textAlign:'center', padding:'20px 0', color:'#94a3b8', fontSize:12, fontFamily:"'Kiwi Maru',serif" }}>
+                  メディアを読み込み中…
+                </div>
+              )}
+              {!modalMediaLoading && modalMedia.length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                  {modalMedia.map(m => (
+                    <div key={m.id}>
+                      {m.type === 'image' ? (
+                        <img
+                          src={m.url}
+                          alt={m.caption ?? ''}
+                          style={{ width:'100%', borderRadius:10, objectFit:'cover', maxHeight:320 }}
+                        />
+                      ) : (
+                        <video
+                          src={m.url}
+                          controls
+                          style={{ width:'100%', borderRadius:10, maxHeight:320 }}
+                        />
+                      )}
+                      {m.caption && (
+                        <div style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginTop:4 }}>
+                          {m.caption}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* モーダルフッター（審査待ちのみ承認/却下ボタン） */}
+            {modalNotice.status === 'pending' && (
+              <div style={{
+                padding:'14px 20px', borderTop:'1px solid #f1f5f9', flexShrink:0,
+              }}>
+                {rejectingId === modalNotice.id ? (
+                  <div style={{ padding:'12px', background:'#fef2f2', borderRadius:10, border:'1px solid #fecaca' }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#dc2626', fontFamily:"'Kiwi Maru',serif", marginBottom:6 }}>
+                      却下理由（団体に通知されます）
+                    </div>
+                    <textarea
+                      value={rejectComment}
+                      onChange={e => setRejectComment(e.target.value)}
+                      placeholder="例: 内容が不適切なため、修正のうえ再投稿してください"
+                      rows={3}
+                      style={{
+                        width:'100%', padding:'10px 12px', borderRadius:8,
+                        border:'1px solid #fca5a5', fontSize:12,
+                        fontFamily:"'Kiwi Maru',serif", color:'#1e293b',
+                        background:'#fff', boxSizing:'border-box', resize:'vertical',
+                      }}
+                      autoFocus
+                    />
+                    <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                      <button
+                        onClick={() => rejectConfirm(modalNotice)}
+                        disabled={!rejectComment.trim() || processingId === modalNotice.id}
+                        style={{
+                          padding:'8px 18px', borderRadius:8, border:'none', cursor:'pointer',
+                          background: rejectComment.trim() ? '#dc2626' : '#e2e8f0',
+                          color: rejectComment.trim() ? '#fff' : '#94a3b8',
+                          fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                        }}
+                      >
+                        {processingId === modalNotice.id ? '処理中…' : '却下を確定'}
+                      </button>
+                      <button
+                        onClick={() => { setRejectingId(null); setRejectComment('') }}
+                        style={{
+                          padding:'8px 14px', borderRadius:8,
+                          border:'1px solid #e2e8f0', background:'#fff',
+                          color:'#64748b', fontSize:12, cursor:'pointer',
+                          fontFamily:"'Kiwi Maru',serif",
+                        }}
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button
+                      onClick={() => approve(modalNotice)}
+                      disabled={processingId === modalNotice.id}
+                      style={{
+                        flex:1, padding:'12px 0', borderRadius:10, border:'none',
+                        cursor: processingId === modalNotice.id ? 'not-allowed' : 'pointer',
+                        background: processingId === modalNotice.id ? '#e2e8f0' : '#16a34a',
+                        color: processingId === modalNotice.id ? '#94a3b8' : '#fff',
+                        fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                        transition:'background 0.15s',
+                      }}
+                    >
+                      {processingId === modalNotice.id ? '処理中…' : '✓ 承認する'}
+                    </button>
+                    <button
+                      onClick={() => { setRejectingId(modalNotice.id); setRejectComment('') }}
+                      disabled={processingId === modalNotice.id}
+                      style={{
+                        flex:1, padding:'12px 0', borderRadius:10,
+                        border:'1px solid #fca5a5', cursor:'pointer',
+                        background:'#fff', color:'#dc2626',
+                        fontSize:13, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
+                      }}
+                    >
+                      ✕ 却下する
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -8,9 +8,10 @@ const TABS = [
   { id: 'notifications' as const, href: '/notifications', label: '通知' },
   { id: 'news'          as const, href: '/timeline',       label: 'お知らせ', badge: true },
   { id: 'stamp'         as const, href: '/stamp',          label: 'スタンプ' },
+  { id: 'schedule'      as const, href: '/schedule',       label: '予定' },
 ]
 
-type TabId = 'map' | 'notifications' | 'news' | 'stamp'
+type TabId = 'map' | 'notifications' | 'news' | 'stamp' | 'schedule'
 
 interface Props { unreadCount?: number }
 
@@ -50,7 +51,7 @@ export default function DesktopNav({ unreadCount = 0 }: Props) {
         bottom:        20,
         right:         16,
         zIndex:        50,
-        flexDirection: 'column',
+        flexDirection: 'row',
         gap:           8,
         opacity:       faded ? 0.2 : 1,
         transition:    'opacity 0.6s ease',
@@ -154,6 +155,18 @@ function NavIcon({ id, active }: { id: TabId; active: boolean }) {
         <rect x="3" y="5" width="18" height="14" rx="2" stroke={c} strokeWidth="1.8" fill={fill} />
         <path d="M3 9h18"        stroke={c} strokeWidth="1.8" />
         <path d="M7 13h4M7 16h6" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  if (id === 'schedule') {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="4" width="18" height="18" rx="2" stroke={c} strokeWidth="1.8" fill={fill} />
+        <path d="M16 2v4M8 2v4" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M3 10h18"      stroke={c} strokeWidth="1.8" />
+        <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"
+          stroke={c} strokeWidth="2" strokeLinecap="round" />
       </svg>
     )
   }

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link         from 'next/link'
 import { Exhibit }  from '@/types'
 import NotifyButton from '@/components/ui/NotifyButton'
+import { waitCssColor, waitBarGradient, DEFAULT_WAIT_CONFIG, type WaitConfig } from '@/lib/waitColorUtil'
 
 interface FeedbackState {
   likeCount:    number
@@ -17,13 +18,7 @@ interface RoomSheetProps {
   roomDisplay: string
   floor:       number
   onClose:     () => void
-}
-
-const WAIT_COLOR = (min: number): string => {
-  if (min === 0)  return '#4ade80'
-  if (min <= 10)  return '#facc15'
-  if (min <= 25)  return '#fb923c'
-  return '#f87171'
+  waitConfig?: WaitConfig
 }
 
 const TYPE_LABEL: Record<Exhibit['type'], string> = {
@@ -43,6 +38,7 @@ export default function RoomSheet({
   roomDisplay,
   floor,
   onClose,
+  waitConfig = DEFAULT_WAIT_CONFIG,
 }: RoomSheetProps) {
   const open = exhibits.length > 0
 
@@ -164,11 +160,13 @@ export default function RoomSheet({
                   exhibit={exhibits[0]}
                   feedback={feedbacks[exhibits[0].id] ?? null}
                   onLike={() => handleLike(exhibits[0].id)}
+                  waitConfig={waitConfig}
                 />
               : <MultiExhibitView
                   exhibits={exhibits}
                   feedbacks={feedbacks}
                   onLike={handleLike}
+                  waitConfig={waitConfig}
                 />
             }
           </div>
@@ -179,10 +177,11 @@ export default function RoomSheet({
 }
 
 // ─── 1件表示 ──────────────────────────────────────────────────
-function SingleExhibitView({ exhibit, feedback, onLike }: {
-  exhibit:  Exhibit
-  feedback: FeedbackState | null
-  onLike:   () => void
+function SingleExhibitView({ exhibit, feedback, onLike, waitConfig = DEFAULT_WAIT_CONFIG }: {
+  exhibit:     Exhibit
+  feedback:    FeedbackState | null
+  onLike:      () => void
+  waitConfig?: WaitConfig
 }) {
   const [popping,  setPopping]  = useState(false)
   const [showHint, setShowHint] = useState(false)
@@ -253,15 +252,15 @@ function SingleExhibitView({ exhibit, feedback, onLike }: {
         <div style={{ marginTop:20, padding:16, borderRadius:16, background:'#fafafa', border:'1px solid #f0f0f0' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
             <span style={{ fontSize:12, fontWeight:700, color:'#888', fontFamily:"'Kiwi Maru',sans-serif" }}>混雑状況</span>
-            <span style={{ fontSize:14, fontWeight:900, color:WAIT_COLOR(exhibit.wait_minutes), fontFamily:"'Kiwi Maru',sans-serif" }}>
+            <span style={{ fontSize:14, fontWeight:900, color:waitCssColor(exhibit.wait_minutes, waitConfig), fontFamily:"'Kiwi Maru',sans-serif" }}>
               {waitLabel(exhibit.wait_minutes)}
             </span>
           </div>
           <div style={{ width:'100%', height:8, borderRadius:99, background:'#ececec', overflow:'hidden' }}>
             <div style={{
               height:'100%', borderRadius:99,
-              width:`${Math.max(6, Math.min(exhibit.wait_minutes * 1.5, 100))}%`,
-              background:`linear-gradient(90deg,#FFD166,${WAIT_COLOR(exhibit.wait_minutes)})`,
+              width:`${Math.max(6, Math.min((exhibit.wait_minutes / (waitConfig.thresholds[waitConfig.thresholds.length - 1] ?? 25)) * 100, 100))}%`,
+              background: waitBarGradient(exhibit.wait_minutes, waitConfig),
               transition:'width 0.8s ease',
             }} />
           </div>
@@ -340,10 +339,11 @@ function SingleExhibitView({ exhibit, feedback, onLike }: {
 }
 
 // ─── 複数件リスト表示 ─────────────────────────────────────────
-function MultiExhibitView({ exhibits, feedbacks, onLike }: {
-  exhibits:  Exhibit[]
-  feedbacks: Record<string, FeedbackState>
-  onLike:    (id: string) => void
+function MultiExhibitView({ exhibits, feedbacks, onLike, waitConfig = DEFAULT_WAIT_CONFIG }: {
+  exhibits:    Exhibit[]
+  feedbacks:   Record<string, FeedbackState>
+  onLike:      (id: string) => void
+  waitConfig?: WaitConfig
 }) {
   return (
     <div>
@@ -394,7 +394,7 @@ function MultiExhibitView({ exhibits, feedbacks, onLike }: {
                 {exhibit.has_wait_time !== false && (
                   <span style={{
                     fontSize:11, fontWeight:700,
-                    color:WAIT_COLOR(exhibit.wait_minutes),
+                    color:waitCssColor(exhibit.wait_minutes, waitConfig),
                     fontFamily:"'Kiwi Maru',sans-serif",
                   }}>
                     {waitLabel(exhibit.wait_minutes)}

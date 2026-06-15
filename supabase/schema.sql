@@ -275,3 +275,14 @@ CREATE TRIGGER on_auth_user_created
 -- 管理者を手動で設定する場合（初回セットアップ後に実行）
 -- UPDATE public.profiles SET role = 'admin' WHERE email = 'your@email.com';
 -- =================================================================
+
+-- =================================================================
+-- Migration: 待ち時間混雑基準カラム追加
+-- Supabase ダッシュボード > SQL Editor で実行してください
+-- =================================================================
+-- ALTER TABLE public.site_settings
+--   ADD COLUMN IF NOT EXISTS wait_stage_count    SMALLINT NOT NULL DEFAULT 4,
+--   ADD COLUMN IF NOT EXISTS wait_threshold_low  SMALLINT NOT NULL DEFAULT 10,
+--   ADD COLUMN IF NOT EXISTS wait_threshold_high SMALLINT NOT NULL DEFAULT 25,
+--   ADD COLUMN IF NOT EXISTS wait_threshold_3    SMALLINT NOT NULL DEFAULT 40;
+-- =================================================================

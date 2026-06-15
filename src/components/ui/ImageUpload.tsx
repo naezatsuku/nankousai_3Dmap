@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { parseUploadError } from '@/lib/uploadError'
 
 interface Props {
   value:    string
@@ -79,7 +80,7 @@ export default function ImageUpload({ value, onChange, storagePath, aspect = 'sq
       onChange(`${data.publicUrl}?t=${Date.now()}`)
       setProgress(100)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'アップロード失敗')
+      setError(parseUploadError(e))
     } finally {
       setUploading(false)
       setProgress(0)

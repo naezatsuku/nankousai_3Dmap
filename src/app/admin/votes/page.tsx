@@ -4,7 +4,7 @@ import PageLoader from '@/components/ui/PageLoader'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+
 import { createClient } from '@/lib/supabase/client'
 
 interface VoteCount { exhibitId: string; exhibitName: string; count: number }
@@ -72,9 +72,9 @@ export default function AdminVotesPage() {
 
       {/* ── ヘッダー ── */}
       <div style={{ marginBottom:24 }}>
-        <Link href="/admin" style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", textDecoration:'none' }}>
+        <button onClick={() => router.push('/admin')} style={{ fontSize:12, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", background:'none', border:'none', cursor:'pointer', padding:0 }}>
           ← ダッシュボード
-        </Link>
+        </button>
         <h1 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:22, fontWeight:700, color:'#1e293b', marginTop:8, marginBottom:4 }}>
           🗳 人気投票
         </h1>

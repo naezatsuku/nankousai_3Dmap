@@ -6,14 +6,18 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/notices'
 
+type NoticeStatus = 'pending' | 'approved' | 'rejected'
+
 interface NoticeRow {
-  id:          string
-  title:       string
-  is_urgent:   boolean
-  created_at:  string
-  sender_name: string | null
-  exhibit:     { name: string; class_label: string | null } | null
-  notice_media: { id: string }[]
+  id:             string
+  title:          string
+  is_urgent:      boolean
+  created_at:     string
+  sender_name:    string | null
+  status:         NoticeStatus | null
+  review_comment: string | null
+  exhibit:        { name: string; class_label: string | null } | null
+  notice_media:   { id: string }[]
 }
 
 export default function NoticesPage() {
@@ -34,7 +38,7 @@ export default function NoticesPage() {
 
       let query = supabase
         .from('notices')
-        .select('id, title, is_urgent, created_at, sender_name, exhibit:exhibits(name, class_label), notice_media(id)')
+        .select('id, title, is_urgent, created_at, sender_name, status, review_comment, exhibit:exhibits(name, class_label), notice_media(id)')
         .order('created_at', { ascending: false })
 
       if (isEditorOrTeacher) {
@@ -123,8 +127,10 @@ export default function NoticesPage() {
 
             return (
               <div key={n.id} style={{
-                background:'#fff', borderRadius:14, padding:'14px 20px',
-                boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid #f1f5f9',
+                background: n.status === 'rejected' ? '#fff5f5' : '#fff',
+                borderRadius:14, padding:'14px 20px',
+                boxShadow:'0 1px 3px rgba(0,0,0,0.06)',
+                border: n.status === 'rejected' ? '1px solid #fca5a5' : '1px solid #f1f5f9',
                 display:'flex', alignItems:'center', gap:14,
               }}>
                 {/* アイコン */}
@@ -145,6 +151,18 @@ export default function NoticesPage() {
                         background:'#fef3c7', color:'#d97706', fontFamily:"'Kiwi Maru',serif",
                       }}>重要</span>
                     )}
+                    {n.status === 'pending' && (
+                      <span style={{
+                        fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:99,
+                        background:'#fef9c3', color:'#92400e', fontFamily:"'Kiwi Maru',serif",
+                      }}>⏳ 審査待ち</span>
+                    )}
+                    {n.status === 'rejected' && (
+                      <span style={{
+                        fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:99,
+                        background:'#fee2e2', color:'#dc2626', fontFamily:"'Kiwi Maru',serif",
+                      }}>✕ 却下</span>
+                    )}
                     <div style={{
                       fontSize:14, fontWeight:700, color:'#1e293b',
                       fontFamily:"'Kaisei Decol',serif",
@@ -153,6 +171,14 @@ export default function NoticesPage() {
                       {n.title}
                     </div>
                   </div>
+                  {n.status === 'rejected' && n.review_comment && (
+                    <div style={{
+                      fontSize:11, color:'#dc2626', fontFamily:"'Kiwi Maru',serif",
+                      marginBottom:3,
+                    }}>
+                      却下理由: {n.review_comment}
+                    </div>
+                  )}
                   <div style={{
                     fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif",
                     display:'flex', alignItems:'center', gap:8,

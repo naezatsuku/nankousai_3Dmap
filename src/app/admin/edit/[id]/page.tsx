@@ -6,9 +6,12 @@ import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { parseUploadError } from '@/lib/uploadError'
 import ImageUpload from '@/components/ui/ImageUpload'
 import BandMemberAssign from '@/components/admin/BandMemberAssign'
 import { logActivity } from '@/lib/activity-log'
+import type { ReactNode } from 'react'
+import { FileText, BookOpen, Sparkles, Zap } from 'lucide-react'
 
 function fmtTime(iso: string) {
   const d = new Date(iso)
@@ -67,12 +70,13 @@ const INIT: ExhibitFormState = {
 
 const calcWait = (tpg:number, qc:number) => Math.max(0, tpg * qc)
 
-const EDIT_TABS = [
-  { id:'basic',   icon:'📝', label:'基本' },
-  { id:'content', icon:'📖', label:'詳細' },
-  { id:'special', icon:'🎪', label:'催し' },
-  { id:'quick',   icon:'⚡', label:'更新' },
-] as const
+type EditTabId = 'basic' | 'content' | 'special' | 'quick'
+const EDIT_TABS: { id: EditTabId; icon: ReactNode; label: string }[] = [
+  { id:'basic',   icon:<FileText size={15} />,  label:'基本' },
+  { id:'content', icon:<BookOpen size={15} />,  label:'詳細' },
+  { id:'special', icon:<Sparkles size={15} />,  label:'催し' },
+  { id:'quick',   icon:<Zap size={15} />,       label:'更新' },
+]
 
 // ── メインページ ───────────────────────────────────────────────
 export default function ExhibitEditPage() {
@@ -474,7 +478,7 @@ export default function ExhibitEditPage() {
         {/* ── ページヘッダー ── */}
         <div className="edit-header" style={{ marginBottom:20 }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
-            <Link href="/admin/edit" style={{ color:'#94a3b8', textDecoration:'none', fontSize:20, flexShrink:0 }}>←</Link>
+            <button onClick={() => router.push('/admin/edit')} style={{ color:'#94a3b8', fontSize:20, flexShrink:0, background:'none', border:'none', cursor:'pointer', padding:0 }}>←</button>
             <div style={{ minWidth:0 }}>
               <h2 style={{ fontFamily:"'Kaisei Decol',serif", fontSize:20, fontWeight:700, color:'#1e293b', marginBottom:2, overflowWrap:'break-word' }}>
                 {form.name || '（名前未設定）'}
@@ -531,7 +535,7 @@ export default function ExhibitEditPage() {
                 transition:'transform 0.15s ease',
                 transform: active ? 'translateY(-1px)' : 'translateY(0)',
               }} aria-label={label}>
-                <span style={{ fontSize:20, filter: active ? 'none' : 'grayscale(1) opacity(0.55)', transition:'filter 0.2s' }}>
+                <span style={{ display:'flex', alignItems:'center', opacity: active ? 1 : 0.4, transition:'opacity 0.2s' }}>
                   {icon}
                 </span>
                 <span style={{
@@ -559,7 +563,7 @@ export default function ExhibitEditPage() {
                 {EDIT_TABS.filter(t => t.id !== 'quick').map(({ id, icon, label }) => {
                   const active = deskTab === id
                   return (
-                    <button key={id} onClick={() => setDeskTab(id)} style={{
+                    <button key={id} onClick={() => setDeskTab(id as 'basic'|'content'|'special')} style={{
                       display:'flex', alignItems:'center', gap:6,
                       padding:'10px 20px', marginBottom:-2,
                       border:'none', borderBottom: active ? '2px solid #FF6B00' : '2px solid transparent',
@@ -1172,7 +1176,7 @@ function SectionMediaEditor({ sectionId, exhibitId, media, onChange }: {
         order_index: media.length,
       }])
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'アップロード失敗')
+      setError(parseUploadError(e))
     } finally {
       setUploading(false)
     }

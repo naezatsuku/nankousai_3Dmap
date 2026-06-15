@@ -3,6 +3,8 @@
 import PageLoader from '@/components/ui/PageLoader'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { ReactNode } from 'react'
+import { ClipboardList, Mic, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ui/ImageUpload'
 import MediaUpload, { isVideoUrl } from '@/components/ui/MediaUpload'
@@ -63,10 +65,10 @@ interface NoticeDraft {
 
 type BandTab = 'basic' | 'schedule' | 'notice'
 
-const BAND_TABS: { id: BandTab; icon: string; label: string; short: string }[] = [
-  { id:'basic',    icon:'📋', label:'基本情報',           short:'基本情報' },
-  { id:'schedule', icon:'🎤', label:'スケジュール・演出', short:'スケジュール' },
-  { id:'notice',   icon:'🔔', label:'お知らせ',           short:'お知らせ' },
+const BAND_TABS: { id: BandTab; icon: ReactNode; label: string; short: string }[] = [
+  { id:'basic',    icon:<ClipboardList size={18} />, label:'基本情報',           short:'基本情報' },
+  { id:'schedule', icon:<Mic size={18} />,           label:'スケジュール・演出', short:'スケジュール' },
+  { id:'notice',   icon:<Bell size={18} />,          label:'お知らせ',           short:'お知らせ' },
 ]
 
 const PRESET_COLORS = [
@@ -828,7 +830,7 @@ export default function MyBandPage() {
                 transition:'transform 0.15s ease',
                 transform: active ? 'translateY(-1px)' : 'translateY(0)',
               }} aria-label={short}>
-                <span style={{ position:'relative', fontSize:20, filter: active ? 'none' : 'grayscale(1) opacity(0.55)', transition:'filter 0.2s' }}>
+                <span style={{ position:'relative', display:'flex', alignItems:'center', opacity: active ? 1 : 0.45, transition:'opacity 0.2s' }}>
                   {icon}
                   {id === 'notice' && hasRejected && (
                     <span style={{

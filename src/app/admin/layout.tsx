@@ -5,9 +5,15 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
+import type { ReactNode } from 'react'
+import {
+  LayoutDashboard, Building2, Pencil, Bell, ClipboardCheck,
+  ShoppingBag, Music2, Megaphone, FlaskConical, CalendarDays,
+  ClipboardList, User, GraduationCap, FileText, Settings, Users,
+} from 'lucide-react'
 
 type NavItem = {
-  href: string; icon: string; label: string
+  href: string; icon: ReactNode; label: string
   adminOnly?: boolean; editorOk?: boolean; studentOk?: boolean; teacherOk?: boolean
   /** band ロール or band_editors に割当のあるユーザーに表示 */
   bandOk?: boolean
@@ -15,7 +21,7 @@ type NavItem = {
 type NavGroup = {
   id:         string
   label:      string | null  // null = グループヘッダーなし（単独アイテム）
-  icon?:      string
+  icon?:      ReactNode
   adminOnly?: boolean
   editorOk?:  boolean
   studentOk?: boolean
@@ -29,60 +35,60 @@ const NAV_GROUPS: NavGroup[] = [
     id:'dashboard', label:null,
     adminOnly:true, teacherOk:true,
     items:[
-      { href:'/admin', icon:'⊞', label:'ダッシュボード', adminOnly:true, teacherOk:true },
+      { href:'/admin', icon:<LayoutDashboard size={16} />, label:'ダッシュボード', adminOnly:true, teacherOk:true },
     ],
   },
   {
-    id:'exhibit', label:'展示管理', icon:'🏫',
+    id:'exhibit', label:'展示管理', icon:<Building2 size={15} />,
     editorOk:true, teacherOk:true,
     items:[
-      { href:'/admin/edit',           icon:'✏',  label:'展示編集',     editorOk:true, teacherOk:true },
-      { href:'/admin/notices',        icon:'🔔', label:'お知らせ管理', editorOk:true, teacherOk:true },
-      { href:'/admin/notices/review', icon:'🔍', label:'お知らせ審査', adminOnly:true },
-      { href:'/admin/food',           icon:'🍱', label:'販売数管理',   adminOnly:true },
-      { href:'/admin/exhibits',       icon:'🏫', label:'団体管理',     adminOnly:true },
+      { href:'/admin/edit',           icon:<Pencil size={14} />,         label:'展示編集',     editorOk:true, teacherOk:true },
+      { href:'/admin/notices',        icon:<Bell size={14} />,           label:'お知らせ管理', editorOk:true, teacherOk:true },
+      { href:'/admin/notices/review', icon:<ClipboardCheck size={14} />, label:'お知らせ審査', adminOnly:true },
+      { href:'/admin/food',           icon:<ShoppingBag size={14} />,    label:'販売数管理',   adminOnly:true },
+      { href:'/admin/exhibits',       icon:<Building2 size={14} />,      label:'団体管理',     adminOnly:true },
     ],
   },
   {
     id:'myband', label:null,
     bandOk:true,
     items:[
-      { href:'/admin/band', icon:'🎸', label:'マイバンド', bandOk:true },
+      { href:'/admin/band', icon:<Music2 size={16} />, label:'マイバンド', bandOk:true },
     ],
   },
   {
-    id:'announce', label:'告知・通知', icon:'📢',
+    id:'announce', label:'告知・通知', icon:<Megaphone size={15} />,
     adminOnly:true,
     items:[
-      { href:'/admin/announcements', icon:'📢', label:'アナウンス管理', adminOnly:true },
-      { href:'/admin/notify-test',   icon:'🧪', label:'通知テスト',     adminOnly:true },
+      { href:'/admin/announcements', icon:<Megaphone size={14} />,    label:'アナウンス管理', adminOnly:true },
+      { href:'/admin/notify-test',   icon:<FlaskConical size={14} />, label:'通知テスト',     adminOnly:true },
     ],
   },
   {
-    id:'shift', label:'シフト管理', icon:'📅',
+    id:'shift', label:'シフト管理', icon:<CalendarDays size={15} />,
     editorOk:true, studentOk:true,
     items:[
-      { href:'/admin/shift/survey',  icon:'📝', label:'アンケート',   editorOk:true, studentOk:true },
-      { href:'/admin/shift/view',    icon:'📅', label:'シフト表',     editorOk:true, studentOk:true },
-      { href:'/admin/shift/members', icon:'👤', label:'メンバー管理', editorOk:true },
-      { href:'/admin/shift/edit',    icon:'✏',  label:'シフト編集',   editorOk:true },
+      { href:'/admin/shift/survey',  icon:<ClipboardList size={14} />, label:'アンケート',   editorOk:true, studentOk:true },
+      { href:'/admin/shift/view',    icon:<CalendarDays size={14} />,  label:'シフト表',     editorOk:true, studentOk:true },
+      { href:'/admin/shift/members', icon:<User size={14} />,          label:'メンバー管理', editorOk:true },
+      { href:'/admin/shift/edit',    icon:<Pencil size={14} />,        label:'シフト編集',   editorOk:true },
     ],
   },
   {
-    id:'teacher', label:'先生メニュー', icon:'👩‍🏫',
+    id:'teacher', label:'先生メニュー', icon:<GraduationCap size={15} />,
     teacherOk:true,
     items:[
-      { href:'/admin/teacher/logs',            icon:'📋', label:'変更ログ',   teacherOk:true },
-      { href:'/admin/teacher/notify-settings', icon:'🔔', label:'通知設定',   teacherOk:true },
+      { href:'/admin/teacher/logs',            icon:<FileText size={14} />, label:'変更ログ', teacherOk:true },
+      { href:'/admin/teacher/notify-settings', icon:<Bell size={14} />,     label:'通知設定', teacherOk:true },
     ],
   },
   {
-    id:'system', label:'システム', icon:'⚙',
+    id:'system', label:'システム', icon:<Settings size={15} />,
     adminOnly:true,
     items:[
-      { href:'/admin/users',    icon:'👥', label:'権限管理',   adminOnly:true },
-      { href:'/admin/teachers', icon:'👩‍🏫', label:'先生管理',   adminOnly:true },
-      { href:'/admin/settings', icon:'⚙',  label:'サイト設定', adminOnly:true },
+      { href:'/admin/users',    icon:<Users size={14} />,          label:'権限管理',   adminOnly:true },
+      { href:'/admin/teachers', icon:<GraduationCap size={14} />, label:'先生管理',   adminOnly:true },
+      { href:'/admin/settings', icon:<Settings size={14} />,      label:'サイト設定', adminOnly:true },
     ],
   },
 ]
@@ -288,7 +294,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       fontFamily:"'Kiwi Maru',serif", transition:'all 0.15s',
                       borderLeft: active ? '3px solid #FF8C00' : '3px solid transparent',
                     }}>
-                    <span style={{ fontSize:15 }}>{item.icon}</span>
+                    <span style={{ display:'flex', alignItems:'center' }}>{item.icon}</span>
                     {item.label}
                   </Link>
                 )
@@ -316,7 +322,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     letterSpacing:'0.04em', transition:'all 0.15s',
                     textAlign:'left',
                   }}>
-                  <span style={{ fontSize:14 }}>{group.icon}</span>
+                  <span style={{ display:'flex', alignItems:'center' }}>{group.icon}</span>
                   <span style={{ flex:1 }}>{group.label}</span>
                   <span style={{
                     fontSize:10, opacity:0.6,
@@ -343,7 +349,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             fontFamily:"'Kiwi Maru',serif", transition:'all 0.15s',
                             borderLeft: active ? '2px solid #FF8C00' : '2px solid rgba(255,255,255,0.08)',
                           }}>
-                          <span style={{ fontSize:13 }}>{item.icon}</span>
+                          <span style={{ display:'flex', alignItems:'center' }}>{item.icon}</span>
                           {item.label}
                         </Link>
                       )

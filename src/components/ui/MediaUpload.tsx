@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { parseUploadError } from '@/lib/uploadError'
+import ImageMosaicModal from './ImageMosaicModal'
 
 interface Props {
   value: string
@@ -13,28 +15,6 @@ interface Props {
   label?: string
 }
 
-function convertImageToWebP(file: File, quality = 0.85): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      const maxW = 1280, maxH = 960
-      const scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight)
-      const canvas = document.createElement('canvas')
-      canvas.width  = Math.round(img.naturalWidth  * scale)
-      canvas.height = Math.round(img.naturalHeight * scale)
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { reject(new Error('canvas error')); return }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(blob => {
-        URL.revokeObjectURL(url)
-        blob ? resolve(blob) : reject(new Error('WebP変換失敗'))
-      }, 'image/webp', quality)
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像読み込み失敗')) }
-    img.src = url
-  })
-}
 
 export function isVideoUrl(url: string): boolean {
   return /\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(url)
@@ -47,6 +27,7 @@ export default function MediaUpload({
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress]   = useState(0)
   const [error, setError]         = useState('')
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
 
   const isVid = value ? isVideoUrl(value) : false
 
@@ -69,40 +50,55 @@ export default function MediaUpload({
     }
 
     setError('')
+
+    if (isImg) {
+      // 画像はモザイクモーダルを経由してアップロード
+      setPendingFile(file)
+      return
+    }
+
+    // 動画は即アップロード
     setUploading(true)
     setProgress(10)
-
     try {
-      const supabase = createClient()
-      let uploadBlob: Blob
-      let fullPath: string
-      let contentType: string
-
-      if (isImg) {
-        uploadBlob  = await convertImageToWebP(file)
-        fullPath    = `${storagePath}.webp`
-        contentType = 'image/webp'
-      } else {
-        uploadBlob  = file
-        const ext   = file.name.split('.').pop()?.toLowerCase() ?? 'mp4'
-        fullPath    = `${storagePath}.${ext}`
-        contentType = file.type
-      }
-
-      setProgress(40)
-
+      const supabase  = createClient()
+      const ext       = file.name.split('.').pop()?.toLowerCase() ?? 'mp4'
+      const fullPath  = `${storagePath}.${ext}`
       const { error: uploadErr } = await supabase.storage
         .from('media')
-        .upload(fullPath, uploadBlob, { contentType, upsert: true })
+        .upload(fullPath, file, { contentType: file.type, upsert: true })
       if (uploadErr) throw uploadErr
-
       setProgress(90)
-
       const { data } = supabase.storage.from('media').getPublicUrl(fullPath)
       onChange(`${data.publicUrl}?t=${Date.now()}`)
       setProgress(100)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'アップロード失敗')
+      setError(parseUploadError(e))
+    } finally {
+      setUploading(false)
+      setProgress(0)
+    }
+  }
+
+  const handleMosaicConfirm = async (blob: Blob) => {
+    setPendingFile(null)
+    setError('')
+    setUploading(true)
+    setProgress(10)
+    try {
+      const supabase = createClient()
+      const fullPath = `${storagePath}.webp`
+      setProgress(40)
+      const { error: uploadErr } = await supabase.storage
+        .from('media')
+        .upload(fullPath, blob, { contentType: 'image/webp', upsert: true })
+      if (uploadErr) throw uploadErr
+      setProgress(90)
+      const { data } = supabase.storage.from('media').getPublicUrl(fullPath)
+      onChange(`${data.publicUrl}?t=${Date.now()}`)
+      setProgress(100)
+    } catch (e) {
+      setError(parseUploadError(e))
     } finally {
       setUploading(false)
       setProgress(0)
@@ -128,6 +124,14 @@ export default function MediaUpload({
     '画像（→ WebP変換）または動画'
 
   return (
+    <>
+    {pendingFile && (
+      <ImageMosaicModal
+        file={pendingFile}
+        onConfirm={handleMosaicConfirm}
+        onCancel={() => setPendingFile(null)}
+      />
+    )}
     <div>
       {label && (
         <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:6, fontFamily:"'Kiwi Maru',serif" }}>
@@ -215,5 +219,6 @@ export default function MediaUpload({
         onChange={handleChange}
       />
     </div>
+    </>
   )
 }

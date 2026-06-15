@@ -158,14 +158,17 @@ export default function SchedulePage() {
   const [festivalDates, setFestivalDates]= useState(DEFAULT_FESTIVAL_DATES)
 
   // 新規追加モーダル
-  const [showAdd,  setShowAdd]  = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newStart, setNewStart] = useState('10:00')
-  const [newEnd,   setNewEnd]   = useState('11:00')
-  const [newLoc,   setNewLoc]   = useState('')
-  const [newDate,  setNewDate]  = useState<'sat'|'sun'>('sat')
-  const [newNotify,setNewNotify]= useState<number|null>(null)
-  const [adding,   setAdding]   = useState(false)
+  const [showAdd,      setShowAdd]      = useState(false)
+  const [newTitle,     setNewTitle]     = useState('')
+  const [newStart,     setNewStart]     = useState('10:00')
+  const [newEnd,       setNewEnd]       = useState('11:00')
+  const [newLoc,       setNewLoc]       = useState('')
+  const [newDate,      setNewDate]      = useState<'sat'|'sun'>('sat')
+  const [newNotify,    setNewNotify]    = useState<number|null>(null)
+  const [newExhibitId, setNewExhibitId] = useState('')
+  const [newType,      setNewType]      = useState<'visit'|'custom'>('custom')
+  const [adding,       setAdding]       = useState(false)
+  const [addError,     setAddError]     = useState('')
 
   // シフト通知モーダル
   const [shiftNotifyItem,   setShiftNotifyItem]   = useState<ScheduleItem | null>(null)
@@ -219,6 +222,22 @@ export default function SchedulePage() {
       }
     })
     return () => clearTimeout(keyTid)
+  }, [])
+
+  // 詳細ページからの遷移：URLパラメータを読み取って追加モーダルを開く
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('add') !== '1') return
+    setNewTitle(params.get('title') ?? '')
+    const d = params.get('date')
+    if (d === 'sat' || d === 'sun') { setNewDate(d); setDate(d) }
+    setNewStart(params.get('start') ?? '10:00')
+    setNewEnd(params.get('end') ?? '')
+    setNewLoc(params.get('location') ?? '')
+    const eid = params.get('exhibitId') ?? ''
+    setNewExhibitId(eid)
+    setNewType(eid ? 'visit' : 'custom')
+    setShowAdd(true)
   }, [])
 
   const fetchItems = useCallback(async () => {
@@ -296,25 +315,43 @@ export default function SchedulePage() {
   }, [userKey, fetchItems])
 
   const handleAdd = async () => {
-    if (!newTitle.trim() || !userKey) return
+    if (!newTitle.trim()) return
+    if (!userKey) { setAddError('ユーザーキーが未設定です。少し待ってから再試行してください。'); return }
     if (newNotify !== null) await ensureNotificationPermission()
     setAdding(true)
-    await fetch('/api/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
-      body: JSON.stringify({
-        title:          newTitle,
-        date:           newDate,
-        start_time:     newStart,
-        end_time:       newEnd || null,
-        location:       newLoc || null,
-        notify_minutes: newNotify,
-        color:          TYPE_COLOR.custom,
-        type:           'custom',
-      }),
-    })
+    setAddError('')
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-key': userKey },
+        body: JSON.stringify({
+          title:          newTitle,
+          date:           newDate,
+          start_time:     newStart,
+          end_time:       newEnd || null,
+          location:       newLoc || null,
+          notify_minutes: newNotify,
+          color:          newType === 'visit' ? TYPE_COLOR.visit : TYPE_COLOR.custom,
+          type:           'custom',
+          exhibit_id:     newExhibitId || null,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        setAddError(`保存に失敗しました (${res.status}): ${body.error ?? '不明なエラー'}`)
+        setAdding(false)
+        return
+      }
+    } catch (e) {
+      setAddError(`ネットワークエラー: ${e instanceof Error ? e.message : String(e)}`)
+      setAdding(false)
+      return
+    }
     setAdding(false); setShowAdd(false)
+    if (window.location.search.includes('add=1')) window.history.replaceState({}, '', '/schedule')
+    setDate(newDate)
     setNewTitle(''); setNewStart('10:00'); setNewEnd('11:00'); setNewLoc(''); setNewNotify(null)
+    setNewExhibitId(''); setNewType('custom'); setAddError('')
     fetchItems()
   }
 
@@ -724,7 +761,7 @@ export default function SchedulePage() {
           position:'fixed', inset:0, zIndex:200,
           background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)',
           display:'flex', alignItems:'flex-end', justifyContent:'center',
-        }} onClick={() => setShowAdd(false)}>
+        }} onClick={() => { setShowAdd(false); if (window.location.search.includes('add=1')) window.history.replaceState({}, '', '/schedule') }}>
           <div style={{
             width:'100%', maxWidth:520, background:'#fff',
             borderRadius:'20px 20px 0 0', padding:'24px 20px 40px',
@@ -765,8 +802,13 @@ export default function SchedulePage() {
               </Field>
             </div>
 
+            {addError && (
+              <div style={{ marginTop:12, padding:'8px 12px', borderRadius:8, background:'#fef2f2', border:'1px solid #fca5a5', fontSize:12, color:'#dc2626', fontFamily:"'Kiwi Maru',serif" }}>
+                ⚠️ {addError}
+              </div>
+            )}
             <button onClick={handleAdd} disabled={!newTitle.trim() || adding} style={{
-              marginTop:20, width:'100%', padding:'13px', borderRadius:12, border:'none',
+              marginTop:12, width:'100%', padding:'13px', borderRadius:12, border:'none',
               cursor: newTitle.trim() ? 'pointer' : 'default',
               background: newTitle.trim() ? 'linear-gradient(135deg,#FF6B00,#FFAA28)' : '#e2e8f0',
               color: newTitle.trim() ? '#fff' : '#94a3b8',

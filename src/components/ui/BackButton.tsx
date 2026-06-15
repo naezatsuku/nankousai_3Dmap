@@ -12,11 +12,10 @@ export default function BackButton({ fallbackHref, className }: BackButtonProps)
   const router = useRouter()
 
   const handleBack = () => {
-    // 遷移履歴がある場合は戻る、なければ fallbackHref へ
-    if (window.history.length > 1) {
-      router.back()
-    } else if (fallbackHref) {
+    if (fallbackHref) {
       router.push(fallbackHref)
+    } else {
+      router.back()
     }
   }
 

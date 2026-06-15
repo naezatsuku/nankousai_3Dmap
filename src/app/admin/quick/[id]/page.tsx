@@ -5,7 +5,7 @@ import PageLoader from '@/components/ui/PageLoader'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
+
 import { motion, AnimatePresence, useSpring } from 'framer-motion'
 import { logActivity } from '@/lib/activity-log'
 
@@ -441,11 +441,12 @@ export default function QuickPage() {
         padding:'0 16px', height:56, flexShrink:0,
         display:'flex', alignItems:'center', gap:12,
       }}>
-        <Link href={`/admin/edit/${id}`} style={{
+        <button onClick={() => router.push(`/admin/edit/${id}`)} style={{
           width:36, height:36, borderRadius:10, background:'#f1f5f9',
           display:'flex', alignItems:'center', justifyContent:'center',
-          fontSize:18, color:'#64748b', textDecoration:'none', flexShrink:0,
-        }}>←</Link>
+          fontSize:18, color:'#64748b', flexShrink:0,
+          border:'none', cursor:'pointer',
+        }}>←</button>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:15, fontWeight:700, color:'#1e293b',
             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</div>

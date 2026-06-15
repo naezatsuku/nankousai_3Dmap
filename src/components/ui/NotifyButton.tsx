@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { isSubscribed, subscribeToExhibit, unsubscribeFromExhibit, getFCMToken } from '@/lib/push'
+import { Bell, BellOff, CalendarCheck, Loader2 } from 'lucide-react'
 
 interface Props {
   exhibitId: string
@@ -69,7 +70,9 @@ export default function NotifyButton({ exhibitId, exhibitType, variant = 'icon' 
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ fontSize: 14 }}>{loading ? '⏳' : on ? '📅' : '🔕'}</span>
+        <span style={{ display:'flex', alignItems:'center' }}>
+          {loading ? <Loader2 size={14} style={{ opacity:0.6 }} /> : on ? <CalendarCheck size={14} /> : <BellOff size={14} />}
+        </span>
         <span>{on ? '通知ON' : '通知OFF'}</span>
       </button>
     )
@@ -92,7 +95,10 @@ export default function NotifyButton({ exhibitId, exhibitType, variant = 'icon' 
         fontSize: 16, transition: 'background 0.2s',
       }}
     >
-      {loading ? '⏳' : on ? '🔔' : '🔕'}
+      {loading
+        ? <Loader2 size={16} style={{ opacity:0.6 }} />
+        : on ? <Bell size={16} /> : <BellOff size={16} />
+      }
     </button>
   )
 }

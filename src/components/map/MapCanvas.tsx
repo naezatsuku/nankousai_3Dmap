@@ -15,6 +15,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { getFloorModel, preloadAllFloors } from '@/lib/glbPreload'
 import { Exhibit } from '@/types'
+import { waitCssColor, waitHexColor, DEFAULT_WAIT_CONFIG, type WaitConfig } from '@/lib/waitColorUtil'
 
 // ── カラー ──────────────────────────────────────────────
 const COLOR = {
@@ -34,21 +35,6 @@ const INIT_CAM_OFFSET = new THREE.Vector3(-5, 10, 15)
 
 const FLOOR_MESH_RE = /^(\d+F|基礎|床|ground)$/i
 const GROUND_MESH_RE = /ground/i // "ground" を含むメッシュ用
-const waitToColor = (wait: number, assigned: boolean): number => {
-  if (!assigned)  return COLOR.unused
-  if (wait === 0) return COLOR.free
-  if (wait <= 10) return COLOR.low
-  if (wait <= 25) return COLOR.mid
-  return COLOR.high
-}
-
-/** 待ち時間 → マーカーのリングカラー文字列 */
-const waitToRingColor = (wait: number): string => {
-  if (wait === 0) return '#4ade80'
-  if (wait <= 10) return '#facc15'
-  if (wait <= 25) return '#fb923c'
-  return '#f87171'
-}
 
 // ── マーカーDOM生成 ──────────────────────────────────────
 // ── アニメーション用CSSの注入 ────────────────────────────
@@ -88,11 +74,11 @@ function injectCycleKeyframe(n: number) {
 }
 
 // ── マーカーDOM生成 ──────────────────────────────────────
-function createMarkerEl(exhibits: Exhibit[]): HTMLElement {
+function createMarkerEl(exhibits: Exhibit[], config: WaitConfig): HTMLElement {
   const n        = exhibits.length
   const maxWait  = Math.max(...exhibits.map(e => e.wait_minutes))
   const waitPct  = Math.min((maxWait / 60) * 100, 100)
-  const ringColor = waitToRingColor(maxWait)
+  const ringColor = waitCssColor(maxWait, config)
   const bgTrack  = '#e2e8f0'
 
   const wrap = document.createElement('div')
@@ -167,6 +153,7 @@ function createMarkerEl(exhibits: Exhibit[]): HTMLElement {
     border-top: 6px solid ${ringColor}; margin-top: -1px;
   `
 
+
   wrap.appendChild(ring)
   wrap.appendChild(tip)
   return wrap
@@ -219,6 +206,7 @@ interface MapCanvasProps {
   searchQuery?: string
   focusRoom?:   string | null
   onRoomClick: (nodeName: string) => void
+  waitConfig?: WaitConfig
 }
 
 interface FocusAnim {
@@ -238,6 +226,7 @@ export default function MapCanvas({
   searchQuery = '',
   focusRoom   = null,
   onRoomClick,
+  waitConfig  = DEFAULT_WAIT_CONFIG,
 }: MapCanvasProps) {
   const mountRef      = useRef<HTMLDivElement>(null)
   const rendererRef   = useRef<THREE.WebGLRenderer | null>(null)
@@ -256,6 +245,9 @@ export default function MapCanvas({
   const rebuildMarkersRef   = useRef<(scene: THREE.Scene) => void>(() => {})
   const panHalfExtRef       = useRef(0)
   const loadSeqRef          = useRef(0)
+
+  const waitConfigRef = useRef<WaitConfig>(waitConfig)
+  useEffect(() => { waitConfigRef.current = waitConfig }, [waitConfig])
 
   const [isTopDown, setIsTopDown] = useState(false)
   const [btnFaded,  setBtnFaded]  = useState(false)
@@ -317,6 +309,7 @@ export default function MapCanvas({
 
   // ── メッシュカラー適用 ──────────────────────────────────
   const applyRoomColors = useCallback(() => {
+    const cfg = waitConfigRef.current
     roomMeshes.current.forEach((mesh, name) => {
       const exs      = exhibitMap[name] ?? []
       const assigned = exs.length > 0
@@ -326,7 +319,7 @@ export default function MapCanvas({
         e.name.toLowerCase().includes(q) ||
         (e.class_label?.toLowerCase().includes(q) ?? false)
       )
-      const hex = isHL ? COLOR.selected : waitToColor(wait, assigned)
+      const hex = isHL ? COLOR.selected : waitHexColor(wait, assigned, cfg)
       ;(mesh.material as THREE.MeshLambertMaterial).color.setHex(hex)
     })
   }, [exhibitMap, searchQuery])
@@ -336,6 +329,7 @@ export default function MapCanvas({
     css2dObjects.current.forEach((obj) => obj.parent?.remove(obj))
     css2dObjects.current = []
 
+    const cfg = waitConfigRef.current
     roomMeshes.current.forEach((mesh, name) => {
       const exs = exhibitMap[name]
       if (!exs?.length) return
@@ -349,7 +343,7 @@ export default function MapCanvas({
       const box    = new THREE.Box3().setFromObject(mesh)
       const topY   = box.max.y  // 教室天井のY座標
 
-      const el    = createMarkerEl(exs)
+      const el    = createMarkerEl(exs, cfg)
       const css2d = new CSS2DObject(el)
       // XZ は教室中心、Y は天井の少し上
       css2d.position.set(worldPos.x, topY + 0.05, worldPos.z)
@@ -638,6 +632,13 @@ export default function MapCanvas({
   useEffect(() => {
     if (sceneRef.current) rebuildMarkers(sceneRef.current)
   }, [rebuildMarkers])
+
+  // 設定変更 → 色とマーカーを再適用
+  useEffect(() => {
+    applyRoomColors()
+    if (sceneRef.current) rebuildMarkers(sceneRef.current)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitConfig])
 
   // focusRoom 変更 → カメラをスムーズに移動・ズーム
   useEffect(() => {
