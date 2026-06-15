@@ -309,7 +309,7 @@ export default function ShiftViewPage() {
             {currentExhibit?.class_label ?? currentExhibit?.name}
           </div>
         </div>
-        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+        <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
           {(['sat','sun'] as const).map(d => (
             <button key={d} onClick={() => setDate(d)} style={{
               padding:'7px 20px', borderRadius:99, border:'none', cursor:'pointer',
@@ -322,23 +322,23 @@ export default function ShiftViewPage() {
           ))}
           {/* PDF出力ボタン */}
           <button onClick={() => window.print()} title="PDFとして保存する" style={{
-            height:36, padding:'0 16px', borderRadius:99, border:'none', cursor:'pointer',
+            height:36, padding:'0 12px', borderRadius:99, border:'none', cursor:'pointer',
             background:'#f1f5f9', color:'#64748b',
-            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            display:'flex', alignItems:'center', justifyContent:'center', gap:5,
             fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", whiteSpace:'nowrap',
           }}>
             <span style={{ fontSize:16 }}>📄</span>
-            PDFとして保存
+            <span className="shift-btn-label">PDFとして保存</span>
           </button>
           {/* 画像出力ボタン */}
           <button onClick={handleSaveImages} title="画像(PNG)として保存する" style={{
-            height:36, padding:'0 16px', borderRadius:99, border:'none', cursor:'pointer',
+            height:36, padding:'0 12px', borderRadius:99, border:'none', cursor:'pointer',
             background:'#f1f5f9', color:'#64748b',
-            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            display:'flex', alignItems:'center', justifyContent:'center', gap:5,
             fontSize:12, fontWeight:700, fontFamily:"'Kiwi Maru',serif", whiteSpace:'nowrap',
           }}>
             <span style={{ fontSize:16 }}>🖼</span>
-            画像で保存
+            <span className="shift-btn-label">画像で保存</span>
           </button>
           {/* 通知設定ボタン */}
           <button onClick={() => setNotifyModal(true)} title="シフト通知を設定" style={{
@@ -636,6 +636,9 @@ export default function ShiftViewPage() {
 
     <style>{`
       .shift-print-view { display: none; }
+      @media (max-width: 520px) {
+        .shift-btn-label { display: none; }
+      }
       @media print {
         /* ページ本体以外（管理画面の枠組み）を非表示にし、表だけを出力する */
         .shift-screen-view { display: none !important; }

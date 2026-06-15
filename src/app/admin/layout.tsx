@@ -68,10 +68,11 @@ const NAV_GROUPS: NavGroup[] = [
     id:'shift', label:'シフト管理', icon:<CalendarDays size={15} />,
     editorOk:true, studentOk:true,
     items:[
-      { href:'/admin/shift/survey',  icon:<ClipboardList size={14} />, label:'アンケート',   editorOk:true, studentOk:true },
-      { href:'/admin/shift/view',    icon:<CalendarDays size={14} />,  label:'シフト表',     editorOk:true, studentOk:true },
-      { href:'/admin/shift/members', icon:<User size={14} />,          label:'メンバー管理', editorOk:true },
-      { href:'/admin/shift/edit',    icon:<Pencil size={14} />,        label:'シフト編集',   editorOk:true },
+      { href:'/admin/shift/survey',  icon:<ClipboardList size={14} />,  label:'アンケート',         editorOk:true, studentOk:true },
+      { href:'/admin/shift/view',    icon:<CalendarDays size={14} />,   label:'シフト表',           editorOk:true, studentOk:true },
+      { href:'/admin/shift/members', icon:<User size={14} />,           label:'メンバー管理',       editorOk:true },
+      { href:'/admin/shift/edit',    icon:<Pencil size={14} />,         label:'シフト編集',         editorOk:true },
+      { href:'/admin/shift/seed',    icon:<FlaskConical size={14} />,   label:'テストデータ',       adminOnly:true },
     ],
   },
   {
@@ -123,12 +124,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
-      // バンド担当の有無（ロールに関わらず「マイバンド」ナビ表示に使用）
-      supabase.from('band_editors').select('band_id').eq('user_id', user.id).limit(1)
-        .then(({ data }) => setHasBands((data ?? []).length > 0))
-      supabase.from('profiles').select('*').eq('id', user.id).single()
-        .then(({ data }) => {
-          if (data) {
+      // プロフィールとバンド担当を並列取得してからリダイレクト判定
+      Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('band_editors').select('band_id').eq('user_id', user.id).limit(1),
+      ]).then(([{ data }, { data: bandData }]) => {
+        const hasBandAssignment = (bandData ?? []).length > 0
+        setHasBands(hasBandAssignment)
+        if (data) {
             const p = data as Profile
             setProfile(p)
             if (!p.name && pathname !== '/admin/profile') {
@@ -138,6 +141,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             // student は許可されたパス以外にアクセスできない
             if (p.role === 'student') {
               const studentAllowed = ['/admin/profile', '/admin/shift/survey', '/admin/shift/view']
+              if (hasBandAssignment) studentAllowed.push('/admin/band')
               const allowed = studentAllowed.some(a => pathname === a || pathname.startsWith(a + '/'))
               if (!allowed) router.replace('/admin/shift/survey')
             }

@@ -6,6 +6,8 @@ import Link from 'next/link'
 import PageLoader from '@/components/ui/PageLoader'
 import { getLocalSubs, syncSubscriptionSchedule } from '@/lib/push'
 import NotificationBanner from '@/components/ui/NotificationBanner'
+import { fetchSpecialGroups } from '@/lib/special'
+import { fetchBands } from '@/lib/bands'
 
 // ── 定数 ────────────────────────────────────────────────────────
 const START_MIN = 8 * 60 + 30   // 8:30
@@ -42,19 +44,29 @@ interface ScheduleItem {
   type:           'visit' | 'custom' | 'shift'
 }
 
-interface Column { item: ScheduleItem; col: number; totalCols: number }
+interface TimetableItem {
+  id:         string
+  title:      string
+  date:       'sat' | 'sun'
+  start_time: string
+  end_time:   string | null
+  location:   string | null
+  color:      string
+  kind:       'special' | 'band'
+}
 
 // ── 重なり検出 → 列振り分け ─────────────────────────────────────
-function layoutItems(items: ScheduleItem[]): Column[] {
+function layoutItems<T extends { start_time: string; end_time?: string | null }>(
+  items: T[]
+): { item: T; col: number; totalCols: number }[] {
   const sorted = [...items].sort((a, b) =>
     timeToMin(a.start_time) - timeToMin(b.start_time)
   )
-  const cols: Column[] = []
-  const active: Column[] = []
+  const cols: { item: T; col: number; totalCols: number }[] = []
+  const active: { item: T; col: number; totalCols: number }[] = []
 
   for (const item of sorted) {
     const start = timeToMin(item.start_time)
-    const end   = item.end_time ? timeToMin(item.end_time) : start + 60
 
     // 終わったものを除去
     const still = active.filter(c =>
@@ -64,7 +76,7 @@ function layoutItems(items: ScheduleItem[]): Column[] {
     let col = 0
     while (usedCols.has(col)) col++
 
-    const entry: Column = { item, col, totalCols: 1 }
+    const entry = { item, col, totalCols: 1 }
     still.push(entry)
     active.length = 0
     active.push(...still)
@@ -72,12 +84,6 @@ function layoutItems(items: ScheduleItem[]): Column[] {
   }
 
   // totalCols を同グループで揃える
-  const maxCols = new Map<number, number>()
-  for (const c of cols) {
-    const key = timeToMin(c.item.start_time)
-    maxCols.set(key, Math.max(maxCols.get(key) ?? 1, c.col + 1))
-  }
-  // 同時帯グループの totalCols を更新（簡易版：重なるもの同士）
   for (const c of cols) {
     const start = timeToMin(c.item.start_time)
     const end   = c.item.end_time ? timeToMin(c.item.end_time) : start + 60
@@ -106,6 +112,11 @@ const TYPE_COLOR: Record<string, string> = {
   shift:  '#6366f1',
   visit:  '#FF6B00',
   custom: '#10b981',
+}
+
+const ALL_COLOR: Record<'special' | 'band', string> = {
+  special: '#FF6B00',
+  band:    '#a855f7',
 }
 
 // ── 通知スケジュール ────────────────────────────────────────────
@@ -156,6 +167,11 @@ export default function SchedulePage() {
   const [role,          setRole]         = useState('')
   const [myUserId,      setMyUserId]     = useState('')
   const [festivalDates, setFestivalDates]= useState(DEFAULT_FESTIVAL_DATES)
+
+  // 表示切替
+  const [viewMode,         setViewMode]         = useState<'mine' | 'all'>('mine')
+  const [timetableItems,   setTimetableItems]   = useState<TimetableItem[]>([])
+  const [timetableLoading, setTimetableLoading] = useState(false)
 
   // 新規追加モーダル
   const [showAdd,      setShowAdd]      = useState(false)
@@ -314,6 +330,56 @@ export default function SchedulePage() {
     return () => clearTimeout(id)
   }, [userKey, fetchItems])
 
+  // 全体タイムテーブル取得
+  const fetchTimetable = useCallback(async () => {
+    setTimetableLoading(true)
+    const [specials, bands] = await Promise.all([
+      fetchSpecialGroups(),
+      fetchBands(),
+    ])
+
+    const newItems: TimetableItem[] = []
+
+    for (const group of specials) {
+      for (const sch of group.schedules) {
+        newItems.push({
+          id:         `special-${sch.id}`,
+          title:      group.name,
+          date:       sch.day,
+          start_time: sch.start_at,
+          end_time:   sch.end_at,
+          location:   sch.location || null,
+          color:      ALL_COLOR.special,
+          kind:       'special',
+        })
+      }
+    }
+
+    for (const band of bands) {
+      for (const sch of band.schedules) {
+        newItems.push({
+          id:         `band-${sch.id}`,
+          title:      band.name,
+          date:       sch.day,
+          start_time: sch.start_at,
+          end_time:   sch.end_at,
+          location:   sch.stage ?? null,
+          color:      ALL_COLOR.band,
+          kind:       'band',
+        })
+      }
+    }
+
+    setTimetableItems(newItems)
+    setTimetableLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (viewMode === 'all') {
+      fetchTimetable()
+    }
+  }, [viewMode, fetchTimetable])
+
   const handleAdd = async () => {
     if (!newTitle.trim()) return
     if (!userKey) { setAddError('ユーザーキーが未設定です。少し待ってから再試行してください。'); return }
@@ -426,8 +492,10 @@ export default function SchedulePage() {
     setTimeout(() => setShiftNotifySaved(false), 3000)
   }
 
-  const filtered = items.filter(i => i.date === date)
-  const columns  = layoutItems(filtered)
+  const mineFiltered = items.filter(i => i.date === date)
+  const mineColumns  = layoutItems(mineFiltered)
+  const allFiltered  = timetableItems.filter(i => i.date === date)
+  const allColumns   = layoutItems(allFiltered)
 
   // 時間マーカー（30分ごと）
   const markers: string[] = []
@@ -462,7 +530,7 @@ export default function SchedulePage() {
               📅 予定
             </div>
             <div style={{ fontSize:10, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginTop:1 }}>
-              当日のスケジュールを管理
+              {viewMode === 'mine' ? '当日のスケジュールを管理' : 'すべてのイベントを一覧表示'}
             </div>
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -479,32 +547,74 @@ export default function SchedulePage() {
                 </button>
               ))}
             </div>
-            {/* 追加ボタン */}
-            <button onClick={() => { setNewDate(date); setShowAdd(true) }} style={{
-              width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer',
-              background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
-              color:'#fff', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center',
-              boxShadow:'0 2px 8px rgba(255,107,0,0.3)',
-            }}>+</button>
+            {/* 追加ボタン（マイ予定モードのみ） */}
+            {viewMode === 'mine' && (
+              <button onClick={() => { setNewDate(date); setShowAdd(true) }} style={{
+                width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer',
+                background:'linear-gradient(135deg,#FF6B00,#FFAA28)',
+                color:'#fff', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center',
+                boxShadow:'0 2px 8px rgba(255,107,0,0.3)',
+              }}>+</button>
+            )}
           </div>
+        </div>
+
+        {/* ── 表示切替タブ ── */}
+        <div style={{
+          padding:'8px 16px', flexShrink:0,
+          borderBottom:'1px solid #f1e8dc', background:'#fafafa',
+          display:'flex', gap:6,
+        }}>
+          {([
+            { mode: 'mine' as const, label: 'マイ予定', emoji: '👤' },
+            { mode: 'all'  as const, label: '全体タイムテーブル', emoji: '📋' },
+          ]).map(({ mode, label, emoji }) => (
+            <button key={mode} onClick={() => setViewMode(mode)} style={{
+              padding:'6px 14px', borderRadius:99, border:'none', cursor:'pointer',
+              background: viewMode === mode
+                ? 'linear-gradient(135deg,#FF6B00,#FFAA28)'
+                : '#f1f5f9',
+              color: viewMode === mode ? '#fff' : '#64748b',
+              fontWeight:700, fontSize:11, fontFamily:"'Kiwi Maru',serif",
+              transition:'all 0.15s',
+            }}>
+              {emoji} {label}
+            </button>
+          ))}
         </div>
 
         {/* 凡例 */}
         <div style={{ padding:'6px 16px', display:'flex', gap:10, flexShrink:0, borderBottom:'1px solid #f8fafc' }}>
-          {[
-            { color: TYPE_COLOR.visit,  label: '訪問予定' },
-            { color: TYPE_COLOR.custom, label: '自作' },
-            ...(isLoggedIn && role !== '' ? [{ color: TYPE_COLOR.shift, label: 'シフト' }] : []),
-          ].map(l => (
-            <div key={l.label} style={{ display:'flex', alignItems:'center', gap:4 }}>
-              <div style={{ width:10, height:10, borderRadius:3, background:l.color }} />
-              <span style={{ fontSize:10, color:'#64748b', fontFamily:"'Kiwi Maru',serif" }}>{l.label}</span>
-            </div>
-          ))}
+          {viewMode === 'mine' ? (
+            <>
+              {[
+                { color: TYPE_COLOR.visit,  label: '訪問予定' },
+                { color: TYPE_COLOR.custom, label: '自作' },
+                ...(isLoggedIn && role !== '' ? [{ color: TYPE_COLOR.shift, label: 'シフト' }] : []),
+              ].map(l => (
+                <div key={l.label} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <div style={{ width:10, height:10, borderRadius:3, background:l.color }} />
+                  <span style={{ fontSize:10, color:'#64748b', fontFamily:"'Kiwi Maru',serif" }}>{l.label}</span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {[
+                { color: ALL_COLOR.special, label: '催し物' },
+                { color: ALL_COLOR.band,    label: '軽音楽部' },
+              ].map(l => (
+                <div key={l.label} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <div style={{ width:10, height:10, borderRadius:3, background:l.color }} />
+                  <span style={{ fontSize:10, color:'#64748b', fontFamily:"'Kiwi Maru',serif" }}>{l.label}</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
-        {/* シフト取得中インジケータ */}
-        {shiftLoading && (
+        {/* シフト取得中インジケータ（マイ予定のみ） */}
+        {viewMode === 'mine' && shiftLoading && (
           <div style={{
             padding:'5px 16px', background:'#eef2ff', flexShrink:0,
             display:'flex', alignItems:'center', gap:6,
@@ -522,7 +632,7 @@ export default function SchedulePage() {
         )}
 
         {/* ── タイムライン ── */}
-        {loading ? (
+        {(viewMode === 'mine' ? loading : timetableLoading) ? (
           <div style={{ flex:1 }}><PageLoader /></div>
         ) : (
           <div style={{ flex:1, overflowY:'auto', padding:'0 16px 24px' }}>
@@ -545,73 +655,130 @@ export default function SchedulePage() {
 
               {/* イベントカード */}
               <div style={{ marginLeft:46, position:'relative', height: TIMELINE_H }}>
-                {filtered.length === 0 && (
-                  <div style={{
-                    position:'absolute', top:'30%', left:0, right:0,
-                    textAlign:'center', color:'#cbd5e1',
-                    fontFamily:"'Kiwi Maru',serif", fontSize:13, lineHeight:2,
-                  }}>
-                    <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
-                    予定がありません<br />
-                    <span style={{ fontSize:11 }}>＋ボタンから追加できます</span>
-                  </div>
-                )}
 
-                {columns.map(({ item, col, totalCols }) => {
-                  const top  = minToY(timeToMin(item.start_time))
-                  const endM = item.end_time ? timeToMin(item.end_time) : timeToMin(item.start_time) + 60
-                  const h    = Math.max((endM - timeToMin(item.start_time)) * PX_PER_MIN, 28)
-                  const W    = `calc((100% - ${(totalCols - 1) * 4}px) / ${totalCols})`
-                  const L    = col === 0 ? '0px' : `calc(${col} * (100% + 4px) / ${totalCols})`
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="sch-item"
-                      onClick={() => {
-                        if (item.type === 'shift') {
-                          setShiftNotifyMin(item.notify_minutes ?? shiftNotifyMin)
-                          setShiftNotifyItem(item)
-                        } else if (item.type === 'visit' && item.exhibit_id) {
-                          // 購読由来の予定は編集不可（何もしない）
-                        } else {
-                          setEditNotify(item.notify_minutes ?? null)
-                          setEditItem(item)
-                        }
-                      }}
-                      style={{
-                        position:'absolute', top, left:L, width:W, height:h,
-                        borderRadius:8, padding:'4px 7px', overflow:'hidden',
-                        background:`${item.color}22`,
-                        borderLeft:`3px solid ${item.color}`,
-                        cursor: (item.type === 'visit' && item.exhibit_id) ? 'default' : 'pointer',
-                        boxSizing:'border-box',
-                        animation:'fadeUp 0.2s ease',
-                      }}
-                    >
-                      <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:11, fontWeight:700, color: item.color, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                        {item.title}
+                {viewMode === 'mine' ? (
+                  <>
+                    {mineFiltered.length === 0 && (
+                      <div style={{
+                        position:'absolute', top:'30%', left:0, right:0,
+                        textAlign:'center', color:'#cbd5e1',
+                        fontFamily:"'Kiwi Maru',serif", fontSize:13, lineHeight:2,
+                      }}>
+                        <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
+                        予定がありません<br />
+                        <span style={{ fontSize:11 }}>＋ボタンから追加できます</span>
                       </div>
-                      {h > 40 && item.location && (
-                        <div style={{ fontSize:9, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          📍 {item.location}
+                    )}
+
+                    {mineColumns.map(({ item, col, totalCols }) => {
+                      const top  = minToY(timeToMin(item.start_time))
+                      const endM = item.end_time ? timeToMin(item.end_time) : timeToMin(item.start_time) + 60
+                      const h    = Math.max((endM - timeToMin(item.start_time)) * PX_PER_MIN, 28)
+                      const W    = `calc((100% - ${(totalCols - 1) * 4}px) / ${totalCols})`
+                      const L    = col === 0 ? '0px' : `calc(${col} * (100% + 4px) / ${totalCols})`
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="sch-item"
+                          onClick={() => {
+                            if (item.type === 'shift') {
+                              setShiftNotifyMin(item.notify_minutes ?? shiftNotifyMin)
+                              setShiftNotifyItem(item)
+                            } else if (item.type === 'visit' && item.exhibit_id) {
+                              // 購読由来の予定は編集不可（何もしない）
+                            } else {
+                              setEditNotify(item.notify_minutes ?? null)
+                              setEditItem(item)
+                            }
+                          }}
+                          style={{
+                            position:'absolute', top, left:L, width:W, height:h,
+                            borderRadius:8, padding:'4px 7px', overflow:'hidden',
+                            background:`${item.color}22`,
+                            borderLeft:`3px solid ${item.color}`,
+                            cursor: (item.type === 'visit' && item.exhibit_id) ? 'default' : 'pointer',
+                            boxSizing:'border-box',
+                            animation:'fadeUp 0.2s ease',
+                          }}
+                        >
+                          <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:11, fontWeight:700, color: item.color, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                            {item.title}
+                          </div>
+                          {h > 40 && item.location && (
+                            <div style={{ fontSize:9, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                              📍 {item.location}
+                            </div>
+                          )}
+                          {h > 52 && (
+                            <div style={{ fontSize:9, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+                              {fmtTime(item.start_time)}{item.end_time ? `〜${fmtTime(item.end_time)}` : ''}
+                            </div>
+                          )}
+                          {item.type === 'shift' ? (
+                            <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color: item.notify_minutes ? item.color : '#cbd5e1' }}>🔔</div>
+                          ) : (item.type === 'visit' && item.exhibit_id) ? (
+                            <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color:'#94a3b8' }}>📅</div>
+                          ) : item.notify_minutes ? (
+                            <div style={{ fontSize:9, color: item.color, position:'absolute', bottom:3, right:5 }}>🔔</div>
+                          ) : null}
                         </div>
-                      )}
-                      {h > 52 && (
-                        <div style={{ fontSize:9, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
-                          {fmtTime(item.start_time)}{item.end_time ? `〜${fmtTime(item.end_time)}` : ''}
+                      )
+                    })}
+                  </>
+                ) : (
+                  <>
+                    {allFiltered.length === 0 && (
+                      <div style={{
+                        position:'absolute', top:'30%', left:0, right:0,
+                        textAlign:'center', color:'#cbd5e1',
+                        fontFamily:"'Kiwi Maru',serif", fontSize:13, lineHeight:2,
+                      }}>
+                        <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
+                        イベントが見つかりません
+                      </div>
+                    )}
+
+                    {allColumns.map(({ item, col, totalCols }) => {
+                      const top  = minToY(timeToMin(item.start_time))
+                      const endM = item.end_time ? timeToMin(item.end_time) : timeToMin(item.start_time) + 60
+                      const h    = Math.max((endM - timeToMin(item.start_time)) * PX_PER_MIN, 28)
+                      const W    = `calc((100% - ${(totalCols - 1) * 4}px) / ${totalCols})`
+                      const L    = col === 0 ? '0px' : `calc(${col} * (100% + 4px) / ${totalCols})`
+
+                      return (
+                        <div
+                          key={item.id}
+                          style={{
+                            position:'absolute', top, left:L, width:W, height:h,
+                            borderRadius:8, padding:'4px 7px', overflow:'hidden',
+                            background:`${item.color}22`,
+                            borderLeft:`3px solid ${item.color}`,
+                            boxSizing:'border-box',
+                            animation:'fadeUp 0.2s ease',
+                          }}
+                        >
+                          <div style={{ fontFamily:"'Kaisei Decol',serif", fontSize:11, fontWeight:700, color: item.color, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                            {item.title}
+                          </div>
+                          {h > 40 && item.location && (
+                            <div style={{ fontSize:9, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                              📍 {item.location}
+                            </div>
+                          )}
+                          {h > 52 && (
+                            <div style={{ fontSize:9, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+                              {fmtTime(item.start_time)}{item.end_time ? `〜${fmtTime(item.end_time)}` : ''}
+                            </div>
+                          )}
+                          <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color: item.color }}>
+                            {item.kind === 'band' ? '🎸' : '🎭'}
+                          </div>
                         </div>
-                      )}
-                      {item.type === 'shift' ? (
-                        <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color: item.notify_minutes ? item.color : '#cbd5e1' }}>🔔</div>
-                      ) : (item.type === 'visit' && item.exhibit_id) ? (
-                        <div style={{ fontSize:9, position:'absolute', bottom:3, right:5, color:'#94a3b8' }}>📅</div>
-                      ) : item.notify_minutes ? (
-                        <div style={{ fontSize:9, color: item.color, position:'absolute', bottom:3, right:5 }}>🔔</div>
-                      ) : null}
-                    </div>
-                  )
-                })}
+                      )
+                    })}
+                  </>
+                )}
               </div>
             </div>
           </div>

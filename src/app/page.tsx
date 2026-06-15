@@ -35,7 +35,7 @@ const SITEMAP: SitemapItem[] = [
     desc: "1F〜6Fの展示を地図で確認", sub: ["フロア切り替え", "教室タップで詳細", "待ち時間表示"],
   },
   {
-    id: "news", icon: <Megaphone size={22} />, label: "お知らせ", color: "#E65100", lightColor: "#FBE9E7",
+    id: "timeline", icon: <Megaphone size={22} />, label: "お知らせ", color: "#E65100", lightColor: "#FBE9E7",
     desc: "各クラス・実行委員からの最新情報", sub: ["リアルタイム更新", "未読バッジ", "クラス別"],
   },
   {

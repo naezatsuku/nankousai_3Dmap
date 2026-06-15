@@ -1,4 +1,10 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
+
 export default function SiteClosedPage() {
+  const router = useRouter()
+
   return (
     <>
       <style>{`
@@ -52,12 +58,27 @@ export default function SiteClosedPage() {
 
         <p style={{
           fontSize: 13, color: '#b36800', lineHeight: 1.9,
-          maxWidth: 280, marginBottom: 0,
+          maxWidth: 280, marginBottom: 28,
           animation: 'scFadeUp 0.6s ease 0.2s both',
         }}>
           南高祭公式サイトは現在非公開設定中です。<br />
           公開まで今しばらくお待ちください。
         </p>
+
+        <button
+          onClick={() => router.push('/')}
+          style={{
+            padding: '12px 28px', borderRadius: 99, border: 'none', cursor: 'pointer',
+            background: 'rgba(255,255,255,0.75)',
+            backdropFilter: 'blur(12px)',
+            boxShadow: 'inset 0 0 0 1.5px rgba(255,107,0,0.4)',
+            color: '#FF6B00', fontSize: 13, fontWeight: 700,
+            fontFamily: "'Kiwi Maru',serif",
+            animation: 'scFadeUp 0.6s ease 0.3s both',
+          }}
+        >
+          ← トップページへ
+        </button>
       </div>
     </>
   )

@@ -4,17 +4,18 @@ import PageLoader from '@/components/ui/PageLoader'
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { buildThresholds, DEFAULT_WAIT_CONFIG, type WaitConfig } from '@/lib/waitColorUtil'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { Exhibit } from '@/types'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
-import FloorSelector   from '@/components/map/FloorSelector'
-import SearchBar       from '@/components/map/SearchBar'
-import RoomSheet       from '@/components/map/RoomSheet'
-import SideButtons     from '@/components/ui/SideButtons'
-import InstallBanner   from '@/components/ui/InstallBanner'
+import FloorSelector    from '@/components/map/FloorSelector'
+import SearchBar        from '@/components/map/SearchBar'
+import RoomSheet        from '@/components/map/RoomSheet'
+import SideButtons      from '@/components/ui/SideButtons'
+import InstallBanner    from '@/components/ui/InstallBanner'
 import CinematicStageCall from '@/components/map/CinematicStageCall'
+import ExhibitListView  from '@/components/map/ExhibitListView'
 
 // Three.js は SSR 不可
 const MapCanvas = dynamic(() => import('@/components/map/MapCanvas'), {
@@ -33,8 +34,12 @@ const MapCanvas = dynamic(() => import('@/components/map/MapCanvas'), {
 })
 
 export default function MapPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
 
+  const [viewMode,       setViewMode]       = useState<'map' | 'list'>(
+    () => searchParams.get('view') === 'list' ? 'list' : 'map'
+  )
   const [mapEnabled,     setMapEnabled]     = useState<boolean | null>(null)
   const [waitStageCount, setWaitStageCount] = useState(DEFAULT_WAIT_CONFIG.stageCount)
   const [waitTh1,        setWaitTh1]        = useState(10)
@@ -129,6 +134,12 @@ export default function MapPage() {
   // floorRef を常に最新に保つ
   useEffect(() => { floorRef.current = floor }, [floor])
 
+  const switchView = useCallback((mode: 'map' | 'list') => {
+    setViewMode(mode)
+    // URL にビューモードを反映（履歴は replace で上書き）
+    router.replace(mode === 'list' ? '/map?view=list' : '/map')
+  }, [router])
+
   // 入力中：ハイライト更新のみ、フォーカスはしない
   const handleSearch = useCallback((q: string) => {
     setSearchQuery(q)
@@ -190,6 +201,14 @@ export default function MapPage() {
     )
   }
 
+  if (viewMode === 'list') {
+    return (
+      <div className="absolute inset-0 overflow-hidden">
+        <ExhibitListView exhibits={exhibits} onSwitchToMap={() => switchView('map')} />
+      </div>
+    )
+  }
+
   return (
     <div className="absolute inset-0 overflow-hidden">
       <MapCanvas
@@ -204,6 +223,42 @@ export default function MapPage() {
       <FloorSelector current={floor} onChange={handleFloorChange} />
       <SearchBar onSearch={handleSearch} onConfirm={handleConfirm} onSelect={handleSelect} exhibits={exhibits} />
       <SideButtons />
+
+      {/* 一覧表示トグル */}
+      <button
+        onClick={() => switchView('list')}
+        className="el-list-btn"
+        style={{
+          position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 20,
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '9px 20px', borderRadius: 99, border: 'none', cursor: 'pointer',
+          background: 'rgba(255,255,255,0.92)',
+          backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: '0 2px 14px rgba(0,0,0,0.13)',
+          fontFamily: "'Kiwi Maru',serif", fontSize: 13, fontWeight: 700, color: '#334155',
+          transition: 'box-shadow 0.15s, transform 0.15s',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <style>{`
+          .el-list-btn:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.18) !important; }
+          @media (hover: none) { .el-list-btn:hover { box-shadow: 0 2px 14px rgba(0,0,0,0.13) !important; } }
+          /* PC: 左下に移動してDesktopNavと重ならないようにする */
+          @media (min-width: 640px) {
+            .el-list-btn { left: 16px !important; transform: none !important; }
+          }
+        `}</style>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="8" y1="6"  x2="21" y2="6"/>
+          <line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="6"  x2="3.01" y2="6"/>
+          <line x1="3" y1="12" x2="3.01" y2="12"/>
+          <line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+        展示一覧
+      </button>
 
       {/* インストール誘導バナー（マップ上部に重ねて表示） */}
       <div style={{ position: 'absolute', top: 56, left: 0, right: 0, zIndex: 30, pointerEvents: 'auto' }}>

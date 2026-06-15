@@ -245,7 +245,7 @@ export default function ExhibitProfilePage({ initialTab }: { initialTab: Profile
           <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px 4px' }}>
             <button
               className="ef-back"
-              onClick={() => router.push('/map')}
+              onClick={() => router.back()}
               style={{
                 background:'transparent', border:'none', cursor:'pointer',
                 width:34, height:34, borderRadius:'50%', flexShrink:0,
@@ -314,7 +314,7 @@ export default function ExhibitProfilePage({ initialTab }: { initialTab: Profile
             {/* ← 戻るボタン（カバー左上） */}
             <button
               className="ef-back"
-              onClick={() => router.push('/map')}
+              onClick={() => router.back()}
               style={{
                 position:'absolute', top:12, left:12,
                 width:34, height:34, borderRadius:'50%',
