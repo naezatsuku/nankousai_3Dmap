@@ -220,33 +220,9 @@ function SingleExhibitView({ exhibit, feedback, onLike, waitConfig = DEFAULT_WAI
           to  { opacity:1; transform:translateY(0); }
         }
       `}</style>
-      <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
-        <div style={{
-          width:72, height:72, borderRadius:16, flexShrink:0,
-          overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
-          background:'linear-gradient(135deg,#FFD166 0%,#FF8C00 100%)', fontSize:28,
-        }}>
-          {exhibit.thumbnail_url
-            ? <img src={exhibit.thumbnail_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-            : '🎨'}
-        </div>
-        <div style={{ flex:1, minWidth:0, paddingTop:4 }}>
-          <h3 style={{
-            fontSize:20, fontWeight:700, color:'#1a1a1a',
-            fontFamily:"'Kaisei Decol',serif",
-            lineHeight:1.25, marginBottom:8,
-            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
-          }}>
-            {exhibit.name}
-          </h3>
-          <span style={{
-            display:'inline-block', fontSize:11, padding:'3px 12px', borderRadius:99,
-            background:'#FFF0E0', color:'#FF8C00', fontFamily:"'Kiwi Maru',sans-serif", fontWeight:700,
-          }}>
-            {TYPE_LABEL[exhibit.type]}
-          </span>
-        </div>
-      </div>
+      {exhibit.cover_url
+        ? <BannerHeader exhibit={exhibit} />
+        : <PlainHeader exhibit={exhibit} />}
 
       {exhibit.has_wait_time !== false && (
         <div style={{ marginTop:20, padding:16, borderRadius:16, background:'#fafafa', border:'1px solid #f0f0f0' }}>
@@ -338,6 +314,84 @@ function SingleExhibitView({ exhibit, feedback, onLike, waitConfig = DEFAULT_WAI
   )
 }
 
+// ─── 展示ヘッダー: サムネ部品 ────────────────────────────────
+function Thumb({ exhibit, size = 72, radius = 16, ring }: {
+  exhibit: Exhibit; size?: number; radius?: number; ring?: boolean
+}) {
+  return (
+    <div style={{
+      width:size, height:size, borderRadius:radius, flexShrink:0,
+      overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
+      background:'linear-gradient(135deg,#FFD166 0%,#FF8C00 100%)', fontSize:size * 0.4,
+      border: ring ? '3px solid #fff' : undefined,
+      boxShadow: ring ? '0 4px 14px rgba(0,0,0,0.18)' : undefined,
+    }}>
+      {exhibit.thumbnail_url
+        ? <img src={exhibit.thumbnail_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        : '🎨'}
+    </div>
+  )
+}
+
+function TypeBadge({ exhibit }: { exhibit: Exhibit }) {
+  return (
+    <span style={{
+      display:'inline-block', fontSize:11, padding:'3px 12px', borderRadius:99,
+      background:'#FFF0E0', color:'#FF8C00', fontFamily:"'Kiwi Maru',sans-serif", fontWeight:700,
+    }}>
+      {TYPE_LABEL[exhibit.type]}
+    </span>
+  )
+}
+
+// ─── ヘッダー: 従来レイアウト（cover なし時のフォールバック） ──
+function PlainHeader({ exhibit }: { exhibit: Exhibit }) {
+  return (
+    <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
+      <Thumb exhibit={exhibit} />
+      <div style={{ flex:1, minWidth:0, paddingTop:4 }}>
+        <h3 style={{
+          fontSize:20, fontWeight:700, color:'#1a1a1a',
+          fontFamily:"'Kaisei Decol',serif",
+          lineHeight:1.25, marginBottom:8,
+          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+        }}>
+          {exhibit.name}
+        </h3>
+        <TypeBadge exhibit={exhibit} />
+      </div>
+    </div>
+  )
+}
+
+// ─── ヘッダー(A): バナー型 — cover を横長バナー＋サムネを重ねる ──
+function BannerHeader({ exhibit }: { exhibit: Exhibit }) {
+  return (
+    <div>
+      {/* full-bleed バナー（親の左右 padding 20px を相殺） */}
+      <div style={{ margin:'0 -20px', position:'relative', height:150, overflow:'hidden' }}>
+        <img src={exhibit.cover_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+        <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,.45) 0%, transparent 55%)' }} />
+      </div>
+      {/* サムネがバナーにオーバーラップ */}
+      <div style={{ display:'flex', gap:14, alignItems:'flex-end', marginTop:-34, position:'relative' }}>
+        <Thumb exhibit={exhibit} ring />
+        <div style={{ flex:1, minWidth:0, paddingBottom:4 }}>
+          <h3 style={{
+            fontSize:20, fontWeight:700, color:'#1a1a1a',
+            fontFamily:"'Kaisei Decol',serif",
+            lineHeight:1.25, marginBottom:8,
+            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+          }}>
+            {exhibit.name}
+          </h3>
+          <TypeBadge exhibit={exhibit} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── 複数件リスト表示 ─────────────────────────────────────────
 function MultiExhibitView({ exhibits, feedbacks, onLike, waitConfig = DEFAULT_WAIT_CONFIG }: {
   exhibits:    Exhibit[]
@@ -356,17 +410,36 @@ function MultiExhibitView({ exhibits, feedbacks, onLike, waitConfig = DEFAULT_WA
             key={exhibit.id}
             href={`/exhibit/${exhibit.id}`}
             style={{
+              position:'relative', overflow:'hidden',
               display:'flex', alignItems:'center', gap:12,
               padding:'12px 14px', borderRadius:16,
-              background:'#fafafa', border:'1px solid #f0f0f0',
+              background:'#fafafa',
+              border:'1px solid #f0f0f0',
               textDecoration:'none',
             }}
           >
+            {/* cover 背景（ある場合のみ）— 写真をうっすら敷いて白幕で可読性を確保 */}
+            {exhibit.cover_url && (
+              <>
+                <img
+                  src={exhibit.cover_url}
+                  alt=""
+                  style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
+                />
+                <div style={{
+                  position:'absolute', inset:0,
+                  background:'linear-gradient(90deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.82) 55%, rgba(255,255,255,.62) 100%)',
+                }} />
+              </>
+            )}
+
             {/* サムネイル */}
             <div style={{
+              position:'relative',
               width:48, height:48, borderRadius:12, flexShrink:0,
               overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
               background:'linear-gradient(135deg,#FFD166,#FF8C00)', fontSize:20,
+              boxShadow: exhibit.cover_url ? '0 2px 8px rgba(0,0,0,0.12)' : undefined,
             }}>
               {exhibit.thumbnail_url
                 ? <img src={exhibit.thumbnail_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
@@ -374,7 +447,7 @@ function MultiExhibitView({ exhibits, feedbacks, onLike, waitConfig = DEFAULT_WA
             </div>
 
             {/* テキスト */}
-            <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ position:'relative', flex:1, minWidth:0 }}>
               <div style={{
                 fontSize:15, fontWeight:700, color:'#1a1a1a',
                 fontFamily:"'Kaisei Decol',serif",
@@ -410,7 +483,7 @@ function MultiExhibitView({ exhibits, feedbacks, onLike, waitConfig = DEFAULT_WA
               return (
                 <button
                   onClick={e => { e.preventDefault(); if (!fb.userLiked && fb.userHasStamp) onLike(exhibit.id) }}
-                  style={{ background:'none', border:'none', padding:'4px 2px', cursor: fb.userLiked ? 'default' : 'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:4 }}
+                  style={{ position:'relative', background:'none', border:'none', padding:'4px 2px', cursor: fb.userLiked ? 'default' : 'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:4 }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24"
                     fill={fb.userLiked ? '#ff2d55' : 'none'}
@@ -430,7 +503,7 @@ function MultiExhibitView({ exhibits, feedbacks, onLike, waitConfig = DEFAULT_WA
             })()}
 
             {/* 矢印 */}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2.5" style={{ position:'relative', flexShrink:0 }}>
               <path d="M9 18l6-6-6-6" />
             </svg>
           </Link>

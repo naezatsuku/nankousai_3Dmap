@@ -14,7 +14,45 @@ const TYPE_CONFIG: Record<ExhibitType, { label:string; color:string }> = {
   cafeteria: { label:'食堂',   color:'#10b981' },
 }
 
-type FilterType = ExhibitType | 'all'
+type FilterType = 'all' | 'high' | 'middle' | 'food' | 'special' | 'band' | 'cafeteria'
+
+const FILTERS: { key: FilterType; label: string; color: string }[] = [
+  { key: 'all',       label: 'すべて', color: '#64748b' },
+  { key: 'high',      label: '高校',   color: '#FF6B00' },
+  { key: 'middle',    label: '中学',   color: '#0284c7' },
+  { key: 'food',      label: 'フード', color: '#f59e0b' },
+  { key: 'special',   label: '特別',   color: '#0ea5e9' },
+  { key: 'band',      label: '軽音',   color: '#a855f7' },
+  { key: 'cafeteria', label: '食堂',   color: '#10b981' },
+]
+
+function applyFilter(list: Exhibit[], filter: FilterType): Exhibit[] {
+  switch (filter) {
+    case 'high':      return list.filter(e => e.type === 'class' && (e.class_label ?? '').startsWith('高'))
+    case 'middle':    return list.filter(e => e.type === 'class' && (e.class_label ?? '').startsWith('中'))
+    case 'food':      return list.filter(e => e.type === 'food')
+    case 'special':   return list.filter(e => e.type === 'special')
+    case 'band':      return list.filter(e => e.type === 'band')
+    case 'cafeteria': return list.filter(e => e.type === 'cafeteria')
+    default:          return list
+  }
+}
+
+function sort50on(list: Exhibit[]): Exhibit[] {
+  return [...list].sort((a, b) => {
+    const ka = (a.class_label || a.name || '').normalize('NFC')
+    const kb = (b.class_label || b.name || '').normalize('NFC')
+    return ka.localeCompare(kb, 'ja', { sensitivity: 'base' })
+  })
+}
+
+function getItemBadge(ex: Exhibit): { label: string; color: string } {
+  if (ex.type === 'class') {
+    if ((ex.class_label ?? '').startsWith('高')) return { label: '高校', color: '#FF6B00' }
+    if ((ex.class_label ?? '').startsWith('中')) return { label: '中学', color: '#0284c7' }
+  }
+  return TYPE_CONFIG[ex.type]
+}
 
 const BLANK: Omit<Exhibit,'id'|'created_at'|'updated_at'> = {
   name:'', class_label:'', type:'class', room_object:'', room_display:'',
@@ -32,7 +70,7 @@ export default function ExhibitsPage() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('exhibits').select('*').order('floor').then(({ data }) => {
+    supabase.from('exhibits').select('*').then(({ data }) => {
       if (data) setExhibits(data as Exhibit[])
       setLoading(false)
     })
@@ -64,7 +102,7 @@ export default function ExhibitsPage() {
     setExhibits(ex => ex.map(e => e.id===id ? {...e, is_active:!current} : e))
   }
 
-  const visible = filterType === 'all' ? exhibits : exhibits.filter(e => e.type === filterType)
+  const visible = sort50on(applyFilter(exhibits, filterType))
 
   return (
     <div style={{ maxWidth:900 }}>
@@ -137,18 +175,21 @@ export default function ExhibitsPage() {
       )}
 
       {/* ── フィルター ── */}
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 }}>
-        {([['all','すべて','#64748b']] as [FilterType,string,string][]).concat(
-          Object.entries(TYPE_CONFIG).map(([k,v])=>[k as ExhibitType,v.label,v.color])
-        ).map(([t,label,color])=>(
-          <button key={t} onClick={()=>setFilterType(t)} style={{
+      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16, alignItems:'center' }}>
+        {FILTERS.map(({ key, label, color }) => (
+          <button key={key} onClick={() => setFilterType(key)} style={{
             padding:'5px 14px', borderRadius:99, border:'none', cursor:'pointer',
-            background: filterType===t ? color : '#f1f5f9',
-            color: filterType===t ? '#fff' : '#64748b',
+            background: filterType === key ? color : '#f1f5f9',
+            color: filterType === key ? '#fff' : '#64748b',
             fontSize:11, fontWeight:700, fontFamily:"'Kiwi Maru',serif",
             transition:'all 0.15s',
-          }}>{label}</button>
+          }}>
+            {label}
+          </button>
         ))}
+        <span style={{ fontSize:11, color:'#cbd5e1', fontFamily:"'Kiwi Maru',serif", marginLeft:4 }}>
+          {visible.length}件 · 50音順
+        </span>
       </div>
 
       {/* ── 一覧 ── */}
@@ -157,7 +198,7 @@ export default function ExhibitsPage() {
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {visible.map(ex => {
-            const tc = TYPE_CONFIG[ex.type]
+            const tc = getItemBadge(ex)
             return (
               <div key={ex.id} style={{
                 display:'flex', alignItems:'center', gap:14,

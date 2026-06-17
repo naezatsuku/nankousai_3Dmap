@@ -79,7 +79,7 @@ export default function MapPage() {
     const supabase = createClient()
     const { data } = await supabase
       .from('exhibits')
-      .select('id, name, class_label, type, room_object, room_display, floor, has_wait_time, wait_minutes, is_active, day, thumbnail_url')
+      .select('id, name, class_label, type, room_object, room_display, floor, has_wait_time, wait_minutes, is_active, day, thumbnail_url, cover_url')
       .eq('is_active', true)
     if (data) setExhibits(data as Exhibit[])
   }, [])
