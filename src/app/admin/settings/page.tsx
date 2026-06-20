@@ -77,8 +77,8 @@ export default function SettingsPage() {
   // preview: 各ステージの範囲テキスト
   const activeThresholds = buildThresholds(waitStageCount, waitTh1, waitTh2, waitTh3)
   const previewStages = labels.map((lbl, i) => {
-    const prevTh = activeThresholds[i - 1] ?? 0
-    const thisTh = activeThresholds[i]
+    const prevTh = activeThresholds[i - 2] ?? 0
+    const thisTh = activeThresholds[i - 1]
     const range = i === 0
       ? '0分'
       : thisTh !== undefined

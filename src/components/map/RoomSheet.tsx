@@ -373,10 +373,10 @@ function BannerHeader({ exhibit }: { exhibit: Exhibit }) {
         <img src={exhibit.cover_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
         <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(0,0,0,.45) 0%, transparent 55%)' }} />
       </div>
-      {/* サムネがバナーにオーバーラップ */}
+      {/* サムネがバナーにオーバーラップ（テキストは画像にかぶらないよう banner 外側に配置） */}
       <div style={{ display:'flex', gap:14, alignItems:'flex-end', marginTop:-34, position:'relative' }}>
         <Thumb exhibit={exhibit} ring />
-        <div style={{ flex:1, minWidth:0, paddingBottom:4 }}>
+        <div style={{ flex:1, minWidth:0, paddingBottom:4, marginTop:34 }}>
           <h3 style={{
             fontSize:20, fontWeight:700, color:'#1a1a1a',
             fontFamily:"'Kaisei Decol',serif",

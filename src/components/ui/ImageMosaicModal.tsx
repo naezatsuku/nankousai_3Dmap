@@ -119,6 +119,31 @@ export default function ImageMosaicModal({ file, onConfirm, onCancel }: Props) {
     setCanUndo(historyRef.current.length > 0)
   }
 
+  const handleRotate = () => {
+    const canvas  = canvasRef.current!
+    const overlay = overlayRef.current!
+    const W = canvas.width, H = canvas.height
+
+    const temp = document.createElement('canvas')
+    temp.width = H
+    temp.height = W
+    const tctx = temp.getContext('2d')!
+    tctx.translate(H, 0)
+    tctx.rotate(Math.PI / 2)
+    tctx.drawImage(canvas, 0, 0)
+
+    canvas.width = H
+    canvas.height = W
+    canvas.getContext('2d', { willReadFrequently: true })!.drawImage(temp, 0, 0)
+
+    overlay.width = H
+    overlay.height = W
+    overlay.getContext('2d')!.clearRect(0, 0, overlay.width, overlay.height)
+
+    historyRef.current = []
+    setCanUndo(false)
+  }
+
   const handleConfirm = () => {
     canvasRef.current!.toBlob(blob => { if (blob) onConfirm(blob) }, 'image/webp', 0.85)
   }
@@ -150,8 +175,22 @@ export default function ImageMosaicModal({ file, onConfirm, onCancel }: Props) {
           モザイク
         </span>
 
-        {/* 右: 元に戻す + 完了 */}
+        {/* 右: 回転 + 元に戻す + 完了 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={handleRotate}
+            title="90度回転"
+            style={{
+              background: '#1f2937',
+              border: 'none',
+              borderRadius: 8,
+              color: '#f9fafb',
+              fontSize: 18, cursor: 'pointer',
+              padding: '4px 8px', lineHeight: 1,
+            }}
+          >
+            ↻
+          </button>
           <button
             onClick={handleUndo}
             disabled={!canUndo}

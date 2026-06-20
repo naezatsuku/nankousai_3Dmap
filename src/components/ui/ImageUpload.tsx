@@ -46,8 +46,8 @@ export default function ImageUpload({ value, onChange, storagePath, aspect = 'sq
   const isWide   = aspect === 'wide'
   const maxW     = isWide ? 1200 : 400
   const maxH     = isWide ? 675  : 400
-  const previewH = isWide ? 120  : 100
-  const previewW = isWide ? 'auto' : 100
+  const previewH = isWide ? 120 : 100
+  const previewW = isWide ? Math.round(previewH * 16 / 9) : 100
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {

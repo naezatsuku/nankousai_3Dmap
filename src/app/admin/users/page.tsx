@@ -37,6 +37,9 @@ export default function UsersPage() {
   const [pendingIds, setPendingIds]     = useState<Set<string>>(new Set())
   const [saving, setSaving]             = useState(false)
 
+  // 学年組フィルター
+  const [classFilter, setClassFilter] = useState('')
+
   const loadProfiles = useCallback(() => {
     const supabase = createClient()
     supabase
@@ -79,10 +82,9 @@ export default function UsersPage() {
     setInviting(false)
   }
 
-  // ── ロール切り替え（admin→editor→student→teacher→band→admin） ──
-  const cycleRole = async (profile: ProfileRow) => {
-    const cycle: Role[] = ['admin', 'editor', 'student', 'teacher', 'band']
-    const next = cycle[(cycle.indexOf(profile.role) + 1) % cycle.length]
+  // ── ロール変更 ──
+  const changeRole = async (profile: ProfileRow, next: Role) => {
+    if (next === profile.role) return
     const res = await fetch('/api/admin/users/role', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: profile.id, role: next }),
@@ -142,6 +144,22 @@ export default function UsersPage() {
     loadProfiles()
   }
 
+  // ── 学年組フィルター ──────────────────────────────────────────
+  const classOptions = [...new Set(
+    allExhibits.map(ex => ex.class_label).filter((c): c is string => !!c)
+  )].sort()
+
+  const getProfileClassLabels = (p: ProfileRow): string[] => {
+    const entries = (p.role === 'editor' || p.role === 'teacher')
+      ? p.exhibit_editors
+      : p.student_exhibits // student / admin 共通
+    return entries.map(e => e.exhibit?.class_label).filter((c): c is string => !!c)
+  }
+
+  const visibleProfiles = classFilter
+    ? profiles.filter(p => getProfileClassLabels(p).includes(classFilter))
+    : profiles
+
   // ── レンダー ──────────────────────────────────────────────────
   return (
     <div style={{ maxWidth:820 }}>
@@ -183,12 +201,38 @@ export default function UsersPage() {
         )}
       </div>
 
+      {/* ── 学年組フィルター ── */}
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+        <span style={{ fontSize:12, color:'#64748b', fontFamily:"'Kiwi Maru',serif", fontWeight:700 }}>
+          学年組で絞り込み
+        </span>
+        <select
+          value={classFilter}
+          onChange={e => setClassFilter(e.target.value)}
+          style={{
+            padding:'6px 10px', borderRadius:8, border:'1px solid #e2e8f0',
+            background:'#fff', fontSize:12, color:'#1e293b',
+            cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
+          }}
+        >
+          <option value="">すべて</option>
+          {classOptions.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {classFilter && (
+          <span style={{ fontSize:11, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+            {visibleProfiles.length} 件
+          </span>
+        )}
+      </div>
+
       {/* ── ユーザー一覧 ── */}
       {loading ? (
         <PageLoader />
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          {profiles.map(p => {
+          {visibleProfiles.map(p => {
             const assignedExhibits = (p.role === 'student'
               ? p.student_exhibits : p.exhibit_editors
             ).map(e => e.exhibit).filter(Boolean) as ExhibitOption[]
@@ -209,12 +253,6 @@ export default function UsersPage() {
               : p.role === 'teacher' ? 'linear-gradient(135deg,#0ea5e9,#38bdf8)'
               : p.role === 'band' ? 'linear-gradient(135deg,#a855f7,#c084fc)'
               : 'linear-gradient(135deg,#10b981,#34d399)'
-
-            const nextRole: Role = p.role === 'admin' ? 'editor'
-              : p.role === 'editor' ? 'student'
-              : p.role === 'student' ? 'teacher'
-              : p.role === 'teacher' ? 'band'
-              : 'admin'
 
             return (
               <div key={p.id} style={{ background:'#fff', borderRadius:16, padding:'18px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid #f1f5f9' }}>
@@ -341,13 +379,19 @@ export default function UsersPage() {
                         シフト参加クラスを設定
                       </button>
                     )}
-                    <button onClick={() => cycleRole(p)} style={{
-                      padding:'6px 12px', borderRadius:8, border:'1px solid #e2e8f0',
-                      background:'#fff', fontSize:11, color:'#64748b',
-                      cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
-                    }}>
-                      → {nextRole.toUpperCase()} に変更
-                    </button>
+                    <select
+                      value={p.role}
+                      onChange={e => changeRole(p, e.target.value as Role)}
+                      style={{
+                        padding:'6px 10px', borderRadius:8, border:'1px solid #e2e8f0',
+                        background:'#fff', fontSize:11, color:'#64748b',
+                        cursor:'pointer', fontFamily:"'Kiwi Maru',serif",
+                      }}
+                    >
+                      {(['admin', 'editor', 'student', 'teacher', 'band'] as Role[]).map(r => (
+                        <option key={r} value={r}>{r.toUpperCase()}</option>
+                      ))}
+                    </select>
                     <button onClick={() => setDeleteId(p.id)} style={{
                       padding:'6px 12px', borderRadius:8, border:'1px solid #fee2e2',
                       background:'#fff', fontSize:11, color:'#ef4444',
@@ -360,7 +404,7 @@ export default function UsersPage() {
               </div>
             )
           })}
-          {profiles.length === 0 && (
+          {visibleProfiles.length === 0 && (
             <div style={{ textAlign:'center', padding:'40px 0', color:'#94a3b8', fontFamily:"'Kiwi Maru',serif", fontSize:13 }}>
               ユーザーが見つかりませんでした
             </div>
