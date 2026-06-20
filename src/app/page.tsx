@@ -24,6 +24,31 @@ interface NanpenLoaderProps {
 
 interface TopPageProps {
   onNavigate: (dest: string) => void;
+  festivalBadge: string;
+  festivalYear: number;
+}
+
+// デフォルト値（site_settings 取得前のフォールバック）
+const DEFAULT_FESTIVAL_DATES = { sat: '2025-09-13', sun: '2025-09-14' };
+
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+
+function weekdayKanji(date: Date): string {
+  return ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+}
+
+function formatFestivalBadge(satISO: string, sunISO: string): string {
+  const sat = parseLocalDate(satISO);
+  const sun = parseLocalDate(sunISO);
+  const satStr = `${sat.getFullYear()}年${sat.getMonth() + 1}月${sat.getDate()}日（${weekdayKanji(sat)}）`;
+  const sameMonth = sat.getFullYear() === sun.getFullYear() && sat.getMonth() === sun.getMonth();
+  const sunStr = sameMonth
+    ? `${sun.getDate()}日（${weekdayKanji(sun)}）`
+    : `${sun.getFullYear()}年${sun.getMonth() + 1}月${sun.getDate()}日（${weekdayKanji(sun)}）`;
+  return `${satStr}・${sunStr}`;
 }
 
 // ============================================================
@@ -310,7 +335,7 @@ function NanpenLoader({ onComplete }: NanpenLoaderProps) {
 // ============================================================
 // トップページ
 // ============================================================
-function TopPage({ onNavigate }: TopPageProps) {
+function TopPage({ onNavigate, festivalBadge, festivalYear }: TopPageProps) {
   const router = useRouter();
   const [nanpenTap, setNanpenTap] = useState<boolean>(false);
   const [footerBounce, setFooterBounce] = useState<number>(0);
@@ -456,7 +481,7 @@ function TopPage({ onNavigate }: TopPageProps) {
             fontSize: 11, color: "#FF6B00", letterSpacing: "0.12em",
             fontWeight: 500, fontFamily: "'Kiwi Maru', serif",
           }}>
-            2025年9月12日（土）・13日（日）
+            {festivalBadge}
           </span>
         </div>
 
@@ -716,7 +741,7 @@ function TopPage({ onNavigate }: TopPageProps) {
             fontFamily: "'Kaisei Decol', serif",
             fontSize: 14, color: "#FF8C00", marginBottom: 4,
           }}>
-            南高祭 2025
+            南高祭 {festivalYear}
           </div>
           <div style={{ fontSize: 10, color: "#FFD0A0", letterSpacing: "0.15em" }}>
             南高等学校 文化祭実行委員会
@@ -734,10 +759,26 @@ export default function Page() {
   const router = useRouter();
   // SSR・初回クライアントレンダーともにローダーを即表示（FCP/LCP を稼ぐ）
   const [loaded, setLoaded] = useState<boolean>(false);
+  const [festivalDates, setFestivalDates] = useState(DEFAULT_FESTIVAL_DATES);
 
   // リピーター（同セッション2回目以降）はハイドレーション後すぐスキップ
   useEffect(() => {
     if (sessionStorage.getItem('nanpen_loaded')) setLoaded(true)
+  }, [])
+
+  // 開催日程を site_settings から取得
+  useEffect(() => {
+    fetch('/api/admin/settings', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((d: { festival_sat?: string; festival_sun?: string }) => {
+        if (d.festival_sat || d.festival_sun) {
+          setFestivalDates({
+            sat: d.festival_sat ?? DEFAULT_FESTIVAL_DATES.sat,
+            sun: d.festival_sun ?? DEFAULT_FESTIVAL_DATES.sun,
+          })
+        }
+      })
+      .catch(() => {})
   }, [])
 
   // マップの GLB を先読み・パースしておく
@@ -758,6 +799,10 @@ export default function Page() {
   };
 
   return loaded
-    ? <TopPage onNavigate={handleNavigate} />
+    ? <TopPage
+        onNavigate={handleNavigate}
+        festivalBadge={formatFestivalBadge(festivalDates.sat, festivalDates.sun)}
+        festivalYear={parseLocalDate(festivalDates.sat).getFullYear()}
+      />
     : <NanpenLoader onComplete={handleComplete} />
 }

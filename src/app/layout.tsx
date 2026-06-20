@@ -64,9 +64,9 @@ export const metadata: Metadata = {
     title:       `南高祭${YEAR} | 横浜市立南高等学校 文化祭公式サイト`,
     description: `南高・南高附属中最大の行事へようこそ。フード販売やバンドの生演奏を含む、たくさんの魅力的な展示を公開しています。どなたも入場無料。ぜひ気軽にお越しください！`,
     images: [{
-      url:    '/og-image.png',
-      width:  1200,
-      height: 630,
+      url:    '/nanpen.png',
+      width:  448,
+      height: 495,
       alt:    `南高祭${YEAR}`,
     }],
   },
@@ -75,7 +75,7 @@ export const metadata: Metadata = {
     card:        'summary_large_image',
     title:       `南高祭${YEAR} | 横浜市立南高等学校 文化祭公式サイト`,
     description: `南高・南高附属中最大の行事へようこそ。フード販売やバンドの生演奏を含む、たくさんの魅力的な展示を公開しています。どなたも入場無料。ぜひ気軽にお越しください！`,
-    images:      ['/og-image.png'],
+    images:      ['/nanpen.png'],
   },
 
   icons: {
