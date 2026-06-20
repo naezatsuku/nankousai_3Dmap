@@ -6,10 +6,13 @@ import dynamic from 'next/dynamic'
 
 const QrScanner     = dynamic(() => import('@/components/ui/QrScanner'),    { ssr: false })
 const FeedbackSheet = dynamic(() => import('@/components/ui/FeedbackSheet'), { ssr: false })
+const GachaModal    = dynamic(() => import('@/components/ui/GachaModal'),    { ssr: false })
 
 interface StampExhibit { id: string; name: string; class_label: string | null; thumbnail_url: string | null }
 interface StampRecord  { exhibit_id: string; stamped_at: string }
 interface Toast        { msg: string; type: 'ok' | 'err' | 'already' }
+interface GachaInfo    { cost: number; available: number }
+interface GachaQr      { w: string; h: string }
 
 const COLS = 5
 const GAP  = 8   // セル間の隙間 px
@@ -50,6 +53,8 @@ export default function StampPage() {
   const [toast,         setToast]         = useState<Toast | null>(null)
   const [feedbackSheet, setFeedbackSheet] = useState<{ exhibitId: string; exhibitName: string } | null>(null)
   const [devPreviewId,  setDevPreviewId]  = useState<string | null>(null)
+  const [gachaInfo,     setGachaInfo]     = useState<GachaInfo | null>(null)
+  const [gachaQr,       setGachaQr]       = useState<GachaQr | null>(null)
   const [page,        setPage]        = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(3)
   const [cellSize,    setCellSize]    = useState(56)
@@ -100,12 +105,21 @@ export default function StampPage() {
     fetch(`/api/stamp?userId=${userId}`)
       .then(r => r.json())
       .then((json: { stamps: StampRecord[] }) => { if (json.stamps) setStamps(json.stamps) })
+    fetchGachaInfo(userId)
   }, [userId])
 
   const fetchStamps = useCallback(async (uid: string) => {
     const res  = await fetch(`/api/stamp?userId=${uid}`)
     const json = await res.json() as { stamps: StampRecord[] }
     if (json.stamps) setStamps(json.stamps)
+  }, [])
+
+  const fetchGachaInfo = useCallback(async (uid: string) => {
+    const res  = await fetch(`/api/gachapon?userId=${uid}`)
+    const json = await res.json() as { cost?: number; available?: number }
+    if (typeof json.cost === 'number' && typeof json.available === 'number') {
+      setGachaInfo({ cost: json.cost, available: json.available })
+    }
   }, [])
 
   // ── スキャン処理 ──────────────────────────────────────────────────
@@ -131,10 +145,18 @@ export default function StampPage() {
   const handleScanResult = useCallback(async (qrText: string) => {
     setScanning(false)
     try {
-      const url = new URL(qrText)
-      const e   = url.searchParams.get('e')
-      const w   = url.searchParams.get('w')
-      const h   = url.searchParams.get('h')
+      const url    = new URL(qrText)
+      const gacha  = url.searchParams.get('gacha')
+      const e      = url.searchParams.get('e')
+      const w      = url.searchParams.get('w')
+      const h      = url.searchParams.get('h')
+
+      if (gacha === '1' && w && h && userId) {
+        await fetchGachaInfo(userId)
+        setGachaQr({ w, h })
+        return
+      }
+
       if (!e || !w || !h || !userId) { showToast('QRコードを認識できませんでした', 'err'); return }
 
       const res  = await fetch('/api/stamp', {
@@ -150,6 +172,7 @@ export default function StampPage() {
         setNewStampId(e)
         setTimeout(() => setNewStampId(null), 1500)
         await fetchStamps(userId)
+        await fetchGachaInfo(userId)
         showToast(`✓ ${json.exhibitName} のスタンプを押しました！`, 'ok')
         setTimeout(() => setFeedbackSheet({ exhibitId: e, exhibitName: json.exhibitName ?? '' }), 600)
         const idx = exhibits.findIndex(ex => ex.id === e)
@@ -160,7 +183,7 @@ export default function StampPage() {
     } catch {
       showToast('このQRコードは対応していません', 'err')
     }
-  }, [userId, fetchStamps, showToast, exhibits, itemsPerPage])
+  }, [userId, fetchStamps, fetchGachaInfo, showToast, exhibits, itemsPerPage])
 
   const stampedIds = new Set(stamps.map(s => s.exhibit_id))
   const collected  = stamps.length
@@ -258,6 +281,19 @@ export default function StampPage() {
             {collected === total && total > 0 && ' 🎉'}
           </div>
         </div>
+
+        {/* ── ガラポン状況 ── */}
+        {gachaInfo && (
+          <div style={{
+            flexShrink: 0, padding: '10px 16px',
+            background: '#fff8f0', borderBottom: '1px solid #ffe4c4',
+            display: 'flex', justifyContent: 'space-around', textAlign: 'center',
+          }}>
+            <GachaStat label="集めた数" value={collected} />
+            <GachaStat label="1回に必要" value={gachaInfo.cost} />
+            <GachaStat label="ガラポン有効残り" value={gachaInfo.available} highlight />
+          </div>
+        )}
 
         {/* ── グリッド本体 ── */}
         <div
@@ -444,6 +480,17 @@ export default function StampPage() {
       </div>
 
       {scanning && <QrScanner onResult={handleScanResult} onCancel={() => setScanning(false)} />}
+      {gachaQr && gachaInfo && (
+        <GachaModal
+          userId={userId}
+          w={gachaQr.w}
+          h={gachaQr.h}
+          cost={gachaInfo.cost}
+          available={gachaInfo.available}
+          onClose={() => setGachaQr(null)}
+          onSuccess={newAvailable => setGachaInfo(info => info ? { ...info, available: newAvailable } : info)}
+        />
+      )}
       {feedbackSheet && (
         <FeedbackSheet
           exhibitId={feedbackSheet.exhibitId}
@@ -467,6 +514,20 @@ export default function StampPage() {
         </div>
       )}
     </>
+  )
+}
+
+function GachaStat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: '#92400e', fontFamily: "'Kiwi Maru',serif", marginBottom: 2 }}>{label}</div>
+      <div style={{
+        fontFamily: "'Kaisei Decol',serif", fontSize: highlight ? 20 : 16, fontWeight: 700,
+        color: highlight ? '#FF6B00' : '#92400e',
+      }}>
+        {value}
+      </div>
+    </div>
   )
 }
 

@@ -24,3 +24,22 @@ export function buildQrUrl(baseUrl: string, exhibitId: string, secret: string): 
   const h = makeHmac(secret, exhibitId, w)
   return `${baseUrl}/stamp?e=${exhibitId}&w=${w}&h=${h}`
 }
+
+// ─── ガラポン専用QR ──────────────────────────────────────────────
+function makeGachaHmac(secret: string, w: number): string {
+  return createHmac('sha256', secret)
+    .update(`gacha:${w}`)
+    .digest('hex')
+    .slice(0, 16)
+}
+
+export function verifyGachaQr(secret: string, w: number, h: string): boolean {
+  const now = currentWindow()
+  return [now - 1, now, now + 1].some(candidate => makeGachaHmac(secret, candidate) === h)
+}
+
+export function buildGachaQrUrl(baseUrl: string, secret: string): string {
+  const w = currentWindow()
+  const h = makeGachaHmac(secret, w)
+  return `${baseUrl}/stamp?gacha=1&w=${w}&h=${h}`
+}

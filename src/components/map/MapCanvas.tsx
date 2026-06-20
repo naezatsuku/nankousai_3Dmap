@@ -299,10 +299,11 @@ export default function MapCanvas({
   const exhibitMap = useMemo(() => {
     const map: Record<string, Exhibit[]> = {}
     for (const e of exhibits) {
-      const key = e.room_object ?? ''
-      if (!key) continue
-      if (!map[key]) map[key] = []
-      map[key].push(e)
+      for (const key of e.room_object ?? []) {
+        if (!key) continue
+        if (!map[key]) map[key] = []
+        map[key].push(e)
+      }
     }
     return map
   }, [exhibits])

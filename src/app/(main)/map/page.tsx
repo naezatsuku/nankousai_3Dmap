@@ -157,13 +157,13 @@ export default function MapPage() {
     if (matches.length === 1) {
       const m = matches[0]
       if (m.floor !== undefined && m.floor !== floorRef.current) setFloor(m.floor)
-      setFocusRoom(m.room_object ?? null)
+      setFocusRoom(m.room_object?.[0] ?? null)
     }
   }, [exhibits])
 
   const handleRoomClick = useCallback((nodeName: string) => {
     setSelectedRoom(nodeName)
-    setSheetExhibits(exhibits.filter(e => e.room_object === nodeName))
+    setSheetExhibits(exhibits.filter(e => e.room_object?.includes(nodeName)))
   }, [exhibits])
 
   const handleClose = useCallback(() => {
@@ -179,7 +179,7 @@ export default function MapPage() {
   // サジェストから選択されたとき
   const handleSelect = useCallback((exhibit: Exhibit) => {
     if (exhibit.floor !== undefined && exhibit.floor !== floorRef.current) setFloor(exhibit.floor)
-    setFocusRoom(exhibit.room_object ?? null)
+    setFocusRoom(exhibit.room_object?.[0] ?? null)
   }, [])
 
   if (mapEnabled === false) {

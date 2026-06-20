@@ -41,7 +41,7 @@ export interface ExhibitDetail {
   name:          string
   class_label?:  string
   type:          ExhibitType
-  room_object?:  string
+  room_object?:  string[]
   room_display?: string
   floor?:        number
   day:           Day
@@ -59,7 +59,7 @@ interface RawImage { id: string; url: string; type: 'image'|'video'; caption: st
 interface RawSection { id: string; heading: string; body: BodySegment[]; order_index: number; section_images: RawImage[] }
 interface RawExhibit {
   id: string; name: string; class_label: string|null; type: string
-  room_object: string|null; room_display: string|null; floor: number|null; day: string|null
+  room_object: string[]|null; room_display: string|null; floor: number|null; day: string|null
   catch_copy: string|null; cover_url: string|null; thumbnail_url: string|null; description: string|null
   sections: RawSection[]; images: RawImage[]
 }

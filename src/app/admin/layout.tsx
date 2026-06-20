@@ -9,7 +9,7 @@ import type { ReactNode } from 'react'
 import {
   LayoutDashboard, Building2, Pencil, Bell, ClipboardCheck,
   ShoppingBag, Music2, Megaphone, FlaskConical, CalendarDays,
-  ClipboardList, User, GraduationCap, FileText, Settings, Users,
+  ClipboardList, User, GraduationCap, FileText, Settings, Users, Dices,
 } from 'lucide-react'
 
 type NavItem = {
@@ -89,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
     items:[
       { href:'/admin/users',    icon:<Users size={14} />,          label:'権限管理',   adminOnly:true },
       { href:'/admin/teachers', icon:<GraduationCap size={14} />, label:'先生管理',   adminOnly:true },
+      { href:'/admin/gachapon', icon:<Dices size={14} />,         label:'ガラポン管理', adminOnly:true },
       { href:'/admin/settings', icon:<Settings size={14} />,      label:'サイト設定', adminOnly:true },
     ],
   },
@@ -467,6 +468,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
     '/admin/users':         '権限管理',
     '/admin/teachers':      '先生管理',
     '/admin/exhibits':      '団体管理',
+    '/admin/gachapon':      'ガラポン管理',
     '/admin/notify-test':   '通知テスト',
     '/admin/profile':       'プロフィール',
     '/admin/band':          'マイバンド',

@@ -57,8 +57,8 @@ export interface Exhibit {
   /** クラス名（例: "高2-1"）。有志団体などはなし */
   class_label?: string
   type: ExhibitType
-  /** Three.js メッシュ名（例: "201", "main", "sub"）*/
-  room_object?: string
+  /** Three.js メッシュ名（例: "201", "main", "sub"）。1団体で複数メッシュに対応可 */
+  room_object?: string[]
   /** ユーザー向け表示名（例: "201教室", "メインアリーナ"）*/
   room_display?: string
   floor?: FloorNumber

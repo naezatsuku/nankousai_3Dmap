@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.exhibits (
   name          TEXT NOT NULL,
   class_label   TEXT,
   type          TEXT NOT NULL CHECK (type IN ('class', 'food', 'band', 'special', 'cafeteria')),
-  room_object   TEXT,
+  room_object   TEXT[],
   room_display  TEXT,
   floor         SMALLINT CHECK (floor BETWEEN 1 AND 6),
   catch_copy    TEXT,

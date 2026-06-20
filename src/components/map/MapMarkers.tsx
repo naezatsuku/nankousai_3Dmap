@@ -22,7 +22,12 @@ const WAIT_COLOR = (min: number) => {
 }
 
 export default function MapMarkers({ markers, exhibits, onMarkerClick }: MapMarkersProps) {
-  const exhibitMap = Object.fromEntries(exhibits.map(e => [e.room_object, e]))
+  const exhibitMap: Record<string, Exhibit> = {}
+  for (const e of exhibits) {
+    for (const room of e.room_object ?? []) {
+      exhibitMap[room] = e
+    }
+  }
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">

@@ -54,7 +54,7 @@ export default function ClassPageContent({ exhibit }: { exhibit: ExhibitDetail }
         <Link
           href={(() => {
             const params = new URLSearchParams()
-            if (exhibit.room_object) params.set('room', exhibit.room_object)
+            if (exhibit.room_object?.[0]) params.set('room', exhibit.room_object[0])
             if (exhibit.floor != null) params.set('floor', String(exhibit.floor))
             const qs = params.toString()
             return qs ? `/map?${qs}` : '/map'
