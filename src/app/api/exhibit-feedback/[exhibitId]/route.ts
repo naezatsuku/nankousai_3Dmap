@@ -27,8 +27,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ exhibitI
   const [commentsRes, likeCountRes, siteRes] = await Promise.all([
     commentQuery,
     db.from('exhibit_likes').select('id', { count: 'exact', head: true }).eq('exhibit_id', exhibitId),
-    db.from('site_settings').select('like_count_visible').single(),
+    db.from('site_settings').select('like_count_visible, comment_mode').single(),
   ])
+
+  const commentEnabled = (siteRes.data?.comment_mode ?? 'all_on') !== 'all_off'
 
   let userLiked    = false
   let userHasStamp = false
@@ -44,10 +46,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ exhibitI
   }
 
   return NextResponse.json({
-    likeCount:     likeCountRes.count ?? 0,
+    likeCount:      likeCountRes.count ?? 0,
     userLiked,
     userHasStamp,
-    showLikeCount: siteRes.data?.like_count_visible ?? true,
-    comments:      commentsRes.data ?? [],
+    showLikeCount:  siteRes.data?.like_count_visible ?? true,
+    commentEnabled,
+    comments:       commentEnabled ? (commentsRes.data ?? []) : [],
   })
 }

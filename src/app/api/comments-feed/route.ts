@@ -17,6 +17,11 @@ export async function GET(req: Request) {
 
   const db = supabase()
 
+  const { data: site } = await db.from('site_settings').select('comment_mode').single()
+  if ((site?.comment_mode ?? 'all_on') !== 'all_on') {
+    return NextResponse.json({ comments: [] })
+  }
+
   let query = db
     .from('exhibit_comments')
     .select('id, exhibit_id, body, author_name, created_at, exhibit:exhibits(id, name, thumbnail_url, cover_url)')

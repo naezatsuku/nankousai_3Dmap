@@ -44,6 +44,7 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
   const [liked,         setLiked]         = useState(false)
   const [showLikeCount, setShowLikeCount] = useState(true)
   const [userHasStamp,  setUserHasStamp]  = useState(false)
+  const [commentEnabled, setCommentEnabled] = useState(true)
   const [comments,      setComments]      = useState<Comment[]>([])
   const [comment,       setComment]       = useState('')
   const [authorName,    setAuthorName]    = useState('')
@@ -56,12 +57,13 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
     let alive = true
     fetch(`/api/exhibit-feedback/${exhibitId}?userId=${userId}&limit=3`)
       .then(r => r.json())
-      .then((d: { likeCount: number; userLiked: boolean; userHasStamp: boolean; showLikeCount: boolean; comments: Comment[] }) => {
+      .then((d: { likeCount: number; userLiked: boolean; userHasStamp: boolean; showLikeCount: boolean; commentEnabled: boolean; comments: Comment[] }) => {
         if (!alive) return
         setLikeCount(d.likeCount)
         setLiked(d.userLiked)
         setUserHasStamp(d.userHasStamp)
         setShowLikeCount(d.showLikeCount)
+        setCommentEnabled(d.commentEnabled ?? true)
         setComments(d.comments)
       })
     return () => { alive = false }
@@ -202,8 +204,16 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
         {/* Scrollable body */}
         <div style={{ flex:1, overflowY:'auto' }}>
 
+          {!commentEnabled && (
+            <div style={{ padding:'24px 16px', textAlign:'center' }}>
+              <div style={{ fontSize:13, color:'#94a3b8', fontFamily:"'Kiwi Maru',serif" }}>
+                現在コメント機能は停止中です
+              </div>
+            </div>
+          )}
+
           {/* Compose */}
-          {!submitted ? (
+          {commentEnabled && (!submitted ? (
             <div style={{ padding:'12px 16px', borderBottom:'1px solid #eff3f4' }}>
               <div style={{ display:'flex', gap:10 }}>
                 <Avatar name={authorName || null} size={40} />
@@ -331,10 +341,10 @@ export default function FeedbackSheet({ exhibitId, exhibitName, userId, onClose 
                 </div>
               </div>
             </div>
-          )}
+          ))}
 
           {/* Comments */}
-          {comments.map(c => (
+          {commentEnabled && comments.map(c => (
             <div key={c.id} style={{
               padding:'12px 16px',
               borderBottom:'1px solid #eff3f4',

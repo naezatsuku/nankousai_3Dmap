@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const [isPublic,         setIsPublic]         = useState<boolean | null>(null)
   const [mapEnabled,       setMapEnabled]       = useState<boolean | null>(null)
   const [likeCountVisible, setLikeCountVisible] = useState<boolean | null>(null)
+  const [commentMode,      setCommentMode]      = useState<'all_on' | 'public_off' | 'all_off' | null>(null)
   const [festivalSat,      setFestivalSat]      = useState<string>('2025-09-13')
   const [festivalSun,      setFestivalSun]      = useState<string>('2025-09-14')
   const [triggerMin,       setTriggerMin]       = useState<number>(5)
@@ -25,6 +26,7 @@ export default function SettingsPage() {
       .then((d: {
         is_public: boolean
         map_enabled: boolean; like_count_visible: boolean
+        comment_mode?: 'all_on' | 'public_off' | 'all_off'
         festival_sat: string; festival_sun: string
         announcement_trigger_minutes?: number
         wait_stage_count?: number
@@ -33,6 +35,7 @@ export default function SettingsPage() {
         setIsPublic(d.is_public ?? true)
         setMapEnabled(d.map_enabled)
         setLikeCountVisible(d.like_count_visible)
+        setCommentMode(d.comment_mode ?? 'all_on')
         setFestivalSat(d.festival_sat ?? '2025-09-13')
         setFestivalSun(d.festival_sun ?? '2025-09-14')
         setTriggerMin(d.announcement_trigger_minutes ?? 5)
@@ -44,7 +47,7 @@ export default function SettingsPage() {
   }, [])
 
   const handleSave = async () => {
-    if (isPublic === null || mapEnabled === null || likeCountVisible === null || saving) return
+    if (isPublic === null || mapEnabled === null || likeCountVisible === null || commentMode === null || saving) return
     setSaving(true)
     setSaved(false)
     setError('')
@@ -54,6 +57,7 @@ export default function SettingsPage() {
       body: JSON.stringify({
         is_public: isPublic,
         map_enabled: mapEnabled, like_count_visible: likeCountVisible,
+        comment_mode: commentMode,
         festival_sat: festivalSat, festival_sun: festivalSun,
         announcement_trigger_minutes: triggerMin,
         wait_stage_count: waitStageCount,
@@ -106,7 +110,7 @@ export default function SettingsPage() {
           🗺 マップ公開設定
         </div>
 
-        {isPublic === null || mapEnabled === null || likeCountVisible === null ? (
+        {isPublic === null || mapEnabled === null || likeCountVisible === null || commentMode === null ? (
           <PageLoader />
         ) : (
           <>
@@ -203,6 +207,49 @@ export default function SettingsPage() {
                 const isSel = likeCountVisible === opt.value
                 return (
                   <button key={String(opt.value)} onClick={() => { setLikeCountVisible(opt.value); setSaved(false) }}
+                    style={{
+                      width: '100%', padding: '14px 16px', borderRadius: 12,
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      background: isSel ? `${opt.color}0d` : '#f8fafc',
+                      boxShadow: isSel ? `inset 0 0 0 2px ${opt.color}` : 'inset 0 0 0 1.5px #e2e8f0',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                      border: `2px solid ${isSel ? opt.color : '#cbd5e1'}`,
+                      background: isSel ? opt.color : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isSel && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: "'Kaisei Decol',serif", fontSize: 14, fontWeight: 700, color: isSel ? opt.color : '#1e293b' }}>
+                        {opt.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'Kiwi Maru',serif", marginTop: 2 }}>
+                        {opt.desc}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* ── コメント機能設定 ── */}
+            <div style={{ fontFamily: "'Kaisei Decol',serif", fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 20, marginTop: 28 }}>
+              💬 コメント機能設定
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+              {[
+                { value: 'all_on' as const,     label: '全てON',       desc: 'スタンプラリー後のコメント機能・タイムラインの「みんなの声」とも表示します', color: '#10b981' },
+                { value: 'public_off' as const,  label: 'コメント公開OFF', desc: 'スタンプラリー後のコメント機能はそのまま。タイムラインの「みんなの声」は非表示にします', color: '#f59e0b' },
+                { value: 'all_off' as const,     label: '全てOFF',      desc: 'スタンプラリー後のコメント機能・タイムラインの「みんなの声」とも非表示にします', color: '#ef4444' },
+              ].map(opt => {
+                const isSel = commentMode === opt.value
+                return (
+                  <button key={opt.value} onClick={() => { setCommentMode(opt.value); setSaved(false) }}
                     style={{
                       width: '100%', padding: '14px 16px', borderRadius: 12,
                       border: 'none', cursor: 'pointer', textAlign: 'left',

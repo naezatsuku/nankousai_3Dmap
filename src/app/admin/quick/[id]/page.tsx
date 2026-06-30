@@ -780,11 +780,11 @@ export default function QuickPage() {
         {/* ══════════ PC用レイアウト（左30% / 右70%） ══════════ */}
         <div className="qp-desktop-wrap">
 
-          {/* ── 左列（30%）：待ち時間（コンパクト・上から35%まで）＋ メニュー ── */}
+          {/* ── 左列（30%）：待ち時間（コンパクト・内容に応じた高さ）＋ メニュー ── */}
           <div style={{ display:'flex', flexDirection:'column', gap:16, height:'100%', overflow:'hidden', minWidth:0 }}>
 
-            <div style={{ flex:'0 0 35%', minHeight:0, overflow:'hidden' }}>
-              <Section label="⏱ 待ち時間" fill>
+            <div style={{ flexShrink:0 }}>
+              <Section label="⏱ 待ち時間">
                 <button onClick={() => setHasWait(v => !v)} style={{
                   width:'100%', padding:'10px 14px', borderRadius:10, border:'none', cursor:'pointer',
                   display:'flex', alignItems:'center', gap:10,
@@ -1046,7 +1046,7 @@ function Section({ label, children, accent, fill, collapsible, open = true, onTo
   collapsible?: boolean; open?: boolean; onToggle?: () => void
 }) {
   return (
-    <div style={fill ? { display:'flex', flexDirection:'column', flex:1, overflow:'hidden' } : undefined}>
+    <div style={fill ? { display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' } : undefined}>
       {collapsible && !open ? (
         /* 折りたたみ中：縦向きスリムタブ */
         <button
@@ -1089,7 +1089,7 @@ function Section({ label, children, accent, fill, collapsible, open = true, onTo
             background:'#fff', borderRadius:16, padding:'16px',
             boxShadow:'0 1px 3px rgba(0,0,0,0.06)',
             border: accent ? '1px solid #fde68a' : '1px solid #f1f5f9',
-            ...(fill ? { flex:1, overflowY:'auto' as const } : {}),
+            ...(fill ? { flex:1, minHeight:0, overflowY:'auto' as const } : {}),
           }}>
             {children}
           </div>

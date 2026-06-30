@@ -45,6 +45,7 @@ export default function TimelinePage() {
   const [readIds, setReadIds]       = useState<Set<string>>(() => getReadIds())
   const [filterType, setFilterType] = useState<FilterType>('all')
   const [likes, setLikes]           = useState<Record<string, LikeState>>({})
+  const [commentTabVisible, setCommentTabVisible] = useState(true)
 
   const itemsRef    = useRef<FeedItem[]>([])
   const seenIds     = useRef<Set<string>>(new Set())
@@ -114,6 +115,18 @@ export default function TimelinePage() {
     const id = setTimeout(() => loadPage(null, true), 0)
     return () => clearTimeout(id)
   }, [loadPage])
+
+  // コメント公開設定の取得（OFFなら「みんなの声」タブを非表示）
+  useEffect(() => {
+    fetch('/api/admin/settings')
+      .then(r => r.json())
+      .then((d: { comment_mode?: 'all_on' | 'public_off' | 'all_off' }) => {
+        const visible = (d.comment_mode ?? 'all_on') === 'all_on'
+        setCommentTabVisible(visible)
+        if (!visible) setFilterType(f => (f === 'comment' ? 'all' : f))
+      })
+      .catch(() => {})
+  }, [])
 
   // 引っ張って更新（カードエリアの PullToRefresh から発火する 'app-refresh' を受けて先頭から取り直す）
   const refreshFeed = useCallback(() => {
@@ -224,7 +237,7 @@ export default function TimelinePage() {
 
           {/* タブバー（X風・均等幅＋アンダーラインインジケーター） */}
           <div style={{ display:'flex' }}>
-            {TABS.map(tab => {
+            {TABS.filter(tab => tab.key !== 'comment' || commentTabVisible).map(tab => {
               const isActive = filterType === tab.key
               return (
                 <button
